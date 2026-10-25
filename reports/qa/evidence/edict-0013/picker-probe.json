@@ -1,0 +1,12 @@
+{
+  "note": "EDICT-0013 AC9 probe, headed Chrome via CDP; ::picker(select) styles are top-layer",
+  "base-select": "true",
+  "supports": true,
+  "chrome": "155",
+  "pickerBackground": "rgb(111, 111, 111)",
+  "pickerBorder": "2px solid rgb(0, 0, 0)",
+  "pickerFont": "Minecraft, Pixelify, ui-monospace, monospace",
+  "pickerOpenInHeaded": "false",
+  "optionCheckedColour": "rgb(255, 255, 255)",
+  "cssSyntaxPicker": "true"
+}

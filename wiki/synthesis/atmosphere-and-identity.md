@@ -7,6 +7,7 @@ sources:
   - 2026-10-25-minecraft-panorama-provenance
   - 2026-10-25-minecraft-asset-provenance
   - 2026-10-25-minecraft-icon-render-provenance
+  - 2026-10-25-minecraft-font-licence
 tags: [design, provenance, product]
 ---
 
@@ -33,16 +34,29 @@ pattern rather than a one-off.
 4. **Convert taste into measurable properties.** "Just like the menu" became: a blurred layer
    present, an animation named `panorama-drift`, a scrim token, a frozen state under
    `prefers-reduced-motion`, a dirt fallback when the URL is blocked, and no console errors.
-   Each is asserted in the browser suite.
+   Each is asserted in the browser suite. When the emperor asked for less blur (EDICT-0013), the
+   taste was re-expressed as numbers: bake radius 8 → 2.5, CSS `blur(2px)` → `1px` (`1.5px` at
+   ≤640 px), scrim 0.12 → 0.2, and edge-variance 1,132.6 → 1,379.9 on the same 1,280×900 strip
+   ([[In-game GUI design]]).
 
 ## Identity: item icon or upload
 
-Worlds and builds carry one optional icon: a slug from the locally extracted 53-icon set — now
-the game's 256×256 inventory renders (EDICT-0011) — or an uploaded picture centre-cropped to
-128×128 and stored as an inline WebP/PNG data URL (≤120 000 chars). Uploads therefore travel
-with backups but count against browser storage; the cap is enforced in the model, so a bad
-import cannot bloat or corrupt the state. A missing icon file falls back to the subject's
-initial rather than a broken image.
+Worlds and builds carry one optional icon: a slug from the locally extracted **1,368-icon
+catalog** — the game's 256×256 inventory renders (EDICT-0011), expanded from the curated 53 in
+EDICT-0013 — or an uploaded picture centre-cropped to 128×128 and stored as an inline
+WebP/PNG data URL (≤120 000 chars). Uploads therefore travel with backups but count against
+browser storage; the cap is enforced in the model, so a bad import cannot bloat or corrupt the
+state. A missing icon file falls back to the subject's initial rather than a broken image.
+
+## Typography is identity
+
+The interface face is now the game's own bitmap font rather than a re-drawn pixel font
+(EDICT-0013): lowercase as small capitals, the slightly awkward spacing and the 107-codepoint
+map read as "the game" in a way Pixelify Sans approximated. The cost is coverage — arrows,
+dashes, ellipsis, `×`, `·`, `≥`, `≤` are missing from the game face and come from the fallback.
+The licence is freeware ("100% Free" on DaFont, Craftron Gaming) and is recorded rather than
+assumed: a sealed raw source and a licence file beside the TTF ([[Vanilla assets without
+redistribution]]).
 
 ## Tensions
 
@@ -53,7 +67,12 @@ initial rather than a broken image.
   exports large and can hit `localStorage` limits; the app surfaces quota errors but cannot
   prevent them ([[Local-first tracking]]).
 - **Authenticity has a taste dimension.** Pan speed, blur radius and scrim alpha were tuned
-  against screenshots, not measured; "menu-like" remains a judgement.
+  against screenshots, not measured. EDICT-0013 settled the direction (sharper: bake 2.5, CSS
+  1 px, scrim 0.2) but not the comparison — nobody has watched it beside the real title screen on
+  a physical display, so "menu-like" remains partly a judgement ([[Open questions]]).
+- **A large identity catalog is a discovery problem.** 1,368 icons in one dialog is search-first:
+  the picker renders ~150 tiles and asks the user to refine, with curated/common items first.
+  Broad coverage does not by itself make a particular item findable.
 - **Emulation is not a device.** 390 px and reduced-motion are emulated in headless Chrome;
   no phone or OS-level motion preference was physically observed.
 - **Resolution is a one-off local upgrade.** The 256 px identity icons depend on an export of
@@ -64,4 +83,4 @@ initial rather than a broken image.
 
 - Implements the product-facing side of [[Vanilla assets without redistribution]].
 - Extends [[In-game GUI design]] from chrome into atmosphere and identity.
-- Verified by [[Testing a UI like a user]] (36 browser flows at the time).
+- Verified by [[Testing a UI like a user]] (49 browser flows at the time).

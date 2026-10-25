@@ -1,0 +1,38 @@
+# Blur probe — EDICT-0013 AC10 (测试部, static + Pillow; runtime filter asserted by case 48)
+
+Environment: Windows, bundled Python 3.12.14 + Pillow 12.3.0,
+`C:\Users\KZ\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\python\python.exe`.
+Runtime computed `filter` values are asserted in browser case 48 (`.backdrop::before`, 1280 and
+390 widths); this file records the deterministic measurements 测试部 can take without Chrome.
+
+## Manifest (`src/assets/panorama/manifest.json`)
+
+- `compose.blur_radius`: **2.5** (was 8; contract §8 / AC10 require <= 3 and the shipped value 2.5)
+- `compose`: 2560x640, faces 4, crossfade_px 64, pan_seconds 120, brightness 0.95, saturation 0.92
+- `output`: `backdrop.webp`, 2560x640, **45,664 bytes**, sha256
+  `249a1598a120a142aebe73d5a54c7fd612e1d11a82298a3dcfa5734063635978`
+- `inputs`: 4 panorama faces (1024x1024, sha256 each recorded)
+
+## CSS rules (`src/styles.css`)
+
+- `:root.has-panorama .backdrop::before { filter: blur(1px) brightness(0.95) saturate(1); }` (line 868)
+- mobile <= 640px: `filter: blur(1.5px) brightness(0.92) saturate(1)` (line 1043)
+- `--backdrop-scrim-alpha: 0.2` (line 56)
+- audit check `panorama/css-blur` reads these rules and requires <= 1px (desktop) and <= 1.5px (mobile);
+  `panorama/manifest` requires `blur_radius <= 3`.
+
+## Pillow decode (backdrop.webp and the archived "before")
+
+| File | Size | Bytes | Mean luminance | Edge variance (`FIND_EDGES` on L) | sha256 |
+|------|------|-------|----------------|-----------------------------------|--------|
+| `src/assets/panorama/backdrop.webp` | 2560x640 | 45,664 | 47.06 | **20.3** | `249a1598…` |
+| `.tmp/before-edict-0013/backdrop.webp` | 2560x640 | 15,280 | 47.12 | **14.2** | `19d753c2…` |
+
+Both are 2560x640 as the contract requires. Edge variance rises 14.2 -> 20.3 (+43 %) after the
+blur 8 -> 2.5 bake; the generator preview `.tmp/panorama-before-after.png` is the decisive visual
+(blur 8 top vs 2.5 bottom; branches, leaves and flowers legible in the after half).
+
+App-level note: `10-backdrop-before.png` vs `11-backdrop-after.png` differ only subtly in the
+background region (mean abs delta 1.35/255 in the left strip) because the panorama is scaled to the
+viewport, dimmed by the scrim and CSS-blurred; the file hashes/sizes and the generator preview carry
+the claim. Full measurements are in `reports/qa/edict-0013-qa.md`.

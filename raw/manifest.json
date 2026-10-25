@@ -1,10 +1,11 @@
 {
-  "sealed_at": "2026-10-25T07:52:09.017Z",
+  "sealed_at": "2026-10-25T09:11:50.156Z",
   "files": {
     "sources/2026-10-25-iconexporter-dark-light-bug.md": "442769f57287dd1b4f5e40b43f34aa734a53d244b4f3855d1321cf20b78d0abe",
     "sources/2026-10-25-llm-wiki-pattern.md": "3313f21d80f42cabd67516be10e769b4c730b5cf74ea2840e0e4c7fb8f06d7f5",
     "sources/2026-10-25-minecraft-asset-provenance.md": "d9d41bc2dfda50daf55f361bd17249f25696de833e4a60b4fbbc305c0917646e",
     "sources/2026-10-25-minecraft-build-tracker-spec.md": "cc6bdd8835a0a11be7ab0665adbd34d4d63ef053713c73c3475f3625d84efe17",
+    "sources/2026-10-25-minecraft-font-licence.md": "2e06df49ff9c3043d7ba28b3ac9849a59672a5f5f3ee587a6d6c057be0f5eba7",
     "sources/2026-10-25-minecraft-gui-design-system.md": "b30d22af438923c53c79f3e4ac3826e95eae42a82e7dbb265de041d6bdcd6fda",
     "sources/2026-10-25-minecraft-icon-render-provenance.md": "8717b67e3eab0f1110a883d21bd46517ce1013caf39889f62c437d484eda9dab",
     "sources/2026-10-25-minecraft-panorama-provenance.md": "ea69c274a5942e4ef389a789bed52cdc5cd629251568a7774ad56c384934f91d"

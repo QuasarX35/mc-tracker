@@ -1,0 +1,39 @@
+# Spinner probe — EDICT-0013 AC5 (测试部)
+
+Requirement: the Needed/Got fields stay `type="number"` (arrow keys still work) but **no native
+number spinners are visible**. Contract F2 / case 43.
+
+## The stylesheet proof (the real, assertable evidence)
+
+`src/styles.css:365-369`:
+
+```css
+/* EDICT-0013 D5: the Needed/Got fields stay type="number" (arrow keys still work) but the */
+input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+```
+
+Browser case 43 reads `src/styles.css` and asserts all three rules (inner/outer spin button
+`-webkit-appearance: none`, `-moz-appearance: textfield`). Audit `structure/spinners-hidden`
+performs the same source-level check, and audit `structure/needed-number` asserts the Needed input
+is `type="number"` within 200 chars of `data-mat-field="needed"`.
+
+## Why there is no computed-pseudo-element assertion
+
+Chromium 155 reports `getComputedStyle(input, '::-webkit-inner-spin-button').appearance` as
+**`textfield`** for a `type=number` input *even when the rule above hides the spinner*. A test that
+asserted `'none'` there would never pass; a test that tolerated `''`/`'textfield'` would pass
+vacuously. Case 43 therefore asserts the stylesheet rules (the mechanism that actually hides the
+spinner) and records this omission in a comment. The visual confirmation is
+`reports/qa/evidence/edict-0013/01-builds-1280x900.png`: the Needed/Got boxes show no spinner
+arrows, six stepper buttons per row instead.
+
+## Related assertions
+
+- Case 39/40: the six steppers exist per row, labels `+1 +10 +stack -1 -10 -stack`, `data-stack`
+  carries the resolved stack, `data-mat-step` carries the resolved literal (`+64`, `+16`, ...).
+- Case 41: clamping at 1 (`-1` at needed 1 stays 1; `-10` at needed 3 stays 1).
+- Case 42: per-item stack (egg 16, water bucket 1).
+- Audit `structure/step-clamp`: model `stepNeeded` clamps with `Math.max(1, ...)` and the
+  `Needed must be at least 1.` message is in the app/model strings.

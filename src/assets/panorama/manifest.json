@@ -1,5 +1,5 @@
 {
-  "generated": "2026-10-25T06:39:17.726440+00:00",
+  "generated": "2026-10-25T09:14:42.092752+00:00",
   "source": {
     "kind": "panorama",
     "version": "1.21.4",
@@ -11,7 +11,7 @@
     "crossfade_px": 64,
     "width": 2560,
     "height": 640,
-    "blur_radius": 8,
+    "blur_radius": 2.5,
     "pan_seconds": 120,
     "brightness": 0.95,
     "saturation": 0.92
@@ -52,11 +52,11 @@
   ],
   "output": {
     "file": "backdrop.webp",
-    "sha256": "19d753c29a3a98c79427a913328f7ef99b59752ebfadc76bd4ac6708ab212df8",
+    "sha256": "249a1598a120a142aebe73d5a54c7fd612e1d11a82298a3dcfa5734063635978",
     "size": [
       2560,
       640
     ],
-    "bytes": 15280
+    "bytes": 45664
   }
 }

@@ -13,6 +13,14 @@
   font-display: swap;
 }
 
+/* EDICT-0013 D1: the owner's Minecraft.ttf ships above Pixelify, which stays as the fallback
+   for the glyphs the game font lacks (× · — – … ≥ ≤ and arrows). */
+@font-face {
+  font-family: 'Minecraft';
+  src: url('assets/fonts/Minecraft.ttf') format('truetype');
+  font-display: swap;
+}
+
 :root {
   /* Minecraft GUI chrome */
   --mc-panel: #c6c6c6;
@@ -45,10 +53,12 @@
   --mc-xp-dark: #2e6b00;
   --mc-bar-bg: #1e1e1e;
   --mc-tip-bg: #100010;
-  --backdrop-scrim-alpha: 0.12;
+  --backdrop-scrim-alpha: 0.2;
   --mc-tip-border: #5000ff;
 
-  --font-pixel: 'Pixelify', 'Courier New', ui-monospace, monospace;
+  /* EDICT-0013 D1: the game's own face ships in src/assets/fonts/Minecraft.ttf. Pixelify stays
+     as the fallback for the glyphs the Minecraft face does not carry (× · — – … ≥ ≤ arrows). */
+  --font-pixel: 'Minecraft', 'Pixelify', ui-monospace, monospace;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -101,6 +111,11 @@ ul { list-style: none; padding: 0; }
   overflow: hidden; clip: rect(0 0 0 0);
   white-space: nowrap; border: 0;
 }
+
+/* [hidden] must beat the component display rules (flex buttons, grid editors, upload row). */
+.mc-btn[hidden],
+.icon-upload[hidden],
+.notes-editor[hidden] { display: none; }
 
 .skip-link {
   position: absolute;
@@ -281,6 +296,17 @@ ul { list-style: none; padding: 0; }
 
 .mc-btn--sm { padding: 6px 12px; min-height: 32px; font-size: 14px; }
 
+/* EDICT-0013: square icon-only button (rename, coords copy, notes edit) — the SVG glyph is a
+   pixel-art path drawn in currentColor, never an emoji or a font glyph. */
+.mc-btn--icon { width: 32px; min-width: 32px; padding: 0; }
+.mc-btn--icon svg { display: block; width: 12px; height: 12px; fill: currentColor; }
+.mc-btn--icon:disabled {
+  cursor: default;
+  color: var(--mc-lo);
+  background: var(--mc-panel-dim);
+}
+.mc-btn--icon:disabled:hover { background: var(--mc-panel-dim); box-shadow: var(--bevel-out); }
+
 .mc-btn--primary {
   background: #5a8a3a;
   color: var(--mc-white);
@@ -336,9 +362,18 @@ ul { list-style: none; padding: 0; }
 .mc-select:hover { background-color: #7c7c7c; }
 .mc-select--sm { min-height: 34px; font-size: 14px; }
 
+/* EDICT-0013 D5: the Needed/Got fields stay type="number" (arrow keys still work) but the
+   native spinner chrome is hidden — the material rows carry their own +/- buttons. */
+input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.field__inline { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.field__inline > .mc-input { flex: 1 1 auto; min-width: 0; }
+
 .field { min-width: 0; }
 .field--grow { flex: 1 1 240px; }
-.field--coords { flex: 0 1 190px; }
+.field--coords { flex: 0 1 240px; }
 
 .field-row {
   display: flex;
@@ -568,6 +603,8 @@ ul { list-style: none; padding: 0; }
   font-size: 15px;
   text-shadow: 1px 1px 0 #2b2b2b;
 }
+/* EDICT-0013 D5: row 2 carries the six-step cluster, so the row gap tightens to 2px. */
+.mat-row { row-gap: 2px; }
 .mat-row:nth-child(even) { background: var(--mc-row-alt); }
 .mat-row--done { color: #c8ffc8; }
 
@@ -647,6 +684,34 @@ ul { list-style: none; padding: 0; }
 }
 .row-delete:hover { background: #a8342c; }
 
+/* EDICT-0013 D5: six-step Needed cluster. Sits on a second grid row under the item/Needed/Got
+   columns so the amount field keeps its width at 1280px; the row grows by 18px, not more. */
+.mat-steps {
+  grid-column: 1 / 4;
+  grid-row: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+.mat-step {
+  appearance: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  height: 16px;
+  padding: 0 6px;
+  font-family: var(--font-pixel);
+  font-size: 12px;
+  line-height: 1;
+  background: var(--mc-panel);
+  color: var(--mc-text);
+  border: var(--border-hard);
+  box-shadow: var(--bevel-out);
+}
+.mat-step:hover { background: #d8d8d8; }
+.mat-step:active { box-shadow: var(--bevel-in); transform: translateY(1px); }
+.mat-step:focus-visible { outline: 3px solid var(--mc-gold); outline-offset: 1px; }
+
 /* add-material row */
 .add {
   display: flex;
@@ -662,6 +727,29 @@ ul { list-style: none; padding: 0; }
 .add__num { flex: 0 1 110px; }
 .add > .mc-btn { margin-bottom: 1px; }
 .add__title { flex: 0 0 100%; font-size: 14px; color: var(--mc-text); }
+
+/* EDICT-0013 D8: the free-text item field becomes a picker button showing the chosen item. */
+.mat-choice {
+  appearance: none;
+  cursor: pointer;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 38px;
+  padding: 4px 8px 4px 4px;
+  text-align: left;
+  background: var(--mc-field);
+  color: var(--mc-text-on-dark);
+  border: var(--border-hard);
+  box-shadow: inset 2px 2px 0 #5f5f5f, inset -2px -2px 0 #a0a0a0;
+  text-shadow: 1px 1px 0 #000;
+}
+.mat-choice:hover { background: #101010; }
+.mat-choice:focus-visible { outline: 3px solid var(--mc-gold); outline-offset: 1px; }
+.mat-choice__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mat-choice__name--empty { color: #8f8f8f; text-shadow: none; }
+.add__error { flex: 1 1 100%; margin: 0; }
 
 /* ---------------------------------------------------------- materials view */
 .filters {
@@ -777,7 +865,7 @@ ul { list-style: none; padding: 0; }
 :root.has-panorama .backdrop::before {
   opacity: 1;
   background-image: var(--panorama-image);
-  filter: blur(2px) brightness(0.95) saturate(1);
+  filter: blur(1px) brightness(0.95) saturate(1);
   animation: panorama-drift 120s ease-in-out infinite alternate;
   will-change: background-position;
 }
@@ -856,6 +944,44 @@ ul { list-style: none; padding: 0; }
 .detail__avatar:hover { transform: translateY(-1px); }
 .detail__avatar img { width: 100%; height: 100%; }
 
+/* EDICT-0013 D2/D4: inline title + notes editors. The title swaps the h2 for the input in place,
+   so the section head never grows a row. */
+.detail__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.detail__title > .section-head__title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.detail__title-input { width: min(340px, 60vw); min-height: 32px; font-size: 16px; }
+
+.field--notes { display: grid; gap: var(--space-2); }
+.field--notes > .field__inline { justify-content: space-between; }
+
+.notes__text {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  min-height: 42px;
+  background: var(--mc-field);
+  color: var(--mc-text-on-dark);
+  border: var(--border-hard);
+  box-shadow: inset 2px 2px 0 #5f5f5f, inset -2px -2px 0 #a0a0a0;
+  font-size: 15px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-shadow: 1px 1px 0 #000;
+}
+.notes__text--empty { color: #8f8f8f; text-shadow: none; }
+
+.notes-editor { display: grid; gap: var(--space-2); }
+.notes-editor__actions { display: flex; align-items: center; gap: var(--space-2); }
+.notes-editor__hint { font-size: 12px; color: var(--mc-text-muted); }
+
 /* ---------------------------------------------------------- icon fields */
 .icon-field {
   display: flex;
@@ -869,32 +995,8 @@ ul { list-style: none; padding: 0; }
 /* -------------------------------------------------------------- picker */
 .mc-dialog--wide { width: min(720px, calc(100% - 32px)); }
 
-.picker-tabs {
-  display: flex;
-  gap: var(--space-1);
-  margin-bottom: var(--space-3);
-}
-.picker-tab {
-  appearance: none;
-  cursor: pointer;
-  padding: 6px 20px;
-  min-height: 34px;
-  font-size: 14px;
-  background: #6f6f6f;
-  color: var(--mc-text-on-dark);
-  text-shadow: 2px 2px 0 var(--mc-text-shadow);
-  border: var(--border-hard);
-  box-shadow: inset 2px 2px 0 #9a9a9a, inset -2px -2px 0 var(--mc-lo-deep);
-}
-.picker-tab:hover { background: #7c7c7c; }
-.picker-tab[aria-selected='true'] {
-  background: var(--mc-panel);
-  color: var(--mc-text);
-  text-shadow: none;
-  box-shadow: var(--bevel-in);
-}
-
-.picker-pane { display: grid; gap: var(--space-2); }
+/* EDICT-0013 D7: the Item/Image tabs are gone — one search + grid, with the image upload as a
+   secondary footer action. */
 
 .icon-grid {
   display: grid;
@@ -938,7 +1040,7 @@ ul { list-style: none; padding: 0; }
 @media (max-width: 640px) {
   :root.has-panorama .backdrop::before {
     background-size: cover;
-    filter: blur(3px) brightness(0.92) saturate(1);
+    filter: blur(1.5px) brightness(0.92) saturate(1);
   }
   .world-picker__avatar { display: none; }
   .icon-grid { grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); max-height: 220px; }
@@ -968,6 +1070,14 @@ ul { list-style: none; padding: 0; }
   .mtable .mat-row > .got-col,
   .mtable .mtable__head > .got-col { display: none; }
   .mtable--wide .mtable__head, .mtable--wide .mat-row { grid-template-columns: minmax(0, 1fr) 56px 56px 40px; }
+  /* the six-step cluster becomes a full-width 3x2 pad on narrow screens, no overflow */
+  .mat-steps {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-1);
+  }
+  .mat-step { height: 28px; font-size: 13px; }
   .progress-col, .mat-row__bar, .mtable--wide .progress-col { display: none; }
   .topbar__actions { margin-left: 0; }
   .tab { padding: 7px 12px 9px; }
@@ -977,6 +1087,42 @@ ul { list-style: none; padding: 0; }
   *, *::before, *::after {
     transition-duration: 0ms !important;
     animation-duration: 0ms !important;
+  }
+}
+
+/* ------------------------------------------------------- themed select popup */
+/* EDICT-0013 D9: Chromium's customizable <select> (appearance:base-select) renders the option
+   list in the top layer, where the OS paints it. Styling ::picker(select) keeps the Minecraft
+   GUI instead of a stark system popup. Browsers without base-select keep the native popup and
+   the rules in the @supports block simply never apply. */
+@supports (appearance: base-select) {
+  select.mc-select { appearance: base-select; }
+
+  select.mc-select::picker-icon { display: none; }
+
+  select.mc-select::picker(select) {
+    appearance: base-select;
+    background: #6f6f6f;
+    border: 2px solid #000;
+    box-shadow: inset 2px 2px 0 #9a9a9a, inset -2px -2px 0 #373737;
+    color: #ffffff;
+    font-family: var(--font-pixel);
+    font-size: 15px;
+    text-shadow: 2px 2px 0 var(--mc-text-shadow);
+  }
+
+  select.mc-select option {
+    background: #6f6f6f;
+    color: #ffffff;
+    padding: 6px 10px;
+    text-shadow: 2px 2px 0 var(--mc-text-shadow);
+  }
+
+  select.mc-select option:hover,
+  select.mc-select option:focus-visible,
+  select.mc-select option:checked {
+    background: #4a4a4a;
+    color: #ffffff;
   }
 }
 

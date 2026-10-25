@@ -17,6 +17,11 @@ Usage:
     <dsh python> scripts/mc-backdrop.py                       # auto: panorama, else screenshots
     <dsh python> scripts/mc-backdrop.py --source panorama --version 1.21.4
     <dsh python> scripts/mc-backdrop.py --source screenshots --count 4
+    <dsh python> scripts/mc-backdrop.py --blur 2.5            # EDICT-0013: keep the bake sharp
+
+The bake radius is an explicit knob since EDICT-0013 (the founder could not tell what the
+faded background was): the default is 2.5 px at 2,560 px wide, and the plan allows at most
+3 px. The old recipe derived the radius from the width (8 px at 2,560) with a 4 px floor.
 """
 from __future__ import annotations
 
@@ -36,7 +41,8 @@ TEX_GUI = "minecraft/textures/gui/title/background/"
 FACES = [f"panorama_{i}.png" for i in range(4)]          # the four horizontal faces
 MIN_FACE_PX = 512                                        # anything smaller is a decoy
 WIDTH = 2560
-BLUR_RATIO = 1 / 320                                     # radius = WIDTH / 220
+BLUR_DEFAULT_PX = 2.5                                    # EDICT-0013: hard cap 3 px at 2,560
+BLUR_MAX_PX = 3.0
 CROSSFADE = 64
 
 
@@ -153,7 +159,14 @@ def main() -> int:
     parser.add_argument("--source", default="auto", choices=["auto", "panorama", "screenshots"])
     parser.add_argument("--count", type=int, default=4, help="screenshots to stitch")
     parser.add_argument("--width", type=int, default=WIDTH)
+    parser.add_argument(
+        "--blur", type=float, default=BLUR_DEFAULT_PX,
+        help=f"Gaussian blur radius in output pixels (0 to {BLUR_MAX_PX:g}; default "
+             f"{BLUR_DEFAULT_PX:g}). The CSS filter adds a little more at display time.",
+    )
     args = parser.parse_args()
+    if not 0 <= args.blur <= BLUR_MAX_PX:
+        raise SystemExit(f"--blur must be between 0 and {BLUR_MAX_PX:g} px (EDICT-0013).")
 
     install = find_install(args.install)
     sources: list[Path] = []
@@ -177,7 +190,8 @@ def main() -> int:
 
     width = max(1280, min(args.width, 4096))
     strip = compose(sources, width)
-    blurred = strip.filter(ImageFilter.GaussianBlur(radius=max(4, round(width * BLUR_RATIO))))
+    blur_radius = round(float(args.blur), 2)
+    blurred = strip.filter(ImageFilter.GaussianBlur(radius=blur_radius))
     blurred = ImageEnhance.Brightness(blurred).enhance(0.95)
     blurred = ImageEnhance.Color(blurred).enhance(0.92)
 
@@ -202,7 +216,7 @@ def main() -> int:
             "crossfade_px": CROSSFADE,
             "width": width,
             "height": blurred.height,
-            "blur_radius": round(width * BLUR_RATIO),
+            "blur_radius": blur_radius,
             "pan_seconds": 120,
             "brightness": 0.95,
             "saturation": 0.92,

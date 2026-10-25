@@ -54,11 +54,15 @@ test('AC-I3 picker, upload and avatar markup exist in the page', () => {
   for (const id of [
     'world-avatar', 'world-icon', 'world-icon-change', 'world-icon-remove',
     'build-dlg-icon', 'build-dlg-icon-change', 'build-dlg-icon-remove', 'detail-avatar',
-    'icon-dialog', 'icon-form', 'icon-tab-item', 'icon-tab-image', 'icon-pane-item',
-    'icon-pane-image', 'icon-search', 'icon-grid', 'icon-file', 'icon-img-choose',
-    'icon-preview', 'icon-error', 'icon-use', 'icon-cancel',
+    'icon-dialog', 'icon-form', 'icon-dialog-title', 'icon-search', 'icon-grid', 'icon-file',
+    'icon-upload', 'icon-count-hint', 'icon-preview', 'icon-error', 'icon-use', 'icon-cancel',
   ]) {
     assert.match(HTML, new RegExp(`id="${id}"`), `missing #${id}`);
+  }
+  // D7: the Item/Image tab pair is gone; the picker is one dialog with a footer upload action.
+  for (const gone of ['icon-tab-item', 'icon-tab-image', 'icon-pane-item', 'icon-pane-image', 'icon-img-choose', 'picker-tabs', 'picker-tab']) {
+    assert.ok(!HTML.includes(`id="${gone}"`) && !HTML.includes(`class="${gone}"`) && !new RegExp(`class="[^"]*\\b${gone}\\b`).test(HTML),
+      `#${gone} must be removed with the redundant picker tabs`);
   }
   assert.match(HTML, /accept="image\/png,image\/jpeg,image\/webp"/);
   assert.match(HTML, /role="listbox"/);
@@ -68,6 +72,8 @@ test('AC-I4 the app implements avatars, upload processing and the backdrop probe
   for (const symbol of ['avatarHtml', 'processImageFile', 'renderIconPicker', 'useIconDraft', 'probeBackdrop']) {
     assert.match(APP, new RegExp(`function ${symbol}\\b`), `missing ${symbol}()`);
   }
+  assert.ok(!/function setIconMode/.test(APP), 'the retired icon-mode switcher must be deleted (D7)');
+  assert.match(APP, /icon-upload/, 'the footer upload action must drive the hidden file input');
   assert.match(APP, /wireIconFallbacks/, 'missing icon fallback wiring');
   assert.match(APP, /querySelectorAll\('\.slot img, \.avatar img'\)/, 'fallback must cover avatars');
   assert.match(APP, /new Image\(\)/, 'backdrop must be feature-probed');
@@ -76,9 +82,10 @@ test('AC-I4 the app implements avatars, upload processing and the backdrop probe
 });
 
 test('AC-I5 the visual contract covers avatars, the picker and the panorama layer', () => {
-  for (const selector of ['.avatar', '.avatar--40', '.icon-grid', '.icon-tile', '.picker-tab', '.detail__avatar', '.icon-field']) {
+  for (const selector of ['.avatar', '.avatar--40', '.icon-grid', '.icon-tile', '.detail__avatar', '.icon-field', '.notes__text', '.mat-steps']) {
     assert.ok(CSS.includes(selector), `missing ${selector}`);
   }
+  assert.ok(!CSS.includes('.picker-tab'), 'the retired picker tab styles must be gone (D7)');
   assert.match(CSS, /:root\.has-panorama \.backdrop::before/);
   assert.match(CSS, /@keyframes panorama-drift/);
   assert.match(CSS, /--panorama-image/);

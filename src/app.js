@@ -15,11 +15,10 @@
    * lettered slot instead of a misleading picture.
    */
   var ICON_SET = window.MC_ICON_SET || [];
+  var ICON_NAMES = window.MC_ICON_NAMES || null;
   var FALLBACK_ITEMS = ['Stone', 'Cobblestone', 'Stone Bricks', 'Dirt', 'Sand', 'Oak Planks',
     'Oak Log', 'Glass', 'Torch', 'Chest', 'Iron Ingot', 'Coal'];
-  var COMMON_ITEMS = (window.MC_ICON_NAMES && window.MC_ICON_NAMES.length)
-    ? window.MC_ICON_NAMES.slice()
-    : FALLBACK_ITEMS.slice();
+  var COMMON_ITEMS = FALLBACK_ITEMS.slice();
 
   function slugifyItem(name) {
     return String(name == null ? '' : name)
@@ -34,19 +33,72 @@
     return ICON_SET.indexOf(slug) >= 0 ? slug : null;
   }
 
+  /** "oak_log" -> "Oak Log"; used when the generated catalog has no display name. */
+  function titleSlug(slug) {
+    return String(slug || '').split('_').filter(Boolean).map(function (word) {
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    }).join(' ');
+  }
+
+  /**
+   * EDICT-0013 D6: `window.MC_ICON_SET` lists every available slug; display names come from
+   * `window.MC_ICON_NAMES` (an object keyed by slug in the expanded catalog, an array of names
+   * in EDICT-0011 builds) and fall back to the slug itself. The seeded common items rank first
+   * so the picker opens on the blocks a builder actually uses, not on alphabetical noise.
+   */
+  function buildIconCatalog() {
+    if (!ICON_SET.length) return [];
+    var names = {};
+    if (Array.isArray(ICON_NAMES)) {
+      ICON_SET.forEach(function (slug, index) { names[slug] = ICON_NAMES[index] || titleSlug(slug); });
+    } else if (ICON_NAMES && typeof ICON_NAMES === 'object') {
+      Object.keys(ICON_NAMES).forEach(function (slug) { names[slug] = String(ICON_NAMES[slug]); });
+    }
+    var entries = ICON_SET.map(function (slug, index) {
+      return { slug: slug, name: names[slug] || titleSlug(slug), order: index };
+    });
+    entries.sort(function (a, b) {
+      var ai = COMMON_ITEMS.indexOf(a.name);
+      var bi = COMMON_ITEMS.indexOf(b.name);
+      if (ai < 0) ai = COMMON_ITEMS.length;
+      if (bi < 0) bi = COMMON_ITEMS.length;
+      return ai === bi ? a.order - b.order : ai - bi;
+    });
+    return entries;
+  }
+
+  function catalogEntry(slug) {
+    for (var i = 0; i < ICON_CATALOG.length; i += 1) {
+      if (ICON_CATALOG[i].slug === slug) return ICON_CATALOG[i];
+    }
+    return null;
+  }
+
+  /** Max stack size for an item (EDICT-0013 D5); unknown items default to 64. */
+  function stackSizeFor(item) {
+    return M.stackSizeFor(slugifyItem(item), window.MC_ICON_STACKS);
+  }
+
   var STATUS_LABEL = { planned: 'Planned', building: 'Building', done: 'Done' };
 
   var els = {};
   var state = null;
-  var ui = { view: 'builds', selectedBuildId: null, filter: 'remaining', query: '', iconMode: 'item' };
+  var ui = {
+    view: 'builds',
+    selectedBuildId: null,
+    filter: 'remaining',
+    query: '',
+    pickerMode: 'icon',
+    titleEditing: false,
+    notesEditing: false,
+    editingBuildId: null
+  };
   var editingWorldId = null;
   var dialogIcon = { world: null, build: null };
   var draftIcon = null;
   var iconTarget = null;
   var lastIconTrigger = null;
-  var ICON_CATALOG = (window.MC_ICON_NAMES || [])
-    .map(function (name) { return { name: name, slug: slugifyItem(name) }; })
-    .filter(function (entry) { return ICON_SET.indexOf(entry.slug) >= 0; });
+  var ICON_CATALOG = buildIconCatalog();
   var pendingConfirm = null;
 
   /* ------------------------------------------------------------------ util */
@@ -62,13 +114,36 @@
       .replace(/'/g, '&#39;');
   }
 
-  function slotHtml(item) {
+  /** Inner markup of an inventory slot: the item render, else the lettered fallback. */
+  function slotInnerHtml(item, lazy) {
     var icon = iconFor(item);
     var letter = String(item).trim().charAt(0).toUpperCase() || '?';
-    var inner = icon
-      ? '<img src="assets/icons/' + icon + '.png" alt="" width="22" height="22" data-letter="' + escapeHtml(letter) + '">'
-      : '<span class="slot__letter">' + escapeHtml(letter) + '</span>';
-    return '<span class="slot" data-tip="' + escapeHtml(item) + '" aria-hidden="true">' + inner + '</span>';
+    if (!icon) return '<span class="slot__letter">' + escapeHtml(letter) + '</span>';
+    return '<img' + (lazy ? ' loading="lazy" decoding="async"' : '') +
+      ' src="assets/icons/' + icon + '.png" alt="" width="22" height="22" data-letter="' + escapeHtml(letter) + '">';
+  }
+
+  function slotHtml(item, options) {
+    var lazy = !!(options && options.lazy);
+    return '<span class="slot" data-tip="' + escapeHtml(item) + '" aria-hidden="true">' +
+      slotInnerHtml(item, lazy) + '</span>';
+  }
+
+  /** EDICT-0013 D8: the add-material row shows the chosen item in a slot + name chip. */
+  function renderMaterialChoice() {
+    var name = els['mat-item'].value;
+    var empty = !name;
+    els['mat-choice-name'].textContent = empty ? 'Choose item…' : name;
+    els['mat-choice-name'].classList.toggle('mat-choice__name--empty', empty);
+    els['mat-choice-slot'].innerHTML = empty
+      ? '<span class="slot__letter">?</span>'
+      : slotInnerHtml(name, false);
+    wireIconFallbacks(els['mat-choice-slot']);
+  }
+
+  function setMaterialChoice(name) {
+    els['mat-item'].value = name || '';
+    renderMaterialChoice();
   }
 
   /**
@@ -161,46 +236,94 @@
 
   function openIconPicker(target) {
     iconTarget = target;
-    lastIconTrigger = document.activeElement;
+    /* Case 32: remember the invoking control explicitly. A programmatic .click() does not move
+       focus, so document.activeElement is not a reliable trigger. */
+    lastIconTrigger = target.trigger || document.activeElement;
+    ui.pickerMode = target.scope === 'material' ? 'item' : 'icon';
     if (target.scope === 'world') draftIcon = dialogIcon.world;
     else if (target.scope === 'build') draftIcon = dialogIcon.build;
-    else draftIcon = (selectedBuild() && selectedBuild().icon) || null;
-    ui.iconMode = draftIcon && draftIcon.kind === 'image' ? 'image' : 'item';
+    else if (target.scope === 'build-detail') {
+      var build = selectedBuild();
+      draftIcon = (build && build.icon) || null;
+    } else {
+      draftIcon = null;
+    }
     els['icon-search'].value = '';
     els['icon-file'].value = '';
     els['icon-error'].hidden = true;
+    syncPickerChrome();
     renderIconPicker();
     els['icon-dialog'].showModal();
     els['icon-search'].focus();
   }
 
-  function renderIconPicker() {
-    var imageTab = ui.iconMode === 'image';
-    els['icon-tab-item'].setAttribute('aria-selected', imageTab ? 'false' : 'true');
-    els['icon-tab-image'].setAttribute('aria-selected', imageTab ? 'true' : 'false');
-    els['icon-pane-item'].hidden = imageTab;
-    els['icon-pane-image'].hidden = !imageTab;
+  /** EDICT-0013 D7/D8: one dialog, two modes — choose an icon, or choose an item for a material. */
+  function syncPickerChrome() {
+    var picking = ui.pickerMode === 'item';
+    els['icon-dialog-title'].textContent = picking ? 'Choose an item' : 'Choose an icon';
+    els['icon-use'].textContent = picking ? 'Use item' : 'Use icon';
+    els['icon-use'].hidden = picking;
+    els['icon-upload-block'].hidden = picking;
+    els['icon-error'].hidden = true;
+  }
 
+  function renderIconPicker() {
+    var picking = ui.pickerMode === 'item';
     var query = els['icon-search'].value.trim().toLowerCase();
-    var tiles = ['<button type="button" class="icon-tile" role="option" data-icon-none="1" aria-selected="' +
-      (!draftIcon ? 'true' : 'false') + '"><span class="slot" aria-hidden="true"><span class="slot__letter">–</span></span>' +
-      '<span class="icon-tile__name">None</span></button>'];
-    ICON_CATALOG.forEach(function (entry) {
-      if (query && entry.name.toLowerCase().indexOf(query) < 0) return;
-      var selected = draftIcon && draftIcon.kind === 'item' && draftIcon.slug === entry.slug;
+    var slugQuery = query.replace(/\s+/g, '_');
+    var matches = ICON_CATALOG.filter(function (entry) {
+      if (!query) return true;
+      return entry.name.toLowerCase().indexOf(query) >= 0 || entry.slug.indexOf(slugQuery) >= 0;
+    });
+    /* EDICT-0013 D6: the catalog is 1,600+ renders. 150 tiles fill the 280px-tall grid several
+       times over and keep typing instant; the hint tells the user a search narrows the rest. */
+    var limit = 150;
+    var visible = matches.slice(0, limit);
+    var tiles = [];
+    if (!picking) {
+      tiles.push('<button type="button" class="icon-tile" role="option" data-icon-none="1" aria-selected="' +
+        (!draftIcon ? 'true' : 'false') + '"><span class="slot" aria-hidden="true"><span class="slot__letter">–</span></span>' +
+        '<span class="icon-tile__name">None</span></button>');
+    }
+    visible.forEach(function (entry) {
+      var selected = !picking && draftIcon && draftIcon.kind === 'item' && draftIcon.slug === entry.slug;
       tiles.push('<button type="button" class="icon-tile" role="option" data-icon-slug="' + escapeHtml(entry.slug) +
-        '" aria-selected="' + (selected ? 'true' : 'false') + '">' + slotHtml(entry.name) +
+        '" aria-selected="' + (selected ? 'true' : 'false') + '">' + slotHtml(entry.name, { lazy: true }) +
         '<span class="icon-tile__name">' + escapeHtml(entry.name) + '</span></button>');
     });
     els['icon-grid'].innerHTML = tiles.join('');
     wireIconFallbacks(els['icon-grid']);
+
+    var hint = els['icon-count-hint'];
+    if (matches.length > limit) {
+      hint.textContent = 'showing ' + visible.length + ' of ' + matches.length + ' — refine your search';
+      hint.hidden = false;
+    } else {
+      hint.textContent = '';
+      hint.hidden = true;
+    }
 
     els['icon-preview'].innerHTML = avatarHtml(draftIcon, 48, '?');
     wireIconFallbacks(els['icon-preview']);
   }
 
   function useIconDraft() {
-    if (!iconTarget) { els['icon-dialog'].close(); return; }
+    if (!iconTarget) {
+      /* No trigger recorded (a dialog opened without openIconPicker, or a caller that only
+         marks the draft): the choice must still land on the selected build instead of being
+         dropped silently — the build-detail avatar is the dialog's primary owner. */
+      var fallbackWorld = activeWorld();
+      var fallbackBuild = selectedBuild();
+      if (fallbackWorld && fallbackBuild && draftIcon !== undefined) {
+        var applied = M.setBuildIcon(state, fallbackWorld.id, fallbackBuild.id, draftIcon);
+        if (applied.error) { toast(applied.error, true); els['icon-dialog'].close(); return; }
+        ui.selectedBuildId = fallbackBuild.id;
+        commit(applied.state);
+        toast(draftIcon ? 'Icon updated.' : 'Icon removed.');
+      }
+      els['icon-dialog'].close();
+      return;
+    }
     if (iconTarget.scope === 'world') {
       dialogIcon.world = draftIcon;
       renderIconPreview('world');
@@ -211,8 +334,11 @@
       var world = activeWorld();
       var build = selectedBuild();
       if (!world || !build) { els['icon-dialog'].close(); return; }
+      /* Contract §5: the detail avatar commits straight through the model, image icons included
+         (M.setBuildIcon normalises the data URL), and commit() persists + repaints the avatar. */
       var result = M.setBuildIcon(state, world.id, build.id, draftIcon);
       if (result.error) { toast(result.error, true); return; }
+      ui.selectedBuildId = build.id;
       commit(result.state);
     }
     els['icon-dialog'].close();
@@ -259,9 +385,13 @@
       'file-import', 'build-list', 'build-empty', 'btn-new-build', 'btn-first-build',
       'world-summary', 'summary-name', 'summary-line', 'summary-bar', 'summary-fill', 'summary-totals',
       'build-detail', 'detail-empty', 'detail-body', 'detail-heading', 'build-delete',
-      'build-name', 'build-coords', 'build-notes', 'status-group', 'build-pct', 'build-bar',
-      'build-fill', 'build-summary', 'material-body', 'material-empty', 'add-material-form',
-      'mat-item', 'mat-needed', 'mat-collected', 'item-options',
+      'build-rename', 'build-name', 'build-name-save', 'build-name-cancel',
+      'build-coords', 'copy-coords', 'status-group', 'build-pct', 'build-bar',
+      'build-fill', 'build-summary', 'notes-text', 'notes-edit', 'notes-editor',
+      'build-notes', 'notes-save', 'notes-cancel',
+      'material-body', 'material-empty', 'add-material-form',
+      'mat-item', 'mat-needed', 'mat-collected', 'mat-choice', 'mat-choice-slot',
+      'mat-choice-name', 'mat-error',
       'materials-lede', 'mat-search', 'mat-filter', 'world-material-body', 'world-material-empty',
       'mat-totals', 'btn-copy-list', 'worlds-lede', 'world-cards', 'world-empty', 'btn-sample',
       'status-line', 'toast',
@@ -271,12 +401,14 @@
       'build-error', 'confirm-dialog', 'confirm-title', 'confirm-text', 'confirm-ok',
       'world-avatar', 'world-icon', 'world-icon-change', 'world-icon-remove',
       'build-dlg-icon', 'build-dlg-icon-change', 'build-dlg-icon-remove', 'detail-avatar',
-      'icon-dialog', 'icon-form', 'icon-tab-item', 'icon-tab-image', 'icon-pane-item',
-      'icon-pane-image', 'icon-search', 'icon-grid', 'icon-file', 'icon-img-choose',
+      'icon-dialog', 'icon-form', 'icon-dialog-title', 'icon-search', 'icon-grid',
+      'icon-count-hint', 'icon-file', 'icon-upload', 'icon-upload-block',
       'icon-preview', 'icon-hint', 'icon-error', 'icon-use', 'icon-cancel'
     ];
     ids.forEach(function (id) { els[id] = $(id); });
     // map dashed ids to camelCase keys for readability below
+    els.statusLine = els['status-line'];
+    els.toast = els['toast'];
     els.tabs = [els['tab-builds'], els['tab-materials'], els['tab-worlds']];
     els.views = {
       builds: els['view-builds'],
@@ -286,18 +418,24 @@
 
     var loaded = M.load(window.localStorage);
     state = loaded.state || M.emptyState();
+    var seeded = false;
     if (!loaded.state && /[?&]demo\b/.test(window.location.search)) {
       state = M.seedState();
+      seeded = true;
       M.save(window.localStorage, state);
     }
     if (loaded.error) toast(loaded.error, true);
+    // Seed the first paint once; selectedBuild() itself must stay fallback-free (case 11).
+    selectInitialBuild();
 
     bind();
     var tabParam = (window.location.search.match(/[?&]tab=([a-z]+)/) || [])[1];
     if (tabParam && els.views[tabParam]) ui.view = tabParam;
     renderAll();
     probeBackdrop();
-    setStatus(state.worlds.length ? 'Loaded from this browser.' : 'Start by creating a world.');
+    setStatus(!state.worlds.length
+      ? 'Start by creating a world.'
+      : seeded ? 'Loaded sample data.' : 'Loaded from this browser.');
   }
 
   function commit(next) {
@@ -311,10 +449,23 @@
     return M.activeWorld(state);
   }
 
+  /**
+   * The explicitly selected build only. There is deliberately no `|| world.builds[0]` fallback:
+   * a null or stale selection must render the empty detail panel (case 11), so the first paint
+   * is seeded exactly once by selectInitialBuild() at boot and after a world activation.
+   */
   function selectedBuild() {
     var world = activeWorld();
     if (!world) return null;
-    return M.findBuild(world, ui.selectedBuildId) || world.builds[0] || null;
+    return M.findBuild(world, ui.selectedBuildId);
+  }
+
+  /** Seed the detail panel with a build once per world activation. Never called from a render path. */
+  function selectInitialBuild() {
+    var world = activeWorld();
+    if (!world) { ui.selectedBuildId = null; return; }
+    var current = M.findBuild(world, ui.selectedBuildId);
+    ui.selectedBuildId = current ? current.id : (world.builds.length ? world.builds[0].id : null);
   }
 
   /* ------------------------------------------------------------------ bind */
@@ -338,8 +489,10 @@
     els['world-select'].addEventListener('change', function () {
       var result = M.setActiveWorld(state, els['world-select'].value);
       if (result.error) { toast(result.error, true); return; }
+      state = result.state;
       ui.selectedBuildId = null;
-      commit(result.state);
+      selectInitialBuild();
+      commit(state);
     });
 
     els['btn-new-world'].addEventListener('click', function () { openWorldDialog(null); });
@@ -348,6 +501,7 @@
       state = M.seedState();
       M.save(window.localStorage, state);
       ui.selectedBuildId = null;
+      selectInitialBuild();
       renderAll();
       toast('Sample worlds loaded.');
     });
@@ -359,6 +513,8 @@
       var button = event.target.closest('.build-entry');
       if (!button) return;
       ui.selectedBuildId = button.dataset.build;
+      ui.titleEditing = false;
+      ui.notesEditing = false;
       renderAll();
     });
 
@@ -373,32 +529,114 @@
       commit(result.state);
     });
 
-    function renameBuild() {
+    /** The active world plus the selected build, or null — every detail action needs both. */
+    function currentBuild() {
       var world = activeWorld();
       var build = selectedBuild();
-      if (!world || !build) return;
-      var result = M.updateBuild(state, world.id, build.id, { name: els['build-name'].value });
-      if (result.error) { toast(result.error, true); renderAll(); return; }
-      commit(result.state);
+      return world && build ? { world: world, build: build } : null;
     }
-    els['build-name'].addEventListener('change', renameBuild);
-    els['build-coords'].addEventListener('change', function () {
-      var world = activeWorld(); var build = selectedBuild();
-      if (!world || !build) return;
-      commit(M.updateBuild(state, world.id, build.id, { coords: els['build-coords'].value }).state);
+
+    /* EDICT-0013 D2: the name is renamed in place from the section head, never from a form row. */
+    function startTitleEdit() {
+      var context = currentBuild();
+      if (!context) return;
+      ui.titleEditing = true;
+      renderDetail();
+      els['build-name'].value = context.build.name;
+      els['build-name'].focus();
+      els['build-name'].select();
+    }
+
+    function cancelTitleEdit() {
+      ui.titleEditing = false;
+      renderDetail();
+      // Case 33 / contract §1: focus returns to the trigger that opened the editor.
+      els['build-rename'].focus();
+    }
+
+    function saveTitleEdit() {
+      var context = currentBuild();
+      if (!context) return;
+      var result = M.updateBuild(state, context.world.id, context.build.id, { name: els['build-name'].value });
+      if (result.error) {
+        toast(result.error, true);
+        els['build-name'].focus();
+        return;
+      }
+      ui.titleEditing = false;
+      commit(result.state);
+      els['build-rename'].focus();
+    }
+
+    els['build-rename'].addEventListener('click', startTitleEdit);
+    els['build-name-save'].addEventListener('click', saveTitleEdit);
+    els['build-name-cancel'].addEventListener('click', cancelTitleEdit);
+    els['build-name'].addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') { event.preventDefault(); saveTitleEdit(); }
+      else if (event.key === 'Escape') { event.preventDefault(); cancelTitleEdit(); }
     });
-    els['build-notes'].addEventListener('change', function () {
-      var world = activeWorld(); var build = selectedBuild();
-      if (!world || !build) return;
-      commit(M.updateBuild(state, world.id, build.id, { notes: els['build-notes'].value }).state);
+    // No commit on blur: Escape and Cancel must be able to leave the name untouched (contract §1).
+    els['build-coords'].addEventListener('change', function () {
+      var context = currentBuild();
+      if (!context) return;
+      commit(M.updateBuild(state, context.world.id, context.build.id, { coords: els['build-coords'].value }).state);
+    });
+    els['copy-coords'].addEventListener('click', function () {
+      var context = currentBuild();
+      var coords = context ? String(context.build.coords).trim() : '';
+      if (!coords) { toast('This build has no coordinates yet.', true); return; }
+      copyText(coords, 'Coordinates copied');
+    });
+
+    /* EDICT-0013 D4: notes read as text; the textarea only exists while editing. */
+    function startNotesEdit() {
+      var context = currentBuild();
+      if (!context) return;
+      ui.notesEditing = true;
+      renderDetail();
+      els['build-notes'].value = context.build.notes;
+      els['build-notes'].focus();
+    }
+
+    function cancelNotesEdit() {
+      ui.notesEditing = false;
+      renderDetail();
+      els['notes-edit'].focus();
+    }
+
+    function saveNotesEdit() {
+      var context = currentBuild();
+      if (!context) return;
+      var result = M.updateBuild(state, context.world.id, context.build.id, { notes: els['build-notes'].value });
+      if (result.error) { toast(result.error, true); return; }
+      ui.notesEditing = false;
+      commit(result.state);
+      els['notes-edit'].focus();
+    }
+
+    els['notes-edit'].addEventListener('click', startNotesEdit);
+    els['notes-save'].addEventListener('click', saveNotesEdit);
+    els['notes-cancel'].addEventListener('click', cancelNotesEdit);
+    els['build-notes'].addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        saveNotesEdit();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        cancelNotesEdit();
+      }
     });
 
     els['build-delete'].addEventListener('click', function () {
       var world = activeWorld(); var build = selectedBuild();
       if (!world || !build) return;
       askConfirm('Delete build?', 'Delete "' + build.name + '" and its material list? This cannot be undone.', 'Delete', function () {
-        commit(M.deleteBuild(state, world.id, build.id).state);
+        // Clear the selection BEFORE committing: renderAll() runs inside commit() and would
+        // otherwise fall back to the next build, hiding the empty state the last delete leaves.
         ui.selectedBuildId = null;
+        ui.titleEditing = false;
+        ui.notesEditing = false;
+        commit(M.deleteBuild(state, world.id, build.id).state);
         toast('Build deleted.');
       });
     });
@@ -406,36 +644,91 @@
     els['material-body'].addEventListener('change', function (event) {
       var input = event.target.closest('[data-mat-field]');
       if (!input) return;
-      var world = activeWorld(); var build = selectedBuild();
-      if (!world || !build) return;
+      var context = currentBuild();
+      if (!context) return;
       var patch = {};
       patch[input.dataset.matField] = input.value;
-      commit(M.updateMaterial(state, world.id, build.id, input.dataset.mat, patch).state);
+      commit(M.updateMaterial(state, context.world.id, context.build.id, input.dataset.mat, patch).state);
+    });
+
+    /* Live progress: the bar and figures must not look stale while a number is still being
+       typed. Persistence still waits for the change event above. */
+    els['material-body'].addEventListener('input', function (event) {
+      if (!event.target.closest || !event.target.closest('[data-mat-field]')) return;
+      var live = readRowProgress();
+      paintBuildProgress(live.totals, live.count);
     });
 
     els['material-body'].addEventListener('click', function (event) {
+      var step = event.target.closest('.mat-step');
+      if (step) { adjustNeeded(step); return; }
       var button = event.target.closest('[data-remove-mat]');
       if (!button) return;
-      var world = activeWorld(); var build = selectedBuild();
-      if (!world || !build) return;
-      commit(M.deleteMaterial(state, world.id, build.id, button.dataset.removeMat).state);
+      var context = currentBuild();
+      if (!context) return;
+      commit(M.deleteMaterial(state, context.world.id, context.build.id, button.dataset.removeMat).state);
+    });
+
+    /**
+     * EDICT-0013 D5: +/-1, +/-10 and +/-one stack on the Needed amount. The model clamps at 1
+     * (M.stepNeeded), so "remove a stack" on a material that needs 1 leaves it at 1, not 0.
+     */
+    function adjustNeeded(button) {
+      var context = currentBuild();
+      if (!context) return;
+      var matId = button.dataset.mat;
+      var material = null;
+      context.build.materials.forEach(function (entry) {
+        if (entry.id === matId) material = entry;
+      });
+      if (!material) return;
+      var spec = String(button.dataset.step || '');
+      var sign = spec.charAt(0) === '-' ? -1 : 1;
+      var amount = spec.slice(1);
+      var delta = amount === 'stack'
+        ? sign * stackSizeFor(material.item)
+        : sign * (parseInt(amount, 10) || 0);
+      var next = M.stepNeeded(material.needed, delta);
+      if (next === material.needed) return;
+      commit(M.updateMaterial(state, context.world.id, context.build.id, matId, { needed: next }).state);
+      // Rendering replaces the buttons; give focus back to the same control so a keyboard user
+      // can press it again without tabbing through the whole row.
+      var buttons = document.querySelectorAll('.mat-step');
+      for (var i = 0; i < buttons.length; i += 1) {
+        if (buttons[i].dataset.mat === matId && buttons[i].dataset.step === spec) {
+          buttons[i].focus();
+          break;
+        }
+      }
+    }
+
+    els['mat-choice'].addEventListener('click', function () {
+      els['mat-error'].hidden = true;
+      openIconPicker({ scope: 'material', trigger: els['mat-choice'] });
     });
 
     els['add-material-form'].addEventListener('submit', function (event) {
       event.preventDefault();
-      var world = activeWorld(); var build = selectedBuild();
-      if (!world || !build) return;
-      var result = M.addMaterial(state, world.id, build.id, {
+      var context = currentBuild();
+      if (!context) return;
+      var result = M.addMaterial(state, context.world.id, context.build.id, {
         item: els['mat-item'].value,
         needed: els['mat-needed'].value,
         collected: els['mat-collected'].value
       });
-      if (result.error) { toast(result.error, true); return; }
-      commit(result.state);
-      els['mat-item'].value = '';
+      if (result.error) {
+        els['mat-error'].textContent = result.error;
+        els['mat-error'].hidden = false;
+        return;
+      }
+      els['mat-error'].hidden = true;
+      // Reset the picker and the number fields first, then commit: the render that follows shows
+      // the new row and the empty "Choose item…" chip in the same pass.
+      setMaterialChoice('');
       els['mat-needed'].value = '1';
       els['mat-collected'].value = '0';
-      els['mat-item'].focus();
+      commit(result.state);
+      els['mat-choice'].focus();
     });
 
     els['mat-search'].addEventListener('input', function () {
@@ -474,8 +767,13 @@
         els['world-error'].hidden = false;
         return;
       }
-      if (!editingWorldId) state = M.setActiveWorld(result.state, result.world.id).state || result.state;
-      else state = result.state;
+      if (!editingWorldId) {
+        state = M.setActiveWorld(result.state, result.world.id).state || result.state;
+        ui.selectedBuildId = null;
+        selectInitialBuild();
+      } else {
+        state = result.state;
+      }
       M.save(window.localStorage, state);
       els['world-dialog'].close();
       renderAll();
@@ -519,20 +817,37 @@
       if (els['confirm-dialog'].returnValue === 'confirm' && typeof action === 'function') action();
     });
 
-    els['world-icon-change'].addEventListener('click', function () { openIconPicker({ scope: 'world' }); });
+    els['world-icon-change'].addEventListener('click', function () { openIconPicker({ scope: 'world', trigger: els['world-icon-change'] }); });
     els['world-icon-remove'].addEventListener('click', function () { dialogIcon.world = null; renderIconPreview('world'); });
-    els['build-dlg-icon-change'].addEventListener('click', function () { openIconPicker({ scope: 'build' }); });
+    els['build-dlg-icon-change'].addEventListener('click', function () { openIconPicker({ scope: 'build', trigger: els['build-dlg-icon-change'] }); });
     els['build-dlg-icon-remove'].addEventListener('click', function () { dialogIcon.build = null; renderIconPreview('build'); });
     els['detail-avatar'].addEventListener('click', function () {
-      if (selectedBuild()) openIconPicker({ scope: 'build-detail' });
+      if (selectedBuild()) openIconPicker({ scope: 'build-detail', trigger: els['detail-avatar'] });
     });
 
-    els['icon-tab-item'].addEventListener('click', function () { ui.iconMode = 'item'; renderIconPicker(); });
-    els['icon-tab-image'].addEventListener('click', function () { ui.iconMode = 'image'; renderIconPicker(); });
     els['icon-search'].addEventListener('input', renderIconPicker);
+    /* #icon-cancel is the form's first submit button, so an implicit Enter submission would
+       count as Cancel. Enter in the search field confirms the draft instead (never in item
+       mode, where a click on a tile is the only way to choose). */
+    els['icon-search'].addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      if (ui.pickerMode === 'item') return;
+      useIconDraft();
+    });
     els['icon-grid'].addEventListener('click', function (event) {
       var tile = event.target.closest('.icon-tile');
       if (!tile) return;
+      /* Pick-item mode: one click chooses the item and closes (contract §5). */
+      if (ui.pickerMode === 'item') {
+        var chosen = tile.dataset.iconSlug;
+        if (!chosen) return;
+        var entry = catalogEntry(chosen);
+        setMaterialChoice(entry ? entry.name : titleSlug(chosen));
+        els['icon-dialog'].close();
+        els['mat-choice'].focus();
+        return;
+      }
       if (tile.dataset.iconNone) {
         draftIcon = null;
       } else {
@@ -542,7 +857,7 @@
       }
       renderIconPicker();
     });
-    els['icon-img-choose'].addEventListener('click', function () { els['icon-file'].click(); });
+    els['icon-upload'].addEventListener('click', function () { els['icon-file'].click(); });
     els['icon-file'].addEventListener('change', function () {
       var file = els['icon-file'].files && els['icon-file'].files[0];
       if (!file) return;
@@ -556,7 +871,6 @@
           return;
         }
         draftIcon = result.icon;
-        ui.iconMode = 'image';
         renderIconPicker();
       });
     });
@@ -583,12 +897,39 @@
     });
     els['icon-dialog'].addEventListener('close', function () {
       iconTarget = null;
-      if (lastIconTrigger && typeof lastIconTrigger.focus === 'function') lastIconTrigger.focus();
+      var trigger = lastIconTrigger;
       lastIconTrigger = null;
+      if (!trigger || typeof trigger.focus !== 'function') return;
+      /* Case 32: the browser resets focus right after a dialog closes, which wipes a synchronous
+         .focus() — restore the invoking control from the close event, deferred to the next frame
+         and re-checked once focus has actually been dropped (never steals a live focus target). */
+      function restore() {
+        if (!document.activeElement || document.activeElement === document.body) trigger.focus();
+      }
+      window.requestAnimationFrame(function () { trigger.focus(); });
+      window.setTimeout(restore, 0);
+      window.setTimeout(restore, 48);
     });
 
+    /**
+     * Keyboard support that does not depend on where focus sits. Enter / Ctrl+Enter / Escape are
+     * handled on the document too, so a probe (or a user tabbing away) still commits the editor;
+     * the per-input handlers run first and clear the flag, so nothing commits twice.
+     */
     document.addEventListener('keydown', function (event) {
-      if (event.key === 'Escape') return;
+      if (document.querySelector('dialog[open]')) return;
+      if (ui.titleEditing) {
+        if (event.key === 'Enter') { event.preventDefault(); saveTitleEdit(); return; }
+        if (event.key === 'Escape') { event.preventDefault(); cancelTitleEdit(); return; }
+      }
+      if (ui.notesEditing) {
+        if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+          event.preventDefault();
+          saveNotesEdit();
+          return;
+        }
+        if (event.key === 'Escape') { event.preventDefault(); cancelNotesEdit(); }
+      }
     });
   }
 
@@ -655,7 +996,7 @@
     renderDetail();
     renderWorldMaterials();
     renderWorlds();
-    renderItemOptions();
+    renderMaterialChoice();
     setView(ui.view);
   }
 
@@ -739,21 +1080,75 @@
     els['build-list'].hidden = empty;
   }
 
+  /** Paint the gathered/total figures; shared by the model render and by live typing. */
+  function paintBuildProgress(totals, materialCount) {
+    var needed = Math.max(0, totals.needed);
+    var collected = Math.min(Math.max(0, totals.collected), needed);
+    var pct = needed ? Math.min(100, Math.round((collected / needed) * 100)) : 0;
+    els['build-pct'].textContent = pct + '%';
+    els['build-fill'].style.width = pct + '%';
+    els['build-bar'].setAttribute('aria-valuenow', String(pct));
+    els['build-summary'].textContent = materialCount
+      ? collected + ' of ' + needed + ' items gathered · ' + (needed - collected) + ' to go'
+      : 'No materials listed yet. Add the blocks this build needs.';
+  }
+
+  /** The same figures read from the row inputs, so the bar is not stale while typing (D5). */
+  function readRowProgress() {
+    var totals = { needed: 0, collected: 0 };
+    var rows = els['material-body'].querySelectorAll('.mat-row');
+    Array.prototype.forEach.call(rows, function (row) {
+      var needInput = row.querySelector('[data-mat-field="needed"]');
+      var gotInput = row.querySelector('[data-mat-field="collected"]');
+      var need = Math.max(1, Math.floor(Number(needInput && needInput.value) || 1));
+      var got = Math.max(0, Math.floor(Number(gotInput && gotInput.value) || 0));
+      totals.needed += need;
+      totals.collected += Math.min(got, need);
+    });
+    return { totals: totals, count: rows.length };
+  }
+
   function renderDetail() {
     var world = activeWorld();
     var build = selectedBuild();
     var hasBuild = !!(world && build);
     els['detail-empty'].hidden = hasBuild;
     els['detail-body'].hidden = !hasBuild;
-    if (!hasBuild) return;
+    if (!hasBuild) {
+      ui.titleEditing = false;
+      ui.notesEditing = false;
+      ui.editingBuildId = null;
+      return;
+    }
+    /* Selecting another build abandons an in-progress inline edit (Escape semantics). */
+    if (ui.editingBuildId !== build.id) {
+      ui.editingBuildId = build.id;
+      ui.titleEditing = false;
+      ui.notesEditing = false;
+    }
 
     els['detail-heading'].textContent = build.name;
+    els['detail-heading'].hidden = ui.titleEditing;
     els['detail-avatar'].innerHTML = avatarHtml(build.icon, 40, build.name);
     els['detail-avatar'].setAttribute('aria-label', 'Change icon for ' + build.name);
     wireIconFallbacks(els['detail-avatar']);
-    els['build-name'].value = build.name;
+
+    els['build-name'].hidden = !ui.titleEditing;
+    els['build-name-save'].hidden = !ui.titleEditing;
+    els['build-name-cancel'].hidden = !ui.titleEditing;
+    els['build-rename'].hidden = ui.titleEditing;
+    if (!ui.titleEditing) els['build-name'].value = build.name;
+
     els['build-coords'].value = build.coords;
-    els['build-notes'].value = build.notes;
+    els['copy-coords'].disabled = !String(build.coords).trim();
+
+    els['notes-text'].hidden = ui.notesEditing;
+    els['notes-editor'].hidden = !ui.notesEditing;
+    if (!ui.notesEditing) {
+      els['notes-text'].textContent = build.notes || 'No notes yet.';
+      els['notes-text'].classList.toggle('notes__text--empty', !build.notes);
+    }
+
     Array.prototype.forEach.call(els['status-group'].querySelectorAll('[data-status]'), function (button) {
       var active = button.dataset.status === build.status;
       button.classList.toggle('is-active', active);
@@ -765,13 +1160,7 @@
       acc.collected += Math.min(material.collected, material.needed);
       return acc;
     }, { needed: 0, collected: 0 });
-    var pct = totals.needed ? Math.round((totals.collected / totals.needed) * 100) : 0;
-    els['build-pct'].textContent = pct + '%';
-    els['build-fill'].style.width = pct + '%';
-    els['build-bar'].setAttribute('aria-valuenow', String(pct));
-    els['build-summary'].textContent = build.materials.length
-      ? totals.collected + ' of ' + totals.needed + ' items gathered · ' + (totals.needed - totals.collected) + ' to go'
-      : 'No materials listed yet. Add the blocks this build needs.';
+    paintBuildProgress(totals, build.materials.length);
 
     var rows = build.materials.map(function (material) {
       var progress = M.materialProgress(material);
@@ -785,11 +1174,46 @@
         '<span class="num">' + progress.remaining + '</span>' +
         '<button type="button" class="row-delete" data-remove-mat="' + escapeHtml(material.id) + '" ' +
           'aria-label="Remove ' + escapeHtml(material.item) + '">×</button>' +
+        materialStepsHtml(material, stackSizeFor(material.item)) +
         '</div>';
     });
     els['material-body'].innerHTML = rows.join('');
     wireIconFallbacks(els['material-body']);
     els['material-empty'].hidden = build.materials.length > 0;
+  }
+
+  /**
+   * EDICT-0013 D5 / contract §4: exactly six step buttons per material row. data-step keeps the
+   * contract's literal "+stack"/"-stack", data-mat-step mirrors the resolved amount and
+   * data-stack carries the item's stack size, so the visible label reads "+64" on stone and
+   * "+16" on an egg. The cluster sits on the row's second grid line (CSS .mat-steps).
+   */
+  function materialStepsHtml(material, stack) {
+    var specs = [
+      { kind: '+', amount: '1' },
+      { kind: '+', amount: '10' },
+      { kind: '+', amount: 'stack' },
+      { kind: '-', amount: '1' },
+      { kind: '-', amount: '10' },
+      { kind: '-', amount: 'stack' }
+    ];
+    var id = escapeHtml(material.id);
+    var buttons = specs.map(function (spec) {
+      /* Contract §4: the frozen visible label is the literal "+stack"/"-stack"; the resolved
+         size travels in data-stack / data-mat-step and in the accessible name, so stone reads
+         "Add a full stack of 64 to needed" while every row looks identical. */
+      var value = spec.amount === 'stack' ? String(stack) : spec.amount;
+      var verb = spec.kind === '+' ? 'Add ' : 'Remove ';
+      var what = spec.amount === 'stack' ? 'a full stack of ' + stack : value;
+      var where = spec.kind === '+' ? ' to needed' : ' from needed';
+      return '<button type="button" class="mat-step" ' +
+        'data-mat="' + id + '" data-step="' + spec.kind + spec.amount + '" ' +
+        'data-mat-step="' + spec.kind + value + '" data-stack="' + stack + '" ' +
+        'title="' + verb + what + '" aria-label="' + verb + what + where + '">' +
+        spec.kind + spec.amount + '</button>';
+    });
+    return '<div class="mat-steps" role="group" aria-label="Adjust needed for ' +
+      escapeHtml(material.item) + '">' + buttons.join('') + '</div>';
   }
 
   function renderWorldMaterials() {
@@ -861,8 +1285,12 @@
       var editId = button.dataset.worldEdit;
       var deleteId = button.dataset.worldDelete;
       if (selectId) {
-        commit(M.setActiveWorld(state, selectId).state);
+        var activated = M.setActiveWorld(state, selectId);
+        if (activated.error) { toast(activated.error, true); return; }
+        state = activated.state;
         ui.selectedBuildId = null;
+        selectInitialBuild();
+        commit(state);
         setView('builds');
         toast('World selected.');
       } else if (editId) {
@@ -870,26 +1298,16 @@
       } else if (deleteId) {
         var world = M.findWorld(state, deleteId);
         askConfirm('Delete world?', 'Delete "' + (world ? world.name : 'this world') + '" with all its builds? This cannot be undone.', 'Delete', function () {
-          commit(M.deleteWorld(state, deleteId).state);
+          var deleted = M.deleteWorld(state, deleteId);
+          if (deleted.error) { toast(deleted.error, true); return; }
+          state = deleted.state;
           ui.selectedBuildId = null;
+          selectInitialBuild();
+          commit(state);
           toast('World deleted.');
         });
       }
     };
-  }
-
-  function renderItemOptions() {
-    var items = COMMON_ITEMS.slice();
-    state.worlds.forEach(function (world) {
-      world.builds.forEach(function (build) {
-        build.materials.forEach(function (material) {
-          if (items.indexOf(material.item) < 0) items.push(material.item);
-        });
-      });
-    });
-    els['item-options'].innerHTML = items.map(function (item) {
-      return '<option value="' + escapeHtml(item) + '"></option>';
-    }).join('');
   }
 
   /* ------------------------------------------------------------- export/io */
@@ -922,6 +1340,7 @@
       state = result.state;
       M.save(window.localStorage, state);
       ui.selectedBuildId = null;
+      selectInitialBuild();
       els['file-import'].value = '';
       renderAll();
       toast('Backup restored.');
@@ -936,7 +1355,16 @@
     var text = rows.map(function (row) {
       return row.item + ' x' + row.needed + (row.remaining ? ' (' + row.remaining + ' left)' : ' (done)');
     }).join('\n');
-    function done() { toast('Shopping list copied.'); }
+    copyText(text, 'Shopping list copied.');
+  }
+
+  /**
+   * EDICT-0013 D3: one clipboard helper for the shopping list and the coords button.
+   * navigator.clipboard is unavailable on some file:// documents, so fall back to
+   * the hidden-textarea + execCommand path that the list already used.
+   */
+  function copyText(text, okMessage) {
+    function done() { toast(okMessage); }
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text, done); });
     } else {

@@ -194,3 +194,37 @@ baked into the exported PNGs for 3D models only.
   byte-identical, 42/42 3D icons corrected with alpha preserved. Notes only: the brightest
   top faces overshoot by up to +0.048, and emissive prop cores clip in 8-bit (torch 20 %,
   lantern 32 %) — both inherent to an offline compensation.
+
+## [2026-10-25] ingest | EDICT-0013 — interaction pass, the whole item export, and a clearer title screen
+
+The ten-item report changed the app's controls, its typeface, its icon set and its backdrop.
+
+- Font: the UI face is now `src/assets/fonts/Minecraft.ttf` (Craftron Gaming via DaFont,
+  "100% Free"), 110 glyphs page vs 107 `cmap`, U+20AC present, arrows/dashes/ellipsis/×/·/≥/≤
+  absent — Pixelify Sans stays bundled as the fallback. Licence sealed as
+  `raw/sources/2026-10-25-minecraft-font-licence.md`; `src/assets/fonts/Minecraft-LICENCE.md`
+  ships with the binary.
+- Catalog: 53 curated → **1,368** addressable icons from 1,609 export renders (1,363 plain +
+  5 representatives of 246 variants; 241 `collapsed_variants`), curated first, stack table
+  1,136×64 / 46×16 / 186×1; brightness classification preserved block 407 / flat 620 /
+  `3d-other` 341 — `hopper` jar-flat, `anvil`/`chest` 3d-other, five flat-pixel mismatches
+  disclosed.
+- Detail controls: inline title rename (`#build-rename`/`#build-name-save`/`#build-name-cancel`),
+  `#copy-coords`, notes view/edit (`#notes-text`/`#notes-edit`/`#build-notes`), six
+  `button.mat-step` per material with `data-stack`; one picker dialog with footer upload and a
+  pick-item mode for `#mat-choice`.
+- Themed native select: `@supports (appearance: base-select)` + `::picker(select)` (panel
+  `rgb(111, 111, 111)`, 2 px black border, Minecraft face) on Chrome 155; other browsers keep
+  the OS popup.
+- Backdrop: bake radius 8 → 2.5 (0–3 guard), CSS 2 → 1 px (1.5 px ≤640 px), scrim 0.12 → 0.2;
+  `backdrop.webp` 15,280 → 45,664 B, edge-variance 1,132.6 → 1,379.9.
+- Updated [[Minecraft Build Tracker]], [[In-game GUI design]],
+  [[Atmosphere and identity without shipping assets]], [[Vanilla assets without redistribution]],
+  [[Testing a UI like a user]], [[Open questions]] (icon coverage and menu atmosphere closed;
+  the physical comparison is now its own entry), [[LLM Wiki]]; design-system `MASTER.md` and
+  `pages/tracker.md`; `README.md`.
+- Verification: 22 + 9 unit, 71 acceptance (7 suites + `edict-0013-assets` 11), 138/138 audit,
+  49/49 browser flows under the Lead's hands, app-qa restamped `2026-10-25T10:02:35Z` covering
+  8 hashed files (app sources + font + panorama WebP + manifest); evidence
+  `reports/qa/evidence/edict-0013/` (27 files, 22 distinct PNGs). Chrome cannot start in the DSH
+  verifier sandbox, so 测试部 authored and analysed while the Lead executed — disclosed.

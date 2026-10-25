@@ -17,10 +17,17 @@ extractor usable on a machine that has the game but not the export; the manifest
 which mode produced the files.
 
 Outputs (all committed, all regenerable):
-    src/assets/icons/<slug>.png     inventory renders (256x256) or fallback textures (16x16)
-    src/assets/icons/icons.js       window.MC_ICON_SET / window.MC_ICON_NAMES
-    src/assets/icons/manifest.json  provenance + sha256 per icon
+    src/assets/icons/<slug>.png     inventory renders (256x256, one per item type) or fallback
+                                    textures (16x16)
+    src/assets/icons/icons.js       window.MC_ICON_SET / window.MC_ICON_NAMES /
+                                    window.MC_ICON_STACKS
+    src/assets/icons/manifest.json  provenance + name/stack/sha256/bytes per icon
     src/assets/icons/PROVENANCE.md  licensing / origin notice
+
+The catalog is the whole item list, not a hand-picked subset: every `minecraft__<slug>.png` in
+the export becomes an icon, with component variants (potions, tipped arrows, paintings, ...)
+collapsed onto their base item so the picker offers one entry per item type. The 53 curated
+building materials are emitted first so the common blocks stay at the top of the picker.
 
 Usage:
     <dsh python> scripts/mc-icons.py                     # auto: export if present, else jar
@@ -39,6 +46,7 @@ import os
 import re
 import shutil
 import sys
+import time
 import zipfile
 from pathlib import Path
 
@@ -133,6 +141,268 @@ ITEMS = [
     ("Ladder", "ladder", "block", "ladder"),
     ("Lantern", "lantern", "block", "lantern"),
 ]
+
+
+# ------------------------------------------------------------------ catalog metadata
+# The app reads `window.MC_ICON_SET` (slugs), `window.MC_ICON_NAMES` (parallel display names)
+# and `window.MC_ICON_STACKS` (slug -> max stack size). Names must slugify back to their slug
+# with the app's own algorithm, otherwise src/app.js drops the entry from the picker.
+ACRONYMS = {"tnt": "TNT", "xp": "XP"}
+
+# Max stack sizes of the vanilla Java 1.21.4 item registry: the numbers the in-game inventory
+# enforces. Anything not matched below stacks to 64.
+#   16 - eggs, snowballs, ender pearls, honey bottles, armor stands, the empty bucket, every
+#        sign and hanging sign, every banner.
+#   1  - tools and weapons, armour, shields, potions, filled buckets (water, lava, milk, fish,
+#        powder snow, ...), boats and rafts, minecarts, shulker boxes, beds, cakes, stews and
+#        soups, books that hold content, maps, bundles, saddles, elytra, totems, banner patterns,
+#        goat horns and music discs.
+STACK_DEFAULT = 64
+STACK_16_EXACT = {"bucket", "egg", "blue_egg", "brown_egg", "snowball", "ender_pearl",
+                  "honey_bottle", "armor_stand"}
+STACK_16_SUFFIX = ("_sign", "_banner")
+STACK_1_EXACT = {
+    # tools, weapons, utility
+    "shears", "flint_and_steel", "fishing_rod", "carrot_on_a_stick",
+    "warped_fungus_on_a_stick", "bow", "crossbow", "trident", "mace", "brush",
+    "spyglass", "shield", "elytra", "saddle", "wolf_armor", "bundle",
+    # books, maps and patterns that carry their own content
+    "knowledge_book", "enchanted_book", "written_book", "writable_book", "filled_map",
+    "banner_pattern",
+    # bottle-style consumables and bowl foods
+    "potion", "splash_potion", "lingering_potion", "ominous_bottle", "dragon_breath",
+    "mushroom_stew", "rabbit_stew", "beetroot_soup", "suspicious_stew",
+    # single-use / placed-entity items
+    "minecart", "shulker_box", "cake", "totem_of_undying", "goat_horn",
+}
+STACK_1_SUFFIX = ("_bucket", "_shulker_box", "_banner_pattern", "_sword", "_pickaxe", "_axe",
+                  "_shovel", "_hoe", "_helmet", "_chestplate", "_leggings", "_boots",
+                  "_horse_armor", "_boat", "_raft", "_minecart", "_bed")
+STACK_1_PREFIX = ("music_disc",)
+
+# Categories are emitted only where the slug family is unambiguous; the picker may ignore them.
+CATEGORY_EXACT = {
+    "shears": "tool", "flint_and_steel": "tool", "fishing_rod": "tool",
+    "carrot_on_a_stick": "tool", "warped_fungus_on_a_stick": "tool",
+    "bow": "tool", "crossbow": "tool", "trident": "tool", "mace": "tool",
+    "brush": "tool", "spyglass": "tool",
+    "shield": "armor", "elytra": "armor", "wolf_armor": "armor",
+    "potion": "potion", "splash_potion": "potion", "lingering_potion": "potion",
+}
+CATEGORY_SUFFIX = (
+    ("_spawn_egg", "spawn egg"),
+    ("_helmet", "armor"), ("_chestplate", "armor"), ("_leggings", "armor"),
+    ("_boots", "armor"), ("_horse_armor", "armor"),
+    ("_sword", "tool"), ("_pickaxe", "tool"), ("_axe", "tool"), ("_shovel", "tool"),
+    ("_hoe", "tool"),
+    ("_boat", "vehicle"), ("_raft", "vehicle"), ("_minecart", "vehicle"),
+)
+
+VARIANT_RE = re.compile(r"^([a-z0-9_]+?)__\{")
+
+
+def stack_size(slug: str) -> int:
+    """Max stack size the vanilla inventory enforces for this item slug."""
+    if slug in STACK_16_EXACT or slug.endswith(STACK_16_SUFFIX):
+        return 16
+    if slug in STACK_1_EXACT or slug.startswith(STACK_1_PREFIX) or slug.endswith(STACK_1_SUFFIX):
+        return 1
+    return STACK_DEFAULT
+
+
+def category_for(slug: str) -> str | None:
+    """Coarse picker category when the slug makes it unambiguous, else None."""
+    if slug in CATEGORY_EXACT:
+        return CATEGORY_EXACT[slug]
+    if slug.startswith(STACK_1_PREFIX):
+        return "music disc"
+    for suffix, category in CATEGORY_SUFFIX:
+        if slug.endswith(suffix):
+            return category
+    return None
+
+
+def labelize(slug: str) -> str:
+    """Display name for an item slug: `oak_log` -> `Oak Log`, `tnt_minecart` -> `TNT Minecart`."""
+    return " ".join(ACRONYMS.get(word, word.capitalize()) for word in slug.split("_") if word)
+
+
+def app_slugify(name: str) -> str:
+    """The app's own slug algorithm (src/app.js slugifyItem), used to prove the round trip."""
+    return re.sub(r"^_+|_+$", "", re.sub(r"[^a-z0-9]+", "_", name.strip().lower()))
+
+
+def curated_entries() -> list[tuple[str, str, str]]:
+    """(slug, display name, kind) of the hand-picked building materials, in curated order."""
+    entries = [(slug, name, "block") for name, slug, _top, _side, _front in BLOCKS]
+    entries += [(slug, name, "prop" if folder == "block" else "item")
+                for name, slug, folder, _texture in ITEMS]
+    return entries
+
+
+def collapse_exports(exports: Path) -> tuple[dict[str, str], int, int]:
+    """One icon per item type: ({slug: export filename}, collapsed variant count, render count).
+
+    IconExporter writes a component-variant render per item *state*, for example
+    `minecraft__potion__{'minecraft__potion_contents'__{potion__'minecraft__water'}}.png`.
+    Those are the same item, so they collapse onto the base slug; the water variant is used as
+    the representative when the family has one (a plain potion bottle), otherwise the first.
+    """
+    plain: dict[str, str] = {}
+    variants: dict[str, list[str]] = {}
+    total = 0
+    for path in sorted(exports.glob(f"{EXPORT_PREFIX}*.png")):
+        total += 1
+        stem = path.name[len(EXPORT_PREFIX):-len(".png")]
+        match = VARIANT_RE.match(stem)
+        if match:
+            variants.setdefault(match.group(1), []).append(path.name)
+        else:
+            plain[stem] = path.name
+    collapsed = 0
+    for slug, names in sorted(variants.items()):
+        if slug in plain:
+            collapsed += len(names)      # cosmetic variants of an item that has a base render
+            continue
+        preferred = next((name for name in names if "'minecraft__water'" in name), sorted(names)[0])
+        plain[slug] = preferred
+        collapsed += len(names) - 1
+    return plain, collapsed, total
+
+
+def catalog_order(available: dict[str, str]) -> list[tuple[str, str, str]]:
+    """Every available item, curated first then alphabetical: (slug, display name, kind)."""
+    curated = curated_entries()
+    seen = {slug for slug, _name, _kind in curated}
+    ordered = [(slug, name, kind) for slug, name, kind in curated if slug in available]
+    ordered += [(slug, labelize(slug), "auto") for slug in sorted(available) if slug not in seen]
+    return ordered
+
+
+def verify_contract(manifest: list[dict]) -> None:
+    """Abort if the catalog breaks the frozen data contract (.tmp/plan/contract.md §8)."""
+    for entry in manifest:
+        slug = app_slugify(entry["name"])
+        if slug != entry["slug"]:
+            raise SystemExit(
+                f"Display name {entry['name']!r} slugifies to {slug!r}, not {entry['slug']!r}; "
+                "the app would drop this icon from the picker."
+            )
+        for field in ("slug", "name", "stack", "sha256", "bytes", "source", "lighting"):
+            if not entry.get(field):
+                raise SystemExit(
+                    f"{entry.get('slug')!r}: manifest entry is missing {field!r}; the catalog "
+                    "data contract requires slug, name, stack, sha256, bytes, source and lighting."
+                )
+        if entry["lighting"] not in ("block", "flat", "3d-other"):
+            raise SystemExit(
+                f"{entry['slug']}: lighting {entry['lighting']!r} is not one of "
+                "block/flat/3d-other."
+            )
+        if entry["stack"] not in (1, 16, 64):
+            raise SystemExit(f"{entry['slug']}: stack {entry['stack']!r} is not 1, 16 or 64.")
+
+
+# ------------------------------------------------- jar model classification (3D vs flat)
+ITEM_DEFS = "assets/minecraft/items/"
+ITEM_MODELS = "assets/minecraft/models/item/"
+
+
+def _walk_definition(node, found: list[tuple[str | None, str]], special: list[bool]) -> None:
+    """Collect the model references and flag special renderers in a client item definition."""
+    if isinstance(node, dict):
+        kind = node.get("type")
+        if kind == "minecraft:special":
+            special[0] = True
+        for key in ("model", "base"):
+            value = node.get(key)
+            if isinstance(value, str) and value not in [model for _kind, model in found]:
+                found.append((kind, value))
+        for value in node.values():
+            if isinstance(value, (dict, list)):
+                _walk_definition(value, found, special)
+    elif isinstance(node, list):
+        for value in node:
+            _walk_definition(value, found, special)
+
+
+def _model_json(zf: zipfile.ZipFile, names: set[str], cache: dict[str, dict | None],
+                path: str) -> dict | None:
+    name = path.split(":", 1)[1] if ":" in path else path
+    entry = f"assets/minecraft/models/{name}.json"
+    if entry not in names:
+        return None
+    if entry not in cache:
+        cache[entry] = json.loads(zf.read(entry))
+    return cache[entry]
+
+
+def _model_is_flat(zf: zipfile.ZipFile, names: set[str], cache: dict[str, dict | None],
+                   path: str) -> bool | None:
+    """True for an item/generated sprite, False for a block model or any model with geometry."""
+    current = path.split(":", 1)[1] if ":" in path else path
+    for _step in range(24):
+        if current in ("item/generated", "item/handheld", "builtin/generated"):
+            return True
+        if current.startswith("block/"):
+            return False
+        data = _model_json(zf, names, cache, current)
+        if data is None:
+            return None
+        if "elements" in data:
+            return False
+        parent = data.get("parent")
+        if not parent:
+            return "textures" in data
+        current = parent.split(":", 1)[1] if ":" in parent else parent
+    return None
+
+
+def classify_models(zf: zipfile.ZipFile, slugs: list[str]) -> dict[str, str]:
+    """Classify every item from the client jar's item definition and model parent chain.
+
+    "block" is a block model (inventory cube), "flat" an item/generated sprite, "special" a
+    special renderer (chest, bed, banner, shield, ...) and "unknown" when no usable chain exists.
+    """
+    names = set(zf.namelist())
+    cache: dict[str, dict | None] = {}
+    classes: dict[str, str] = {}
+    for slug in slugs:
+        found: list[tuple[str | None, str]] = []
+        special = [False]
+        definition = f"{ITEM_DEFS}{slug}.json"
+        if definition in names:
+            _walk_definition(json.loads(zf.read(definition)), found, special)
+        elif f"{ITEM_MODELS}{slug}.json" in names:
+            found.append((None, f"item/{slug}"))
+        if special[0]:
+            classes[slug] = "special"
+            continue
+        verdicts: set[str] = set()
+        for _kind, model in found:
+            if model.startswith(("minecraft:block/", "block/")):
+                verdicts.add("block")
+                continue
+            flat = _model_is_flat(zf, names, cache, model)
+            verdicts.add({True: "flat", False: "block", None: "unknown"}[flat])
+        if "block" in verdicts:
+            classes[slug] = "block"
+        elif verdicts == {"flat"}:
+            classes[slug] = "flat"
+        else:
+            classes[slug] = "unknown"
+    return classes
+
+
+def nearest_uniform(image: Image.Image, factors: tuple[int, ...] = (16, 32, 64, 128)) -> int | None:
+    """Return f when the image is an exact NEAREST upscale by f (a flat 16px sprite), else None."""
+    for factor in factors:
+        if image.width % factor or image.height % factor:
+            continue
+        small = image.resize((image.width // factor, image.height // factor), Image.NEAREST)
+        if small.resize(image.size, Image.NEAREST) == image:
+            return factor
+    return None
 
 
 # --------------------------------------------------------------- high-resolution exports
@@ -327,8 +597,8 @@ def silhouette_box(image: Image.Image) -> tuple[int, int, int, int]:
     return image.convert("RGBA").getchannel("A").getbbox() or (0, 0, 0, 0)
 
 
-def build_high_res(exports: Path, jar: Path | None) -> tuple[list[dict], list[str], int, dict | None]:
-    manifest: list[dict] = []
+def build_high_res(exports: Path, jar: Path | None) -> tuple[list[dict], list[str], int, dict | None, dict]:
+    """Copy every exported item render into the asset folder; returns the catalog and stats."""
     missing: list[str] = []
     pixels: int | None = None
 
@@ -355,8 +625,9 @@ def build_high_res(exports: Path, jar: Path | None) -> tuple[list[dict], list[st
             correction = {
                 "applied": True,
                 "reason": LIGHTING_BUG,
-                "method": "per-face brightness gain on the exported render (flat 2D sprites are "
-                          "copied unchanged; 3D props get the face-area-weighted gain)",
+                "method": "per-face brightness gain on the exported render (block models get the "
+                          "measured per-face gains, non-cube 3D models and special renderers the "
+                          "face-area-weighted gain; flat 2D sprites are copied unchanged)",
                 "target_vanilla_face_factors": dict(VANILLA_FACE_FACTORS),
                 "measured_export_face_factors": {face: round(value, 4) for face, value in measured.items()},
                 "gains": {key: round(value, 4) for key, value in gains.items()},
@@ -370,16 +641,46 @@ def build_high_res(exports: Path, jar: Path | None) -> tuple[list[dict], list[st
             print(f"note: lighting correction disabled ({error})")
 
     reference_box = silhouette_box(Image.open(reference).convert("RGBA")) if reference.is_file() else None
+    # A true full-cube render has exactly the reference silhouette (every texel covered the same
+    # way), which is far stricter than the bounding box: stairs, slabs, fences and leaves share
+    # the box but not the silhouette.
+    reference_alpha = (
+        Image.open(reference).convert("RGBA").getchannel("A").tobytes() if reference.is_file() else None
+    )
 
-    entries = [(name, slug, "block") for name, slug, _t, _s, _f in BLOCKS]
-    entries += [(name, slug, "prop" if folder == "block" else "item") for name, slug, folder, _texture in ITEMS]
-    boxed_entries = list(entries)
-    for name, slug, kind in boxed_entries:
-        source = exports / f"{EXPORT_PREFIX}{slug}.png"
-        if not source.is_file():
+    available, collapsed, renders = collapse_exports(exports)
+    entries = catalog_order(available)
+    if not entries:
+        raise SystemExit(f"No {EXPORT_PREFIX}*.png renders found in {exports}")
+    for slug, _name, _kind in curated_entries():
+        if slug not in available:
             missing.append(f"{EXPORT_DIRNAME}/{EXPORT_PREFIX}{slug}.png")
-            print(f"MISS {slug}: {source}")
-            continue
+            print(f"MISS curated icon: {slug}")
+
+    # What each render is: a block model, a flat item sprite or a special-renderer model. Read
+    # from the jar's item definition / model parent chain (F3); without the jar the icon's own
+    # pixels decide, because an exact 16x NEAREST upscale can only be a flat sprite.
+    model_classes: dict[str, str] = {}
+    if jar is not None:
+        with zipfile.ZipFile(jar) as zf:
+            model_classes = classify_models(zf, [slug for slug, _name, _kind in entries])
+        summary = " ".join(
+            f"{name} {sum(1 for value in model_classes.values() if value == name)}"
+            for name in ("block", "flat", "special", "unknown")
+        )
+        print(f"model chain: {summary}")
+    else:
+        print("model chain: client jar not available, classifying from the exported pixels")
+
+    manifest: list[dict] = []
+    lighting_counts = {"block": 0, "flat": 0, "3d-other": 0}
+    non_cube: list[str] = []
+    specials: list[str] = []
+    unknowns: list[str] = []
+    mismatches: list[str] = []
+    for slug, name, kind in entries:
+        filename = available[slug]
+        source = exports / filename
         size = check_export(source)
         if pixels is None:
             pixels = size
@@ -389,30 +690,90 @@ def build_high_res(exports: Path, jar: Path | None) -> tuple[list[dict], list[st
                 "Re-export the whole set at one resolution."
             )
         target = OUT / f"{slug}.png"
-        lighting = "none"
-        if correction is not None and masks is not None and kind in ("block", "prop"):
-            icon = Image.open(source).convert("RGBA")
-            if kind == "block" and reference_box is not None and silhouette_box(icon) == reference_box:
-                for face, mask in masks.items():
-                    icon = Image.composite(scale_brightness(icon, gains[face]), icon, mask)
-                lighting = "faces"
+        icon = Image.open(source).convert("RGBA")
+        correct = correction is not None and masks is not None
+        # Full-cube silhouettes share IconExporter's projection exactly, so their face masks
+        # (and the calibrated gains) can be applied safely. Curated entries keep the EDICT-0012
+        # bounding-box rule so their pixels stay byte-identical to the previous edition.
+        if kind == "auto":
+            cube = reference_alpha is not None and icon.getchannel("A").tobytes() == reference_alpha
+        else:
+            cube = reference_box is not None and silhouette_box(icon) == reference_box
+        model = model_classes.get(slug)
+        if model is None:
+            model = "flat" if nearest_uniform(icon) == 16 else "3d-other"
+        elif model == "unknown":
+            unknowns.append(slug)
+            model = "flat" if nearest_uniform(icon) == 16 else "3d-other"
+        elif model == "flat" and nearest_uniform(icon) != 16:
+            mismatches.append(slug)
+        if kind == "auto":
+            kind = "cube" if (model == "block" and cube) else ("item" if model == "flat" else "model")
+        if kind == "item":
+            # Flat 2D sprites are unaffected by the 3D-transform darkening bug.
+            shutil.copyfile(source, target)
+            lighting = "flat"
+        elif kind == "prop":
+            # EDICT-0012 treated these three as 3D props; the treatment is kept for visual
+            # continuity (F3's frozen case requires `torch` corrected) and disclosed as legacy.
+            if correct:
+                scale_brightness(icon, gains["props"]).save(target)
             else:
-                icon = scale_brightness(icon, gains["props"])
-                lighting = "uniform"
+                shutil.copyfile(source, target)
+            lighting = "3d-other"
+        elif cube and correct:
+            for face, mask in masks.items():
+                icon = Image.composite(scale_brightness(icon, gains[face]), icon, mask)
             icon.save(target)
+            lighting = "block"
+        elif model != "flat" and correct:
+            # Non-cube block models (stairs, slabs, fences, anvils, ...) and special renderers
+            # (chest, bed, banner, shield, ...) share the flat face-area-weighted gain.
+            scale_brightness(icon, gains["props"]).save(target)
+            lighting = "3d-other"
+            if model == "block":
+                non_cube.append(slug)
+            elif model == "special":
+                specials.append(slug)
         else:
             shutil.copyfile(source, target)
-        manifest.append({
+            lighting = "flat" if model == "flat" else "3d-other"
+        lighting_counts[lighting] += 1
+        entry = {
             "name": name,
             "slug": slug,
             "kind": kind,
             "image": f"{slug}.png",
             "pixels": size,
             "lighting": lighting,
-            "source": f"{EXPORT_DIRNAME}/{EXPORT_PREFIX}{slug}.png",
+            "source": f"{EXPORT_DIRNAME}/{filename}",
             "sha256": sha256(target),
-        })
-    return manifest, missing, pixels or EXPECTED_EXPORT_PX, correction
+            "bytes": target.stat().st_size,
+            "stack": stack_size(slug),
+        }
+        category = category_for(slug)
+        if category:
+            entry["category"] = category
+        manifest.append(entry)
+
+    stats = {
+        "curated": sum(1 for slug, _name, _kind in curated_entries() if slug in available),
+        "collapsed_variants": collapsed,
+        "renders": renders,
+        "lighting": lighting_counts,
+        "models": {
+            name: sum(1 for slug, _name, _kind in entries if model_classes.get(slug) == name)
+            for name in ("block", "flat", "special", "unknown")
+        },
+        "non_cube_models": sorted(non_cube),
+        "special_models": sorted(specials),
+        "unknown_models": sorted(unknowns),
+        "flat_pixel_mismatches": sorted(mismatches),
+        "total_bytes": sum(entry["bytes"] for entry in manifest),
+        "stack_overrides": sum(1 for entry in manifest if entry["stack"] != STACK_DEFAULT),
+        "stacks": {size: sum(1 for entry in manifest if entry["stack"] == size) for size in (STACK_DEFAULT, 16, 1)},
+    }
+    return manifest, missing, pixels or EXPECTED_EXPORT_PX, correction, stats
 
 
 # ------------------------------------------------------------------- jar fallback (16x16)
@@ -542,16 +903,24 @@ def build_fallback(jar: Path) -> tuple[list[dict], list[str]]:
                     side = Image.alpha_composite(side, tint(load_png(zf, overlay_path), PLAINS_GRASS))
 
             icon = isometric_icon(top, side, front)
-            icon.save(OUT / f"{slug}.png")
-            manifest.append({
+            target = OUT / f"{slug}.png"
+            icon.save(target)
+            entry = {
                 "name": name,
                 "slug": slug,
                 "kind": "cube",
                 "image": f"{slug}.png",
                 "pixels": 16,
+                "lighting": "block",
                 "textures": [w.replace(TEX_PREFIX, "") for w in wanted],
-                "sha256": sha256(OUT / f"{slug}.png"),
-            })
+                "sha256": sha256(target),
+                "bytes": target.stat().st_size,
+                "stack": stack_size(slug),
+            }
+            category = category_for(slug)
+            if category:
+                entry["category"] = category
+            manifest.append(entry)
 
         for name, slug, folder, texture in ITEMS:
             path = f"{TEX_PREFIX}{folder}/{texture}.png"
@@ -560,16 +929,24 @@ def build_fallback(jar: Path) -> tuple[list[dict], list[str]]:
                 print(f"MISS {slug}: {path}")
                 continue
             image = load_png(zf, path)
-            image.save(OUT / f"{slug}.png")
-            manifest.append({
+            target = OUT / f"{slug}.png"
+            image.save(target)
+            entry = {
                 "name": name,
                 "slug": slug,
                 "kind": "sprite" if folder == "item" else "flat-block",
                 "image": f"{slug}.png",
                 "pixels": 16,
+                "lighting": "flat",
                 "textures": [path.replace(TEX_PREFIX, "")],
-                "sha256": sha256(OUT / f"{slug}.png"),
-            })
+                "sha256": sha256(target),
+                "bytes": target.stat().st_size,
+                "stack": stack_size(slug),
+            }
+            category = category_for(slug)
+            if category:
+                entry["category"] = category
+            manifest.append(entry)
     return manifest, missing
 
 
@@ -593,29 +970,62 @@ def find_install(explicit: str | None) -> Path | None:
     return None
 
 
-def write_manifest(manifest: list[dict], source: dict, pixels: int) -> None:
-    manifest.sort(key=lambda entry: entry["slug"])
+def write_manifest(manifest: list[dict], source: dict, pixels: int, stats: dict) -> None:
+    """Write the manifest: source block, catalog totals, then one entry per icon (curated first)."""
+    payload = {
+        "source": source,
+        "count": len(manifest),
+        "pixels": pixels,
+        "curated": stats["curated"],
+        "renders": stats["renders"],
+        "collapsed_variants": stats["collapsed_variants"],
+        "stack_default": STACK_DEFAULT,
+        "stack_overrides": stats["stack_overrides"],
+        "stack_groups": {str(size): count for size, count in stats["stacks"].items()},
+        "lighting": stats["lighting"],
+        "models": stats["models"],
+        "total_bytes": stats["total_bytes"],
+        "icons": manifest,
+    }
     (OUT / "manifest.json").write_text(
-        json.dumps({"source": source, "count": len(manifest), "pixels": pixels, "icons": manifest},
-                   indent=2) + "\n",
-        encoding="utf-8",
+        _manifest_text(payload) + "\n", encoding="utf-8")
+
+
+def _manifest_text(payload: dict) -> str:
+    """Pretty top level, one icon per line: readable diffs without the 10-line-per-entry bloat."""
+    icons = payload["icons"]
+    header = json.dumps({key: value for key, value in payload.items() if key != "icons"}, indent=2)
+    header = header[:-1].rstrip()          # drop the closing brace
+    lines = ",\n".join(
+        "    " + json.dumps(entry, ensure_ascii=False, separators=(", ", ": ")) for entry in icons
     )
+    return f'{header},\n  "icons": [\n{lines}\n  ]\n}}'
 
 
 def write_icons_js(manifest: list[dict], version: str, mode: str) -> None:
     slugs = [entry["slug"] for entry in manifest]
-    names = [entry["name"] for entry in manifest]
+    names = {entry["slug"]: entry["name"] for entry in manifest}
+    stacks = {entry["slug"]: entry["stack"] for entry in manifest}
+    categories = {entry["slug"]: entry["category"] for entry in manifest if entry.get("category")}
     detail = "256x256 inventory renders" if mode == "hires-exports" else "16x16 jar textures"
     js = (
         "/* Generated by scripts/mc-icons.py from Minecraft Java Edition "
         f"{version} {detail}. Do not edit. */\n"
+        "/* MC_ICON_SET is the picker order (curated building materials first, then alphabetical).\n"
+        "   MC_ICON_NAMES maps slug -> display name, MC_ICON_STACKS slug -> vanilla max stack size\n"
+        "   (1, 16 or 64; absent key = 64), MC_ICON_CATEGORIES slug -> category only where the\n"
+        "   slug makes it derivable. See .tmp/plan/contract.md section 8 / the edict. */\n"
         "window.MC_ICON_SET = " + json.dumps(slugs) + ";\n"
         "window.MC_ICON_NAMES = " + json.dumps(names, ensure_ascii=False) + ";\n"
+        "window.MC_ICON_STACKS = " + json.dumps(stacks, separators=(",", ":")) + ";\n"
+        "window.MC_ICON_CATEGORIES = "
+        + json.dumps(categories, ensure_ascii=False, separators=(",", ":")) + ";\n"
     )
     (OUT / "icons.js").write_text(js, encoding="utf-8")
 
 
-def write_provenance(manifest: list[dict], source: dict, jar: Path | None, exports: Path | None) -> None:
+def write_provenance(manifest: list[dict], source: dict, jar: Path | None, exports: Path | None,
+                     stats: dict) -> None:
     mode = source["mode"]
     if mode == "hires-exports":
         correction = source.get("lighting_correction") or {}
@@ -658,12 +1068,54 @@ def write_provenance(manifest: list[dict], source: dict, jar: Path | None, expor
   not found, so `manifest.json` records `mode: jar-fallback`."""
         resolution_line = "Icons are 16×16 sources; the app scales them up in integer-friendly steps."
 
+    if mode == "hires-exports":
+        catalog_line = (
+            f"- **Catalog:** {stats['curated']} curated building materials plus every other item in "
+            f"the export, **{len(manifest)} icons** in total from {stats['renders']} renders. "
+            f"{stats['collapsed_variants']} component-variant renders (potions, tipped arrows, "
+            "paintings, fireworks, ...) were collapsed onto their base item, so the picker shows "
+            "one icon per item type. Curated items come first, then alphabetical by slug. The "
+            "catalog is export-driven: items whose render depends on components that the export "
+            "did not cover (written book, filled map, knowledge book) have no icon."
+        )
+    else:
+        catalog_line = (
+            f"- **Catalog:** the {len(manifest)} curated building materials. The high-resolution "
+            "export adds every other item; the jar fallback stays small on purpose."
+        )
+    stack_line = (
+        f"- **Stack sizes:** every manifest entry records the vanilla max stack size (`stack`, "
+        f"default {STACK_DEFAULT}) and `icons.js` exposes `window.MC_ICON_STACKS` for the same "
+        f"data; {stats['stack_overrides']} items override the default (16: eggs, snowballs, "
+        "ender pearls, honey bottles, armor stands, the empty bucket, signs, hanging signs and "
+        "banners; 1: water/lava/milk/fish buckets, tools, armour, shields, potions, boats, "
+        "minecarts, shulker boxes, beds, cakes, content-carrying books and maps, banner "
+        "patterns, music discs, ...). Values follow the vanilla 1.21.4 item registry."
+    )
+    lighting_line = (
+        "- **Lighting and classification:** each icon's `lighting` records what was done to the "
+        "render. `block`: the client jar's item model chain resolves to a block model and the "
+        "render is the inventory cube, corrected with the measured per-face gains. `flat`: an "
+        "`item/generated` 2D sprite, copied byte-for-byte (the 3D darkening bug does not apply). "
+        "`3d-other`: a non-cube block model (stairs, slabs, fences, anvils, ...) or a special "
+        "renderer (chest, bed, banner, shield, ...), corrected with the face-area-weighted gain. "
+        "The class is read from `assets/minecraft/items/<slug>.json` and its `models/` parent "
+        "chain; without the jar an icon counts as `flat` only when its pixels are an exact 16x "
+        "NEAREST upscale. The three curated props (torch, ladder, lantern) keep their EDICT-0012 "
+        "face-area-weighted gain although the 1.21.4 jar classifies them `item/generated`; that "
+        "legacy over-brightening is disclosed here rather than changed silently."
+    )
+
     provenance = f"""# Icon provenance and licensing
 
 These icons are derived from **Minecraft Java Edition {source["version"]}** on the owner's own
 installation:
 
 {source_lines}
+
+{catalog_line}
+{stack_line}
+{lighting_line}
 
 - {resolution_line}
 - Extracted: {source["extracted"]} by `scripts/mc-icons.py`. Regenerate with the same command
@@ -710,6 +1162,7 @@ def main() -> int:
 
     OUT.mkdir(parents=True, exist_ok=True)
     today = datetime.date.today().isoformat()
+    started = time.perf_counter()
 
     if exports is not None:
         version = infer_export_version(exports) or args.version
@@ -718,7 +1171,7 @@ def main() -> int:
         print(f"source: {renderer}")
         if version != args.version:
             print(f"note:   exports look like {version} (inferred from the item set), recording that")
-        manifest, missing, pixels, correction = build_high_res(exports, jar)
+        manifest, missing, pixels, correction, stats = build_high_res(exports, jar)
         source = {
             "game": "Minecraft Java Edition",
             "version": version,
@@ -728,10 +1181,12 @@ def main() -> int:
             "jar": str(jar) if jar else "not resolved (export mode does not need the jar)",
             "exported": exported,
             "extracted": today,
-            "method": "owner's own 256x256 inventory item renders exported by IconExporter; "
-                      "flat 2D sprites copied unchanged, 3D models brightness-corrected for the "
-                      "IconExporter 1.3.1 dark-lighting bug; app displays them smoothly downscaled "
-                      "(image-rendering: auto)",
+            "method": "owner's own 256x256 inventory item renders exported by IconExporter, one "
+                      "icon per item type; the presentation class (block/flat/3d-other) is read "
+                      "from the client jar's item model chain; flat 2D sprites are copied "
+                      "unchanged, block models and non-cube 3D models are brightness-corrected "
+                      "for the IconExporter 1.3.1 dark-lighting bug; the app displays them "
+                      "smoothly downscaled (image-rendering: auto)",
         }
         if correction is not None:
             source["lighting_correction"] = correction
@@ -745,6 +1200,28 @@ def main() -> int:
         print(f"mode:   jar-fallback ({jar}) - lower resolution; run IconExporter for 256px renders")
         manifest, missing = build_fallback(jar)
         pixels = 16
+        stats = {
+            "curated": len(manifest),
+            "collapsed_variants": 0,
+            "renders": 0,
+            "lighting": {
+                name: sum(1 for entry in manifest if entry["lighting"] == name)
+                for name in ("block", "flat", "3d-other")
+            },
+            "models": {
+                "block": sum(1 for entry in manifest if entry["lighting"] == "block"),
+                "flat": sum(1 for entry in manifest if entry["lighting"] == "flat"),
+                "special": 0,
+                "unknown": 0,
+            },
+            "non_cube_models": [],
+            "special_models": [],
+            "unknown_models": [],
+            "flat_pixel_mismatches": [],
+            "total_bytes": sum(entry["bytes"] for entry in manifest),
+            "stack_overrides": sum(1 for entry in manifest if entry["stack"] != STACK_DEFAULT),
+            "stacks": {size: sum(1 for entry in manifest if entry["stack"] == size) for size in (STACK_DEFAULT, 16, 1)},
+        }
         source = {
             "game": "Minecraft Java Edition",
             "version": version,
@@ -755,6 +1232,8 @@ def main() -> int:
                       "(top 100%, left 80%, right 60%)",
         }
 
+    verify_contract(manifest)
+
     # remove icons from a previous run that are no longer in the manifest
     keep = {entry["slug"] + ".png" for entry in manifest}
     for stale in OUT.glob("*.png"):
@@ -762,12 +1241,35 @@ def main() -> int:
             stale.unlink()
             print(f"removed stale icon: {stale.name}")
 
-    write_manifest(manifest, source, pixels)
+    write_manifest(manifest, source, pixels, stats)
     write_icons_js(manifest, version, source["mode"])
-    write_provenance(manifest, source, jar, exports)
+    write_provenance(manifest, source, jar, exports, stats)
 
+    runtime = time.perf_counter() - started
+    lighting = ", ".join(f"{count} {name}" for name, count in stats["lighting"].items())
+    models = ", ".join(f"{count} {name}" for name, count in stats["models"].items())
     print(f"version: {version}")
     print(f"icons:   {len(manifest)} written to {OUT} ({pixels}x{pixels})")
+    print(f"catalog: {stats['curated']} curated first; {stats['renders']} renders, "
+          f"{stats['collapsed_variants']} component variants collapsed to their item")
+    print(f"stacks:  {stats['stack_overrides']} overrides of {STACK_DEFAULT} "
+          f"({stats['stacks'][16]} x16, {stats['stacks'][1]} x1)")
+    print(f"models:  {models}")
+    print(f"lighting: {lighting}")
+    for label, key in (
+        ("non-cube 3D models (uniform gain)", "non_cube_models"),
+        ("special renderers (uniform gain)", "special_models"),
+        ("classified from pixels (no model chain)", "unknown_models"),
+        ("flat renders that are not an exact 16x upscale", "flat_pixel_mismatches"),
+    ):
+        values = stats.get(key) or []
+        if values:
+            shown = ", ".join(values[:20])
+            if len(values) > 20:
+                shown += f", ... (+{len(values) - 20})"
+            print(f"{label}: {len(values)}: {shown}")
+    print(f"disk:    {stats['total_bytes'] / 1_000_000:.2f} MB of PNGs")
+    print(f"runtime: {runtime:.1f} s")
     if missing:
         print(f"\nMISSING ({len(missing)}):")
         for path in missing:

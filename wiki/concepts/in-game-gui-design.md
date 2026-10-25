@@ -7,6 +7,7 @@ sources:
   - 2026-10-25-minecraft-gui-design-system
   - 2026-10-25-minecraft-icon-render-provenance
   - 2026-10-25-iconexporter-dark-light-bug
+  - 2026-10-25-minecraft-font-licence
 tags: [design, games, css]
 ---
 
@@ -25,14 +26,31 @@ and the bitmap font are right, a flat CSS prototype already reads as Minecraft. 
   bevel immediately looks wrong.
 - **Square everything.** One `border-radius` anywhere breaks the illusion.
 - **Inverted bevel for insets** (slots, pressed buttons): dark top-left, light bottom-right.
-- **Bitmap type** at integer sizes, bundled locally; the shadow is a hard 2px offset, never a
-  blur.
+- **Bitmap type** at integer sizes, bundled locally. Since EDICT-0013 the primary face is the
+  game's own **Minecraft.ttf** (Craftron Gaming, DaFont "100% Free"; 110 glyphs by the page,
+  107 mapped by `cmap`, euro U+20AC present, no accented letters, arrows/dashes/ellipsis/`×`/
+  `·`/`≥`/`≤` absent); **Pixelify Sans** stays the bundled fallback for those glyphs. Lowercase
+  draws as small capitals — the vanilla look. The shadow is a hard 2px offset, never a blur.
 - **Slots and XP bars** are semantic objects in the game's visual vocabulary: a 30×30 inset
   square holding a 22 px item render (downscaled from the game's 256 px inventory render), and
   a green bar with a lighter top band.
 - **Vanilla tooltip**: `#100010` plate with a `#5000ff` border — instantly recognisable.
 - **A textured world behind the panel** (tiled dirt, darkened with a vignette) supplies the
   "in-game screen" framing that a flat colour cannot.
+
+## Native controls versus custom emulation
+
+A browser `<select>` popup is an OS-level window: page CSS cannot style it before Chrome's
+experimental `appearance: base-select`. Rather than replace every dropdown with a custom listbox
+(focus management, typeahead, keyboard traversal and platform conventions come free with the
+native control), EDICT-0013 keeps `<select>` and themes it where the engine allows:
+`@supports (appearance: base-select)` turns on `appearance: base-select`, and `::picker(select)`
+is drawn as the panel face (`rgb(111, 111, 111)`, 2 px black border, Minecraft face). Everything
+else keeps the native popup. The cost is a Chromium-155-only theme; the gain is that the control
+stays a real select and no JavaScript listbox has to reimplement one ([[Minecraft Build
+Tracker]]). The supporting detail is that the open popup cannot be screenshotted — the OS paints
+it outside the page — so the acceptance claim rests on a computed-style probe and the `:open`
+observation, not on a picture.
 
 ## Why CSS instead of a texture pack
 
@@ -54,6 +72,18 @@ because nearest-scaling a 256 px render into a 22 px slot aliases (EDICT-0011).
   display; the app uses 13–16 px pixel type instead.
 - **Nostalgia is a moving target.** "Looks like Minecraft" spans 1.7 to 1.21, each with a
   different GUI palette. This system targets the grey-panel era deliberately.
+- **A bitmap face constrains copy.** The game's font maps 107 codepoints — ASCII, euro and a
+  little Latin-1 — and lacks arrows, dashes, ellipsis, `×`, `·`, `≥`, `≤`; those characters fall
+  back to Pixelify Sans, so any copy using them mixes two faces. The alternative is refusing
+  valid UI text to protect a purer look; the shipped choice favours the text.
+- **Native theming is a browser fact, not a design decision.** The themed dropdown path needs
+  `appearance: base-select` (Chrome 155 in this build). If the product must look identical in
+  Firefox and Safari, the only options are a JavaScript listbox or the unthemed OS popup — the
+  design system currently ships the split and documents it.
+- **Taste is measurable only up to a point.** The backdrop is now defined by numbers (bake 2.5,
+  CSS 1 px, scrim 0.2, edge-variance 1,132.6 → 1,379.9), but the comparison that would settle it
+  — side by side with the real title screen on a physical display — has not been made
+  ([[Open questions]]).
 
 ## Real assets versus drawn ones
 
@@ -81,11 +111,14 @@ own appearance; a reference measurement belongs in the acceptance criteria.
 
 The menu's atmosphere is not the GUI chrome — it is the panorama behind it: six cube-face
 screenshots of a world, blurred and slowly rotating. The app reproduces the treatment with four
-stitched side faces, a baked Gaussian blur, a 120 s ping-pong pan and a scrim for text contrast,
-and it freezes under `prefers-reduced-motion`. Crucially, the source is odd: the version jar's
-`panorama_*.png` files are 1×1 placeholders; the real 1024×1024 faces live in the asset store and
-are resolved through the asset index. Identity avatars sit at the other end of the same idea:
-small, square, bevelled slots that make a world or build recognisable at a glance
+stitched side faces, a **baked Gaussian radius of 2.5** (down from 8), a 120 s ping-pong pan,
+CSS `blur(1px)` (1.5 px at ≤640 px) and a **0.2** scrim, and it freezes under
+`prefers-reduced-motion`. The sharper bake was EDICT-0013's answer to the emperor's "less blurred
+so you can tell what it is"; edge-variance on the same 1,280×900 strip rose from 1,132.6 to
+1,379.9 and the strip grew from 15,280 to 45,664 B. Crucially, the source is odd: the version
+jar's `panorama_*.png` files are 1×1 placeholders; the real 1024×1024 faces live in the asset
+store and are resolved through the asset index. Identity avatars sit at the other end of the
+same idea: small, square, bevelled slots that make a world or build recognisable at a glance
 ([[Atmosphere and identity without shipping assets]]).
 
 ## Relations
@@ -94,3 +127,5 @@ small, square, bevelled slots that make a world or build recognisable at a glanc
 - Depends on [[Local-first tracking]] only for shipping (bundled font, no CDN), not conceptually.
 - Replaced the previous dashboard aesthetic — see [[Vanilla GUI over a neon dashboard]].
 - Extended into atmosphere and identity by [[Atmosphere and identity without shipping assets]].
+- Extended by EDICT-0013 into native-widget theming and the game's own bitmap face, with the
+  frozen DOM contract as the interface between the pattern and its implementation.

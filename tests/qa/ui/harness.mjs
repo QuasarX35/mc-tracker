@@ -281,7 +281,8 @@ class Page {
 }
 
 export async function launch({ appUrl, port = 9333, profileDir, headed = false } = {}) {
-  const dir = profileDir || path.join(process.cwd(), '.tmp', `ui-profile-${Date.now()}`);
+  // Chrome 155 exits with code 21 when --user-data-dir is relative; always resolve it.
+  const dir = path.resolve(profileDir || path.join(process.cwd(), '.tmp', `ui-profile-${Date.now()}`));
   fs.mkdirSync(dir, { recursive: true });
   const args = [
     headed ? '--headless=false' : '--headless=new',

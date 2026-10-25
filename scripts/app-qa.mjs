@@ -15,11 +15,13 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { appHash, checkAppQaStamp, stampPath } from '../src/wiki/lib.mjs';
+import { APP_SOURCE_FILES, appHash, checkAppQaStamp, stampPath } from '../src/wiki/lib.mjs';
 import { chromePath } from '../tests/qa/ui/harness.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SUITE = path.join(ROOT, 'tests', 'qa', 'ui.e2e.test.mjs');
+/** EDICT-0013 F8: the baked assets are part of the stamp too, so list them explicitly. */
+const RENDERED_ASSETS = APP_SOURCE_FILES.filter((file) => file.startsWith('src/assets/'));
 
 function runSuite() {
   return new Promise((resolve) => {
@@ -55,6 +57,7 @@ export async function main(argv = process.argv.slice(2)) {
 
   if (command === 'where') {
     console.log(`app sources: ${Object.keys(appHash(ROOT).files).join(', ')}`);
+    console.log(`baked assets: ${RENDERED_ASSETS.join(', ')}`);
     console.log(`stamp:       ${stampPath(ROOT)}`);
     console.log(`suite:       ${SUITE}`);
     try {
@@ -74,10 +77,12 @@ export async function main(argv = process.argv.slice(2)) {
     }
     if (result.ok) {
       console.log(`app-qa: verified — ${result.stamp.verified_at} (${result.stamp.cases} UI cases)`);
+      console.log(`  baked assets in stamp: ${RENDERED_ASSETS.join(', ')}`);
       return 0;
     }
     console.log(`app-qa: STALE — ${result.reason}`);
     for (const file of result.changed) console.log(`  changed: ${file}`);
+    console.log(`  baked assets tracked: ${RENDERED_ASSETS.join(', ')}`);
     console.log('  run: node scripts/app-qa.mjs run');
     return 1;
   }
@@ -99,6 +104,7 @@ export async function main(argv = process.argv.slice(2)) {
     const stamp = writeStamp({ cases });
     console.log(`app-qa: PASS — stamped ${cases} UI cases at ${stamp.verified_at}`);
     console.log(`app-qa: artifact hash ${stamp.artifact_hash.slice(0, 16)}…`);
+    console.log(`app-qa: baked assets hashed: ${RENDERED_ASSETS.join(', ')}`);
     return 0;
   }
 

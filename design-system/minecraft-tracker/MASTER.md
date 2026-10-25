@@ -45,9 +45,18 @@ uses (≥4.5:1 text, ≥3:1 boundaries).
 
 ### Typography
 
-- **Face:** Pixelify Sans (SIL OFL, bundled at `src/assets/fonts/`). Never a CDN font: the
-  app must work offline and from `file://`.
-- **Sizes:** 13/14 px meta, 16 px body, 20 px section titles, 22 px dialog titles,
+- **Face:** **Minecraft** (Craftron Gaming, via DaFont, badge "100% Free"; bundled at
+  `src/assets/fonts/Minecraft.ttf`, 14,488 B, licence text `Minecraft-LICENCE.md`, raw evidence
+  `raw/sources/2026-10-25-minecraft-font-licence.md`). 110 glyphs by the page and
+  `maxp.numGlyphs`, 107 mapped by `cmap`: ASCII `0x20–0x7E` complete, plus U+00A0,
+  U+00A1–U+00A9, **U+20AC euro** and U+3000; **no accented letters**; arrows, em/en dash,
+  ellipsis, `×`, `·`, `≥`, `≤` are absent.
+- **Fallback:** Pixelify Sans (SIL OFL, bundled) is the *fallback*, not the face — it covers the
+  missing glyphs. `--font-pixel: "Minecraft", "Pixelify", ui-monospace, monospace`. Never a CDN
+  font: the app must work offline and from `file://`.
+- **Case:** the Minecraft face renders lowercase as small capitals; that is the vanilla look,
+  accepted, not a defect.
+- **Sizes:** unchanged — 13/14 px meta, 16 px body, 20 px section titles, 22 px dialog titles,
   `clamp(40px, 7vw, 72px)` app title.
 - **Shadow:** dark surfaces use the vanilla 2px offset shadow (`2px 2px 0 #3f3f3f`); text on
   light panels is flat dark — the same split vanilla uses.
@@ -66,7 +75,8 @@ background/box-shadow/width; `prefers-reduced-motion` zeroes them.
 |-----------|------|
 | **Panel** | `--mc-panel`, 2px black border, `inset 2px 2px 0 #fff, inset -2px -2px 0 #555`, plus a hard offset shadow against the world backdrop. Padding 16px. |
 | **Button** | Panel face + bevel; 2px black border; hover lightens face and adds a pale inner ring; active inverts the bevel and moves 1px down. Variants: `--primary` (grass green), `--danger` (red). Minimum height 38px, 32px for `--sm`. |
-| **Input / select** | Black field (`--mc-field`) with white pixel text and a 2px bevel; focus adds a 3px gold ring. Selects use the dark 6f6f6f face with the vanilla dropdown chevron drawn in CSS. |
+| **Input / select** | Black field (`--mc-field`) with white pixel text and a 2px bevel; focus adds a 3px gold ring. Selects use the dark `#6f6f6f` face with the vanilla dropdown chevron drawn in CSS. Quantity fields stay `type=number` — the native spinners are hidden in CSS only (`::-webkit-inner-spin-button`, `::-webkit-outer-spin-button`, `-moz-appearance: textfield`), so keyboard ↑/↓ still works. |
+| **Themed native select** | Keep the native `<select>`. Under `@supports (appearance: base-select)` the control becomes `base-select` and `::picker(select)` is themed: panel `rgb(111, 111, 111)`, `2px solid rgb(0, 0, 0)`, inset bevel, Minecraft face, vanilla option hover/checked; `::picker-icon` is hidden so the drawn chevron stays. Any other browser keeps the native popup — progressive enhancement, never a custom JS listbox just to style the popup. |
 | **Slot** | 30×30, `#8b8b8b` face, 2px black border, inverted bevel (dark top-left, light bottom-right); holds a 22×22 icon from the game's own **256×256 inventory renders** (generated locally by `scripts/mc-icons.py`, git-ignored; 3D renders carry a documented brightness correction for an upstream IconExporter bug) displayed smoothly downscaled. A missing icon shows the item's initial — never a broken image. |
 | **Chip** | Dark `#1e1e1e` plate, 2px border in the status colour, white label. **Colour is never the only signal** — the word is always present. |
 | **XP bar** | 16px tall (12px in table rows), black border, `#1e1e1e` track, green fill with a lighter top band. Exposed as `role="progressbar"` with `aria-valuenow`. |
@@ -75,8 +85,12 @@ background/box-shadow/width; `prefers-reduced-motion` zeroes them.
 | **List row** | Dark row, 2px seam, tight bevel; hover lightens; selected is `#4a4a4a` with a 2px white inner outline (vanilla list selection). |
 | **Dialog** | Native `<dialog>`, panel face, black border, bevel, scrim `rgb(0 0 0 / 0.6)`, right-aligned Cancel/Confirm. |
 | **Avatar** | Square identity chip: 2px black border, inverted bevel, image `object-fit: cover` with smooth downscaling (`image-rendering: auto`). Sizes 28 / 32 / 40 / 48 px. Items use their 256×256 inventory render; uploads are 128×128 WebP/PNG data URLs; a missing render falls back to the subject's initial. |
-| **Icon picker** | Dialog with Item/Image tabs; item grid of 64–72px tiles (slot + label), searchable, `role="listbox"`; upload pane previews the image. “Use icon” commits, Cancel discards, Escape clears the search then closes and returns focus. |
-| **World backdrop** | Fallback: 16×16 dirt tiled at 2× (`image-rendering: pixelated`), brightness 0.88, radial vignette. **Panorama:** a locally generated 2560×640 blurred strip (bake: Gaussian radius ≈ width/320, brightness 0.95) revealed via `:root.has-panorama .backdrop::before`, `background-size: cover`, 120 s ping-pong pan between 30 % and 70 % of the horizontal overflow, `filter: blur(2px)`, plus a `--backdrop-scrim-alpha` (0.12) scrim and vignette. Feature-detected at runtime; absence is a normal state. `prefers-reduced-motion` freezes the pan. |
+| **Icon picker** | One dialog, no tabs: search + a grid of `.icon-tile` buttons (slot + label, `role="option"`, lazy-loaded renders), a count hint (`showing 150 of 1368 — refine your search`), and a footer with **Upload image…** (`#icon-upload`, shared image dialog), Cancel and **Use icon**. Item mode commits on click; pick-item mode (add material) hides upload and Use, and a single click selects and closes. Curated/common icons sort first; render cap ~150 keeps the grid fast. Escape clears the search, then closes; focus returns to the invoker. |
+| **Icon button** | Square panel button with a 2px black border and the standard bevel, 28–30 px, icon-only (`aria-label` mandatory). Used for the title-rename pencil (`#build-rename`, left of Delete) and coords copy (`#copy-coords`, right of the coords field; disabled when empty or whitespace). |
+| **Inline title / notes editor** | View mode is text; edit mode swaps in the existing input/textarea plus `✓` (save) and `✕` (cancel). Enter/Save commits through one model path, Escape cancels and restores the previous value, blank titles are refused, notes are trimmed, and focus returns to the invoking button. `Ctrl/Cmd+Enter` saves notes. |
+| **Micro stepper** | `button.mat-step`, 28 px tall, compact grid above and below the needed field: `+1 +10 +stack` over `-1 -10 -stack`. Every button carries `data-mat` and `data-stack` (`64|16|1`); the row must not overflow at 390×844. `+stack` uses the catalog stack size, default 64 for unknown. |
+| **Chooser chip** | Add-material control: a 30×30 `.slot` with the chosen item's render, the item name beside it, and a "Choose item" affordance (`#mat-choice`/`#mat-choice-slot`/`#mat-choice-name`). Opens the picker in pick-item mode; the hidden `#mat-item` feeds the form and `#mat-error` shows inline validation. |
+| **World backdrop** | Fallback: 16×16 dirt tiled at 2× (`image-rendering: pixelated`), brightness 0.88, radial vignette. **Panorama:** locally generated 2,560×640 strip — bake Gaussian radius **2.5 px** (`--blur`, guarded 0–3), brightness 0.95, saturation 0.92, 45,664 B WebP (sha256 `249a…5978`); revealed via `:root.has-panorama .backdrop::before`, `background-size: cover`, 120 s ping-pong pan between 30 % and 70 % of the horizontal overflow, `filter: blur(1px)` desktop / `blur(1.5px)` at ≤640 px, and a `--backdrop-scrim-alpha` (**0.2**) scrim plus vignette. Feature-detected at runtime; absence is a normal state. `prefers-reduced-motion` freezes the pan. |
 
 ---
 
@@ -102,14 +116,20 @@ game pixels (icons, panorama, uploads stay local/git-ignored) · nearest-neighbo
 ## Pre-delivery checklist
 
 - [ ] `node --check src/app.js` and `node --check src/tracker/model.js` clean
-- [ ] `node tests/unit/tracker-model.test.mjs` green
-- [ ] `node tests/qa/tracker.acceptance.test.mjs` green
-- [ ] `python tests/qa/mc_ui_audit.py` → 72/72, exit 0
-- [ ] Item icons are the game's 256×256 inventory renders (`manifest.json` → `mode:
-      hires-exports`, `pixels: 256`) shown smoothly downscaled; tiled textures still pixelated;
-      the documented 3D brightness correction is recorded in the manifest
-- [ ] Headless Chrome screenshots at 1280 px and at 390 px (iframe harness): no overflow,
-      no missing icons, tab state matches the visible panel
+- [ ] `node tests/unit/tracker-model.test.mjs` + `tracker-icons.test.mjs` green (60/60 across the unit files)
+- [ ] `node tests/qa/tracker.acceptance.test.mjs` + the independent acceptance files green (71/71)
+- [ ] `python tests/qa/mc_ui_audit.py` → **138/138**, exit 0
+- [ ] `node scripts/app-qa.mjs run` → 49/49 browser flows and a fresh stamp covering the app
+      sources plus `Minecraft.ttf`, `backdrop.webp` and the panorama `manifest.json`
+- [ ] Face is Minecraft with the Pixelify fallback; `Minecraft-LICENCE.md` present; glyph gaps
+      (arrows, dashes, ellipsis, `×`, `·`, `≥`, `≤`) documented and covered by the fallback
+- [ ] Item catalog is 1,368 addressable base items from 1,609 renders (241 collapsed variants),
+      curated 53 first; `MC_ICON_NAMES` is an object keyed by slug; the manifest carries
+      name/stack/sha256/lighting; the five `flat_pixel_mismatches` are disclosed
+- [ ] Themed select probe: `CSS.supports('appearance', 'base-select')` true on the pinned
+      Chromium and the `::picker(select)` computed panel/border/font match the frozen values
+- [ ] Headless Chrome screenshots at 1280 px and at 390 px: no overflow, no missing icons,
+      tab state matches the visible panel
 - [ ] Every new colour is a token; every new component has a bevel spec above
 - [ ] `prefers-reduced-motion` still honoured; focus ring visible on every control
 

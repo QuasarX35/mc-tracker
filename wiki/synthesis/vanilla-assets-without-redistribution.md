@@ -8,6 +8,7 @@ sources:
   - 2026-10-25-minecraft-icon-render-provenance
   - 2026-10-25-iconexporter-dark-light-bug
   - 2026-10-25-minecraft-gui-design-system
+  - 2026-10-25-minecraft-font-licence
 tags: [licensing, asset-pipeline, pattern]
 ---
 
@@ -52,6 +53,25 @@ The tracker now calibrates a per-face brightness gain against the jar, records i
 manifest, and treats the corrected pixels as "the game's projection with restored vanilla
 lighting" ([[Minecraft Build Tracker]]).
 
+## Coverage: from curating 53 to reading the whole export
+
+EDICT-0011 kept the product at 53 curated icons and recorded catalog expansion as a product
+decision ([[Open questions]]). EDICT-0013 made that decision: the extractor now reads the whole
+IconExporter export — 1,609 item renders — and collapses it to **1,368 addressable base items**
+(1,363 plain names + 5 representatives of 246 component variants; the other 241 are
+`collapsed_variants`). Curated common items lead the data; `MC_ICON_NAMES` is an object keyed by
+slug and the manifest records name, stack, sha256 and lighting per icon. The licensing position
+is unchanged — still zero committed pixels — but the manifest grew to 436,155 B and `icons.js` to
+81 KB, which is the cost of coverage without a database. EDICT-0012's lighting classification
+survives the migration (`block` 407 / `flat` 620 / `3d-other` 341); five flat sprites
+(`enchanted_book`, `enchanted_golden_apple`, `end_crystal`, `experience_bottle`, `nether_star`)
+are byte-for-byte copies disclosed as `flat_pixel_mismatches`.
+
+The font is a second asset class testing the same pattern. `Minecraft.ttf` is freeware, not a
+Mojang asset, but it is still third-party art with a licence claim: EDICT-0013 records the DaFont
+listing and the file hash in a sealed raw source, ships a licence file beside the TTF, and
+documents the 107-codepoint map so the Pixelify fallback is a deliberate choice rather than a bug.
+
 ## Why this is better than the alternatives
 
 | Approach | Problem |
@@ -70,10 +90,18 @@ lighting" ([[Minecraft Build Tracker]]).
 - **A false sense of safety.** The icons *are* on disk, so the machine is one `git add -f` away
   from re-committing them. The acceptance test guards the ignore rule, but the real safeguard is
   the manifest and the notice being obviously load-bearing.
-- **Model-only items are excluded by curation, not by impossibility.** Chests, doors and
-  fences have no flat texture — but a render export *can* produce them, as it does for
-  torch/ladder/lantern. They stay out of the shipped 53-item set because adding items is a
-  product decision, not a technical limit.
+- **Coverage is whole-export, with a collapsed tail.** 1,368 base items; the 246 potion,
+  painting and similar component renders collapse to 5 representatives, so a specific variant is
+  not pickable. Items the export lacks — including anything added to the game after the export —
+  stay lettered. Broad coverage is not the same as every item.
+- **The manifest is now product data.** 436 KB of names, stack sizes, hashes and lighting is
+  committed beside 81 KB of `icons.js`; the stack table is curated (default 64, 16/1 exception
+  categories), so a wrong entry is a plausibility bug that no pixel check will catch. The
+  manifest is the source of truth for coverage and is regenerated, not hand-edited.
+- **A freeware badge is a claim, not a clearance.** The font's DaFont listing says "100% Free";
+  the wiki records the source and the file hash, not a legal opinion. If the font's terms change
+  or are ambiguous, the fallback face is already bundled, which is the only mitigation this
+  repository can offer.
 - **A correct source can still be wrong.** The 256 px export came from the game yet was darker
   than the game's inventory; "it came from the real client" is not a fidelity guarantee. The
   extraction now carries a measured, documented brightness compensation for the upstream bug,

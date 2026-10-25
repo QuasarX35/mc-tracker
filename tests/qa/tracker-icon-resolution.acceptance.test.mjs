@@ -26,7 +26,7 @@ const provenance = fs.readFileSync(PROVENANCE_PATH, 'utf8');
 const css = fs.readFileSync(CSS_PATH, 'utf8');
 const gitignore = fs.readFileSync(GITIGNORE_PATH, 'utf8');
 
-const ICON_COUNT = 53;
+const ICON_FLOOR = 1363; // EDICT-0013 F3: addressable items on the owner's install
 const PIXELS = 256;
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const normalizeSource = (value) => String(value == null ? '' : value).replace(/\\/g, '/');
@@ -91,8 +91,10 @@ test('AC-R1 the committed manifest declares the 256px IconExporter pipeline', ()
   assert.equal(manifest.source.mode, 'hires-exports', 'source.mode must be the high-resolution exports mode');
   assert.equal(manifest.source.version, '1.21.4', 'the renders come from Minecraft Java Edition 1.21.4');
   assert.equal(manifest.pixels, PIXELS, 'the committed icon set is 256px');
-  assert.equal(manifest.count, ICON_COUNT, 'the edict covers exactly the 53 item icons');
-  assert.equal(manifest.icons.length, ICON_COUNT, 'manifest.icons must list all 53 icons');
+  assert.ok(manifest.count >= ICON_FLOOR, `EDICT-0013 opens the catalog: ${manifest.count} >= ${ICON_FLOOR} items`);
+  assert.equal(manifest.icons.length, manifest.count, 'manifest.icons must list every icon');
+  assert.equal(manifest.renders - manifest.count, manifest.collapsed_variants,
+    'the manifest must reconcile the palette renders that collapse onto one representative');
   assert.match(normalizeSource(manifest.source.jar), /\.minecraft/i, 'source.jar must point at the local game install');
   assert.match(normalizeSource(manifest.source.jar), /1\.21\.4/, 'source.jar must be the 1.21.4 client');
   assert.match(normalizeSource(manifest.source.exports), /\.minecraft/i, 'source.exports must point at the local game install');
@@ -106,7 +108,7 @@ test('AC-R1 the committed manifest declares the 256px IconExporter pipeline', ()
 
 test('AC-R2 every manifest icon is a 256×256 render of its own slug', () => {
   const expectedImage = (slug) => `${slug}.png`;
-  const expectedSource = (slug) => `icon-exports-x256/minecraft__${slug}.png`;
+  assert.equal(manifest.curated, 53, 'the curated 53 stay declared');
   const slugs = new Set();
   const images = new Set();
   const sources = new Set();
@@ -116,18 +118,21 @@ test('AC-R2 every manifest icon is a 256×256 render of its own slug', () => {
     slugs.add(icon.slug);
     assert.equal(typeof icon.name, 'string', `${icon.slug}: name must be a string`);
     assert.ok(icon.name.trim().length > 0, `${icon.slug}: name must not be empty`);
-    assert.equal(typeof icon.kind, 'string', `${icon.slug}: kind must be a string`);
-    assert.ok(icon.kind.trim().length > 0, `${icon.slug}: kind must not be empty`);
+    if ('kind' in icon) {
+      assert.equal(typeof icon.kind, 'string', `${icon.slug}: kind must be a string when present`);
+      assert.ok(icon.kind.trim().length > 0, `${icon.slug}: kind must not be empty`);
+    }
     assert.equal(icon.image, expectedImage(icon.slug), `${icon.slug}: image must be <slug>.png`);
     assert.equal(icon.pixels, PIXELS, `${icon.slug}: icon.pixels must be 256`);
-    assert.equal(normalizeSource(icon.source), expectedSource(icon.slug), `${icon.slug}: source must be the exported 256px render`);
+    assert.match(normalizeSource(icon.source), /^icon-exports-x256\/minecraft__[^/]+\.png$/,
+      `${icon.slug}: source must be the exported 256px render (component variants keep their brace suffix)`);
     assert.match(icon.sha256, /^[0-9a-f]{64}$/, `${icon.slug}: sha256 must be a lowercase hex digest`);
     assert.ok(!images.has(icon.image), `duplicate image filename: ${icon.image}`);
     images.add(icon.image);
     assert.ok(!sources.has(icon.source), `duplicate export source: ${icon.source}`);
     sources.add(icon.source);
   }
-  assert.equal(slugs.size, ICON_COUNT, 'every icon slug is declared once');
+  assert.equal(slugs.size, manifest.count, 'every icon slug is declared once');
 });
 
 /* ----------------------------------------------------------------- icons.js */
@@ -136,17 +141,22 @@ test('AC-R3 icons.js lists exactly the manifest slugs with their display names',
   const setMatch = /window\.MC_ICON_SET\s*=\s*(\[[^\]]*\])/.exec(iconsJs);
   assert.ok(setMatch, 'icons.js must declare window.MC_ICON_SET');
   const setSlugs = JSON.parse(setMatch[1]);
-  const namesMatch = /window\.MC_ICON_NAMES\s*=\s*(\[[^\]]*\])/.exec(iconsJs);
+  const namesMatch = /window\.MC_ICON_NAMES\s*=\s*([\[{][\s\S]*?[\]}])/.exec(iconsJs);
   assert.ok(namesMatch, 'icons.js must declare window.MC_ICON_NAMES');
-  const setNames = JSON.parse(namesMatch[1]);
+  const names = JSON.parse(namesMatch[1]);
+  // EDICT-0013 (Lead correction 2): the shipped shape is the slug -> name object; an ordered
+  // array is still accepted by the app, but the canonical contract is the map.
+  assert.ok(names && typeof names === 'object', 'MC_ICON_NAMES must be a slug -> name map');
 
-  assert.equal(setSlugs.length, ICON_COUNT, `MC_ICON_SET must list the ${ICON_COUNT} icons`);
-  assert.equal(setNames.length, setSlugs.length, 'one display name per icon');
+  assert.equal(setSlugs.length, manifest.count, `MC_ICON_SET must list the ${manifest.count} icons`);
+  assert.equal(Object.keys(names).length, setSlugs.length, 'one display name per icon');
   assert.deepEqual([...setSlugs].sort(), manifest.icons.map((icon) => icon.slug).sort(), 'icons.js slugs must agree with the manifest');
 
   const nameBySlug = new Map(manifest.icons.map((icon) => [icon.slug, icon.name]));
-  for (const [index, slug] of setSlugs.entries()) {
-    assert.equal(setNames[index], nameBySlug.get(slug), `icons.js display name for "${slug}"`);
+  for (const slug of setSlugs) {
+    const expected = nameBySlug.get(slug);
+    const actual = Array.isArray(names) ? names[setSlugs.indexOf(slug)] : names[slug];
+    assert.equal(actual, expected, `icons.js display name for "${slug}"`);
   }
 });
 

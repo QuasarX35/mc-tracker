@@ -1,0 +1,34 @@
+# Font probe — EDICT-0013 AC1 (测试部)
+
+Requirement: the owner's `Minecraft.ttf` is the primary app face, with Pixelify Sans kept only as
+the fallback for glyphs the game font does not carry.
+
+## Static evidence (measured by 测试部)
+
+- `src/assets/fonts/Minecraft.ttf` — **14,488 bytes**, sha256
+  `bd47314d301e50ff4d109bff28dfcf637cb7eb13945480259878b848875acc65`
+- `src/assets/fonts/Minecraft-LICENCE.md` — 3,153 bytes, Craftron Gaming / DaFont "100% Free",
+  `fsType = 0` (installable embedding), owner-supplied
+- `src/styles.css:16-21` — `@font-face { font-family: 'Minecraft'; src: url('assets/fonts/Minecraft.ttf') format('truetype'); }`
+  (declared after the Pixelify face at lines 8-11, so both are available; order does not affect priority)
+- `src/styles.css:61` — `--font-pixel: 'Minecraft', 'Pixelify', ui-monospace, monospace;`
+- `src/styles.css:87` — `body { font-family: var(--font-pixel); }` (so the face cascades app-wide)
+- Glyph accounting (太子's TTF parse, page/maxp.numGlyphs vs cmap): **110 glyph records /
+  107 mapped codepoints**; U+20AC euro present; no accented letters; `× · — – … ≥ ≤` and arrows
+  absent, which is exactly why Pixelify stays in the stack (the `✓`/`✕` buttons render via the
+  fallback, visible in evidence `03-title-edit.png`).
+- Raw source sealed: `raw/sources/2026-10-25-minecraft-font-licence.md`, sha256
+  `2e06df49ff9c3043d7ba28b3ac9849a59672a5f5f3ee587a6d6c057be0f5eba7`, `raw/manifest.json` seal 7 → 8.
+
+## Runtime assertions (browser case 25, final run)
+
+Case 25 asserts, in the live page:
+
+- `document.fonts.check('16px Minecraft') === true`
+- computed `font-family` of `body` starts with `Minecraft`
+- the `.masthead__title`/heading computation inherits the same family
+
+The green run log line is quoted here after the Lead's final re-run; the static evidence above is
+what 测试部 can verify independently of the browser seat. Audit checks `structure/local-font`,
+`structure/font-stack`, `structure/font-licence` and `edict0013/raw-font-record` cover the same
+contract at source level and all pass (138/138).

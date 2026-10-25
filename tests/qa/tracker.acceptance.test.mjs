@@ -150,13 +150,19 @@ test('AC-10 icons come from the local client, are git-ignored, and degrade grace
   const setMatch = /window\.MC_ICON_SET\s*=\s*(\[[^\]]*\])/.exec(iconsJs);
   assert.ok(setMatch, 'icons.js must declare window.MC_ICON_SET');
   const slugs = JSON.parse(setMatch[1]);
-  assert.ok(slugs.length >= 40, `expected the real vanilla set, found ${slugs.length} icons`);
-  const namesMatch = /window\.MC_ICON_NAMES\s*=\s*(\[[^\]]*\])/.exec(iconsJs);
+  assert.ok(slugs.length >= 1363, `EDICT-0013 opens the catalog: expected >= 1363 icons, found ${slugs.length}`);
+  const namesMatch = /window\.MC_ICON_NAMES\s*=\s*([\[{][\s\S]*?[\]}])/.exec(iconsJs);
+  assert.ok(namesMatch, 'icons.js must declare window.MC_ICON_NAMES');
   const names = JSON.parse(namesMatch[1]);
-  assert.equal(names.length, slugs.length, 'one display name per icon');
+  if (Array.isArray(names)) {
+    assert.equal(names.length, slugs.length, 'one display name per icon');
+  } else {
+    assert.equal(Object.keys(names).length, slugs.length, 'one display name per icon');
+  }
 
   const manifest = JSON.parse(fs.readFileSync(path.join(iconsDir, 'manifest.json'), 'utf8'));
   assert.equal(manifest.count, slugs.length);
+  assert.equal(manifest.curated, 53, 'the curated 53 stay first in ordering');
   assert.equal(manifest.source.version, '1.21.4');
   assert.match(manifest.source.jar, /\.minecraft/, 'provenance must point at the local client install');
   assert.ok(
@@ -185,16 +191,15 @@ test('AC-10 icons come from the local client, are git-ignored, and degrade grace
     assert.ok(correction.gains.top > 1, 'the top face must be brightened');
     assert.ok(correction.gains.left > 1, 'the left face must be brightened');
     assert.ok(correction.gains.right < 1, 'the right face must be darkened back to the vanilla ratio');
+    // EDICT-0013 F3: every icon carries a lighting class from the frozen enum.
     for (const icon of manifest.icons) {
       assert.ok(
-        ['faces', 'uniform', 'none'].includes(icon.lighting),
-        `${icon.slug}: per-icon lighting treatment must be recorded`
+        ['block', 'flat', '3d-other'].includes(icon.lighting),
+        `${icon.slug}: lighting must be block|flat|3d-other (found '${icon.lighting}')`
       );
     }
-    assert.ok(
-      manifest.icons.some((icon) => icon.kind === 'prop') && manifest.icons.some((icon) => icon.kind === 'item'),
-      'full cubes, 3D props and flat sprites must be distinguished'
-    );
+    assert.ok(manifest.icons.some((icon) => icon.lighting === 'block'), 'full cubes take the 3D gain');
+    assert.ok(manifest.icons.some((icon) => icon.lighting === 'flat'), 'flat sprites stay untouched');
   }
 
   // Licensing contract: the extractor and the filename manifest are committed; Mojang's
@@ -219,10 +224,13 @@ test('AC-10 icons come from the local client, are git-ignored, and degrade grace
     assert.equal(buffer.readUInt32BE(20), pixels, `${icon.slug}: height`);
     assert.equal(icon.pixels, pixels, `${icon.slug}: per-icon pixel size must match the manifest`);
     if (highRes) {
-      assert.equal(
-        icon.source,
-        `icon-exports-x256/minecraft__${icon.slug}.png`,
-        `${icon.slug}: source render path must be recorded`
+      // The exporter names component-variant renders by appending the component's state to
+      // the file name (e.g. minecraft__lingering_potion__{...}.png). The contract records the
+      // render that produced the pixels, so a variant suffix is legitimate; the slug prefix
+      // and the .png extension are what must be exact.
+      assert.ok(
+        icon.source.startsWith(`icon-exports-x256/minecraft__${icon.slug}`) && icon.source.endsWith('.png'),
+        `${icon.slug}: source render path must be recorded (found ${icon.source})`
       );
     }
     assert.equal(buffer.toString('ascii', 1, 4), 'PNG', `${icon.slug}: PNG signature`);
@@ -263,7 +271,9 @@ test('AC-13 the UI is a single-screen app with tabs, one h1 and a skip link', ()
   assert.match(HTML, /role="tablist"/);
   assert.equal((HTML.match(/class="tab"/g) || []).length, 3, 'three section tabs');
   assert.equal((HTML.match(/id="view-/g) || []).length, 3, 'three section panels');
-  assert.equal((HTML.match(/class="picker-tab"/g) || []).length, 2, 'two picker tabs');
+  assert.equal((HTML.match(/class="picker-tab/g) || []).length, 0, 'the redundant icon-picker tabs are gone (D7)');
+  assert.ok(!HTML.includes('id="icon-tab-item"') && !HTML.includes('id="icon-tab-image"'),
+    'the Item/Image picker buttons must be removed, not hidden');
   assert.match(HTML, /class="skip-link" href="#main"/);
   assert.match(HTML, /<main[^>]*id="main"/);
   for (const match of HTML.matchAll(/<(img)\b([^>]*)>/g)) {
@@ -299,5 +309,28 @@ test('AC-16 seed regression: the Iron Farm keeps all four materials including St
   assert.ok(bricks, 'regression: Stone Bricks vanished from the demo seed');
   assert.equal(bricks.needed, 384);
   assert.equal(bricks.collected, 200);
+});
+
+/* EDICT-0013 F1: the frozen DOM contract exists in the shipped markup before the browser suite
+   can test it. These ids are frozen in .tmp/plan/contract.md; renaming one is a contract break. */
+test('AC-17 the EDICT-0013 controls are present under their frozen names', () => {
+  for (const id of [
+    'build-rename', 'build-name', 'build-name-save', 'build-name-cancel',
+    'build-coords', 'copy-coords',
+    'notes-text', 'notes-edit', 'build-notes', 'notes-save', 'notes-cancel',
+    'mat-choice', 'mat-choice-slot', 'mat-choice-name', 'mat-item', 'mat-needed', 'mat-collected', 'mat-error',
+    'icon-dialog', 'icon-dialog-title', 'icon-search', 'icon-grid', 'icon-file', 'icon-upload',
+    'icon-count-hint', 'icon-preview', 'icon-use', 'icon-cancel',
+  ]) {
+    assert.match(HTML, new RegExp(`id="${id}"`), `missing frozen control #${id}`);
+  }
+  const matItem = /<input[^>]*id="mat-item"[^>]*>/.exec(HTML);
+  assert.ok(matItem, '#mat-item must stay in the DOM (the submit handler reads it)');
+  assert.match(matItem[0], /type="hidden"/, '#mat-item is a hidden value input now (D8)');
+  assert.match(HTML, /id="mat-error"[^>]*role="alert"/, 'the add-material error must be announced inline');
+  assert.match(APP, /MC_ICON_STACKS/, 'the app must consume the stack table for the stepper buttons');
+  assert.match(APP, /data-step/, 'the stepper buttons are rendered by the app');
+  assert.ok(!/renderItemOptions/.test(APP), 'the datalist render path is retired (D8)');
+  assert.ok(!HTML.includes('item-options'), 'the #item-options datalist must be gone');
 });
 

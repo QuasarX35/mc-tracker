@@ -74,10 +74,56 @@
     return String(value == null ? '' : value).replace(/\s+/g, ' ').trim().slice(0, max);
   }
 
+  /**
+   * Notes are the one multi-line field: the block structure is kept (D4), but runs of
+   * spaces and tabs inside a line collapse, each line loses its edges, blank lines at both
+   * ends are dropped and the whole block is capped at `max` characters.
+   */
+  function cleanNotes(value, max) {
+    var limit = typeof max === 'number' ? max : 400;
+    var lines = String(value == null ? '' : value).replace(/\r\n?/g, '\n').split('\n');
+    lines = lines.map(function (line) {
+      return line.replace(/[ \t]+/g, ' ').replace(/^ +/, '').replace(/ +$/, '');
+    });
+    while (lines.length && !lines[0]) lines.shift();
+    while (lines.length && !lines[lines.length - 1]) lines.pop();
+    var text = lines.join('\n').replace(/\n{3,}/g, '\n\n');
+    if (text.length > limit) text = text.slice(0, limit);
+    return text.replace(/[ \t\n]+$/, '');
+  }
+
   function toInt(value) {
     var n = Number(value);
     if (!isFinite(n)) return 0;
     return Math.max(0, Math.floor(n));
+  }
+
+  function toSignedInt(value) {
+    var n = Number(value);
+    return isFinite(n) ? Math.floor(n) : 0;
+  }
+
+  /**
+   * One Needed stepper click (D5): `delta` is signed (+1, +10, +stack, -1, …) and the
+   * result never drops below 1, matching updateMaterial's floor.
+   */
+  function stepNeeded(needed, delta) {
+    return Math.max(1, toInt(needed) + toSignedInt(delta));
+  }
+
+  var DEFAULT_STACK = 64;
+
+  /**
+   * Maximum stack size for an item slug (D5): `stacks` defaults to the catalog the icon
+   * generator publishes (`window.MC_ICON_STACKS`); an unknown or malformed entry falls back
+   * to 64. Always a positive integer.
+   */
+  function stackSizeFor(slug, stacks) {
+    var map = stacks || (root && root.MC_ICON_STACKS) || null;
+    var key = String(slug == null ? '' : slug).trim().toLowerCase();
+    var value = map && Object.prototype.hasOwnProperty.call(map, key) ? Number(map[key]) : NaN;
+    if (!isFinite(value) || value < 1) return DEFAULT_STACK;
+    return Math.floor(value);
   }
 
   function emptyState() {
@@ -199,7 +245,7 @@
     }
     if (patch.status !== undefined && STATUSES.indexOf(patch.status) >= 0) build.status = patch.status;
     if (patch.coords !== undefined) build.coords = cleanText(patch.coords, 32);
-    if (patch.notes !== undefined) build.notes = cleanText(patch.notes, 400);
+    if (patch.notes !== undefined) build.notes = cleanNotes(patch.notes, 400);
     if (patch.icon !== undefined) {
       var normalizedBuildIconPatch = normalizeIcon(patch.icon);
       if (normalizedBuildIconPatch.error) return { error: normalizedBuildIconPatch.error, state: state };
@@ -565,6 +611,11 @@
     STATUSES: STATUSES,
     ICON_KINDS: ICON_KINDS,
     ICON_DATA_URL_MAX: ICON_DATA_URL_MAX,
+    DEFAULT_STACK: DEFAULT_STACK,
+    cleanText: cleanText,
+    cleanNotes: cleanNotes,
+    stepNeeded: stepNeeded,
+    stackSizeFor: stackSizeFor,
     normalizeIcon: normalizeIcon,
     setWorldIcon: setWorldIcon,
     setBuildIcon: setBuildIcon,

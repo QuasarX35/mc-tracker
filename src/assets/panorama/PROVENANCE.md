@@ -9,7 +9,7 @@ C:\Users\KZ\AppData\Roaming\.minecraft
 
 - Source: panorama — 4 images
 - Method: faces centre-cropped to squares, composited into a 2560x640
-  strip with 64px crossfades, Gaussian blur radius 8,
+  strip with 64px crossfades, Gaussian blur radius 2.5,
   brightness 0.95, saturation 0.92, encoded WebP quality 80.
 - **Discovery note:** the version jar's `panorama_*.png` files are 1x1 placeholders in modern
   versions. The real 1024x1024 faces are located through `assets/indexes/<id>.json` and read

@@ -459,6 +459,11 @@ export const APP_SOURCE_FILES = [
   'src/app.js',
   'src/tracker/model.js',
   'src/assets/icons/icons.js',
+  // EDICT-0013 F8: rendered assets are part of the shipped UI too. Without these
+  // a green stamp could predate a regenerated backdrop or font pack.
+  'src/assets/fonts/Minecraft.ttf',
+  'src/assets/panorama/backdrop.webp',
+  'src/assets/panorama/manifest.json',
 ];
 
 export function stampPath(root = '.') {
