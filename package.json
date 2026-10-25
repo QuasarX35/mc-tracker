@@ -1,0 +1,15 @@
+{
+  "name": "llm-wiki",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "LLM Wiki: a persistent, agent-maintained knowledge base (EDICT-0003)",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "index": "node src/wiki/cli.mjs index --write",
+    "index:check": "node src/wiki/cli.mjs index --check",
+    "lint": "node src/wiki/cli.mjs lint",
+    "seal": "node src/wiki/cli.mjs raw --seal",
+    "test": "node tests/unit/wiki-core.test.mjs && node tests/qa/wiki.acceptance.test.mjs"
+  }
+}

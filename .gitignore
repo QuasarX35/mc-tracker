@@ -1,0 +1,17 @@
+# tooling / platform scratch — never commit
+.tmp/
+node_modules/
+*.log
+
+# editor / OS noise
+.DS_Store
+Thumbs.db
+.obsidian/workspace*.json
+.vscode/
+.idea/
+
+# test output
+coverage/
+*.tap
+__pycache__/
+*.pyc

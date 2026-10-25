@@ -1,0 +1,52 @@
+---
+title: Open questions
+type: synthesis
+summary: What this wiki still does not know or has not decided — lint findings, untested claims from the source, and next sources worth ingesting.
+updated: 2026-10-25
+sources: [2026-10-25-llm-wiki-pattern]
+tags: [open-questions, lint]
+---
+
+# Open questions
+
+Filed by the agent during ingest and lint ([[Ingest, query and lint]]). Each item is a
+question that a future source or a future session could close.
+
+## Untested claims from the first source
+
+- `index.md` is claimed to work "surprisingly well at moderate scale (~100 sources,
+  ~hundreds of pages)" — no evidence given. **Test**: instrument `search` vs index-only
+  navigation and record miss rates as the corpus grows ([[LLM Wiki pattern]]).
+- "Maintenance cost is near zero" measures *mechanical* work only; the judgement cost is
+  unmeasured and plausibly dominant ([[Maintenance cost]]).
+- Compiled answers are claimed to be better for synthesis, with no accuracy comparison
+  against retrieval ([[RAG and LLM Wiki compared]]).
+
+## Undecided in this instance
+
+- **Corpus domain.** The wiki currently documents its own pattern. The first real domain
+  (personal tracking, research, book, team) is unannounced, and it will determine whether the
+  page taxonomy holds ([[Implementation decisions]] D1).
+- **Contradiction protocol.** The rule "record both claims, dated" exists in the schema, but
+  no page has yet been through a real contradiction. The first one should be treated as a
+  test of the rule ([[Wiki schema]]).
+- **Multi-writer authority.** Several offices can write under governance; the wiki assumes a
+  single maintainer voice. Unowned: who arbitrates when two ingests disagree
+  ([[Maintenance cost]]).
+- **Query→page promotion threshold.** When is an answer worth filing? "More than chat" is not
+  a criterion. Candidate rule: file if it contains a comparison, a decision, or a connection
+  not present on any existing page ([[Ingest, query and lint]]).
+
+## Next sources worth looking for
+
+- Vannevar Bush, *As We May Think* (1945) — primary text for [[Memex]].
+- qmd's own documentation — to evaluate whether it beats the in-repo `search` ([[qmd]]).
+- Obsidian's official docs on Web Clipper and attachment handling — to make the image
+  pipeline concrete ([[Obsidian]]).
+- A critique of LLM-maintained knowledge bases, if one exists — the first source is an
+  advocacy document with no counter-argument in the corpus ([[LLM Wiki pattern]]).
+
+## Relations
+
+- Fed by [[Ingest, query and lint]]; recorded as part of [[Implementation decisions]].
+- Reported to the Emperor at the end of every lint pass ([[LLM Wiki]]).
