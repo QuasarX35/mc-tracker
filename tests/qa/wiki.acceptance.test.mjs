@@ -51,13 +51,18 @@ test('AC-2: the checked-in index is current, not hand-edited', () => {
 });
 
 test('AC-3: index.md lists every wiki page exactly once', () => {
+  // Count-agnostic on purpose: a hard-coded page count turns every legitimate ingest
+  // into a test failure. (It did, at 15 pages, when EDICT-0006 grew the wiki to 19.)
   const pages = listPages(REPO);
+  assert.ok(pages.length > 0, 'the wiki should not be empty');
   const index = fs.readFileSync(path.join(REPO, 'wiki', 'index.md'), 'utf8');
-  assert.equal(pages.length, 15);
   for (const page of pages) {
     const hits = index.split(`[[${page.title}]]`).length - 1;
     assert.equal(hits, 1, `page "${page.title}" should appear once in index.md, found ${hits}`);
   }
+  const rows = [...index.matchAll(/^\| \[\[(.+?)\]\] \|/gm)].map((match) => match[1]);
+  assert.equal(rows.length, pages.length, 'exactly one catalogue row per page');
+  assert.equal(new Set(rows).size, pages.length, 'no duplicate catalogue rows');
 });
 
 test('AC-4: every raw source is sealed and the wiki cites only known sources', () => {

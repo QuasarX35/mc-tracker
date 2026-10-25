@@ -44,6 +44,20 @@ The checks therefore target presence, consistency and the integrity of the raw l
 - Two design narratives now coexist in the repo (v1 archive, v2 live). The supersession note is
   load-bearing; if it is ever removed, a future agent could follow the dead system.
 
+## Post-commit regression (disclosed)
+
+Re-running the full suites *after* committing found a real failure that this report originally
+missed: `tests/qa/wiki.acceptance.test.mjs` `AC-3` asserted `pages.length === 15`, so the
+ingest itself (15 → 19 pages) broke the wiki's own acceptance suite — 12/13 passed. The report
+had declared all suites out of scope because "no application code changed", which was the wrong
+call: a documentation edict changes the corpus that those tests assert on.
+
+- Fixed by rewriting `AC-3` to be count-agnostic and stricter: every page appears exactly once,
+  the number of catalogue rows equals the page count, no duplicate rows.
+- Re-verified: wiki acceptance **13/13**, wiki unit 10/10, tracker unit 15/15, tracker
+  acceptance 16/16, lint clean, index current, raw 3/3.
+- The pass below is the pass *after* the fix, not the original claim. Ledger `seq 62–64`.
+
 ## Verdict
 
 ```
