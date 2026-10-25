@@ -1,0 +1,461 @@
+{
+  "errors": [],
+  "stack": {
+    "bricks": {
+      "labels": [
+        "+1",
+        "+10",
+        "+64",
+        "-1",
+        "-10",
+        "-64"
+      ],
+      "steps": [
+        "+1",
+        "+10",
+        "+stack",
+        "-1",
+        "-10",
+        "-stack"
+      ],
+      "stacks": [
+        "64",
+        "64",
+        "64",
+        "64",
+        "64",
+        "64"
+      ],
+      "count": 6,
+      "stackButtons": 2,
+      "aria": [
+        "Add 1 Stone Bricks to the needed count",
+        "Add 10 Stone Bricks to the needed count",
+        "Add a full stack (64) to Stone Bricks needed",
+        "Remove 1 Stone Bricks from the needed count",
+        "Remove 10 Stone Bricks from the needed count",
+        "Remove a full stack (64) from Stone Bricks needed"
+      ]
+    },
+    "sign": {
+      "labels": [
+        "+1",
+        "+10",
+        "+16",
+        "-1",
+        "-10",
+        "-16"
+      ],
+      "steps": [
+        "+1",
+        "+10",
+        "+stack",
+        "-1",
+        "-10",
+        "-stack"
+      ],
+      "stacks": [
+        "16",
+        "16",
+        "16",
+        "16",
+        "16",
+        "16"
+      ],
+      "count": 6,
+      "stackButtons": 2,
+      "aria": [
+        "Add 1 Oak Sign to the needed count",
+        "Add 10 Oak Sign to the needed count",
+        "Add a full stack (16) to Oak Sign needed",
+        "Remove 1 Oak Sign from the needed count",
+        "Remove 10 Oak Sign from the needed count",
+        "Remove a full stack (16) from Oak Sign needed"
+      ]
+    },
+    "bucket": {
+      "labels": [
+        "+1",
+        "+10",
+        "-1",
+        "-10"
+      ],
+      "steps": [
+        "+1",
+        "+10",
+        "-1",
+        "-10"
+      ],
+      "stacks": [
+        "1",
+        "1",
+        "1",
+        "1"
+      ],
+      "count": 4,
+      "stackButtons": 0,
+      "aria": [
+        "Add 1 Water Bucket to the needed count",
+        "Add 10 Water Bucket to the needed count",
+        "Remove 1 Water Bucket from the needed count",
+        "Remove 10 Water Bucket from the needed count"
+      ]
+    },
+    "table": {
+      "rows": 6,
+      "fourButtonRows": 1,
+      "sixButtonRows": 5,
+      "counts": [
+        6,
+        6,
+        6,
+        6,
+        4,
+        6
+      ]
+    }
+  },
+  "paging": {
+    "firstBatch": 121,
+    "hint": "showing 120 of 1368 — scroll for more",
+    "total": 1368,
+    "end": {
+      "hasLast": true,
+      "lastSlug": "zombified_piglin_spawn_egg",
+      "renderedTiles": 1369,
+      "distinctSlugs": 1369,
+      "hint": "showing 1368 of 1368"
+    },
+    "reachedLastByScroll": true,
+    "search": {
+      "tiles": 3,
+      "slugs": [
+        null,
+        "enchanted_book",
+        "enchanted_golden_apple"
+      ],
+      "hint": "showing 2 of 2 for \"enchanted\""
+    }
+  },
+  "names": {
+    "count": 3,
+    "overflowing": 0,
+    "samples": [
+      {
+        "text": "None",
+        "overflow": false,
+        "h": 30
+      },
+      {
+        "text": "Enchanted Book",
+        "overflow": false,
+        "h": 38
+      },
+      {
+        "text": "Enchanted Golden Apple",
+        "overflow": false,
+        "h": 45
+      }
+    ],
+    "mobile": {
+      "count": 3,
+      "overflowing": 0
+    }
+  },
+  "tooltip": {
+    "present": true,
+    "rect": {
+      "x": 367,
+      "y": 312,
+      "w": 123,
+      "h": 30
+    },
+    "topmost": true,
+    "insideViewport": true,
+    "text": "Enchanted Book",
+    "dialogOpen": true,
+    "afterPointerOut": true
+  },
+  "recents": {
+    "first": [
+      {
+        "slug": null,
+        "recent": null
+      },
+      {
+        "slug": "red_wool",
+        "recent": "true"
+      },
+      {
+        "slug": "stone",
+        "recent": null
+      }
+    ],
+    "recentCount": 1,
+    "stored": "[\"red_wool\"]"
+  },
+  "suggestion": {
+    "model": {
+      "slug": "stone_bricks",
+      "name": "Stone Bricks",
+      "reason": "matched \"tower\" in the name"
+    },
+    "modelSource": "matched \"tower\" in the name",
+    "avatarAuto": "true",
+    "avatarTitle": "matched \"tower\" in the name",
+    "picker": {
+      "note": "Suggested from \"tower\"",
+      "suggestedSlug": "stone_bricks"
+    }
+  },
+  "bulk": {
+    "rows": 7,
+    "states": [
+      "matched",
+      "matched",
+      "matched",
+      "matched",
+      "unknown",
+      "unknown",
+      "unknown"
+    ],
+    "qtys": [
+      "64",
+      "32",
+      "1",
+      "20",
+      null,
+      null,
+      null
+    ],
+    "texts": [
+      "Stone Bricks",
+      "Glass",
+      "Oak Log",
+      "Oak Planks",
+      "Ssome noise linenot in the catalogue",
+      "Ddiamondsnot in the catalogue",
+      "Nnot a real itemnot in the catalogue"
+    ],
+    "before": [],
+    "after": [
+      "Stone Bricks=64",
+      "Glass=32",
+      "Oak Log=1",
+      "Oak Planks=20"
+    ]
+  },
+  "undo": {
+    "toastVisible": true,
+    "action": "Undo",
+    "rowsAfterDelete": 3,
+    "after": {
+      "count": 4,
+      "deletedThenRestored": true,
+      "rows": [
+        "Stone Bricks",
+        "Glass",
+        "Oak Log",
+        "Oak Planks"
+      ]
+    }
+  },
+  "backdrop": {
+    "t0": {
+      "hasPanorama": true,
+      "layers": [
+        {
+          "filter": "blur(1px) brightness(0.95) saturate(1)",
+          "backgroundImage": "url(\"file:///D:/minecraft-tracker/src/assets/panorama/backdrop.webp\")",
+          "animationName": "backdrop-translate",
+          "duration": "180s",
+          "transform": "matrix(1, 0, 0, 1, -1277.63, 0)"
+        },
+        {
+          "filter": "blur(1px) brightness(0.95) saturate(1)",
+          "backgroundImage": "url(\"file:///D:/minecraft-tracker/src/assets/panorama/backdrop.webp\")",
+          "animationName": "backdrop-translate",
+          "duration": "180s",
+          "transform": "matrix(1, 0, 0, 1, -1277.63, 0)"
+        }
+      ],
+      "beforeFilter": "none"
+    },
+    "t1": {
+      "hasPanorama": true,
+      "layers": [
+        {
+          "filter": "blur(1px) brightness(0.95) saturate(1)",
+          "backgroundImage": "url(\"file:///D:/minecraft-tracker/src/assets/panorama/backdrop.webp\")",
+          "animationName": "backdrop-translate",
+          "duration": "180s",
+          "transform": "matrix(1, 0, 0, 1, -1266.61, 0)"
+        },
+        {
+          "filter": "blur(1px) brightness(0.95) saturate(1)",
+          "backgroundImage": "url(\"file:///D:/minecraft-tracker/src/assets/panorama/backdrop.webp\")",
+          "animationName": "backdrop-translate",
+          "duration": "180s",
+          "transform": "matrix(1, 0, 0, 1, -1266.61, 0)"
+        }
+      ],
+      "beforeFilter": "none"
+    },
+    "t2": {
+      "hasPanorama": true,
+      "layers": [
+        {
+          "filter": "blur(1px) brightness(0.95) saturate(1)",
+          "backgroundImage": "url(\"file:///D:/minecraft-tracker/src/assets/panorama/backdrop.webp\")",
+          "animationName": "backdrop-translate",
+          "duration": "180s",
+          "transform": "matrix(1, 0, 0, 1, -1255.59, 0)"
+        },
+        {
+          "filter": "blur(1px) brightness(0.95) saturate(1)",
+          "backgroundImage": "url(\"file:///D:/minecraft-tracker/src/assets/panorama/backdrop.webp\")",
+          "animationName": "backdrop-translate",
+          "duration": "180s",
+          "transform": "matrix(1, 0, 0, 1, -1255.59, 0)"
+        }
+      ],
+      "beforeFilter": "none"
+    },
+    "movingBetweenFrames": true,
+    "layerCount": 2,
+    "layerBlur": [
+      "blur(1px) brightness(0.95) saturate(1)",
+      "blur(1px) brightness(0.95) saturate(1)"
+    ],
+    "layerDuration": [
+      "180s",
+      "180s"
+    ],
+    "beforeFilter": "none",
+    "reduced": {
+      "hasPanorama": true,
+      "layers": [
+        {
+          "filter": "blur(1px) brightness(0.95) saturate(1)",
+          "backgroundImage": "url(\"file:///D:/minecraft-tracker/src/assets/panorama/backdrop.webp\")",
+          "animationName": "none",
+          "duration": "0s",
+          "transform": "none"
+        },
+        {
+          "filter": "blur(1px) brightness(0.95) saturate(1)",
+          "backgroundImage": "url(\"file:///D:/minecraft-tracker/src/assets/panorama/backdrop.webp\")",
+          "animationName": "none",
+          "duration": "0s",
+          "transform": "none"
+        }
+      ],
+      "beforeFilter": "none"
+    },
+    "reducedAnimation": "none,none"
+  },
+  "empty": {
+    "fresh": {
+      "view": "view-builds",
+      "detailEmpty": true,
+      "buildsEmpty": true,
+      "buildControls": {
+        "id": "btn-empty-create-world",
+        "text": "Create a world",
+        "visible": false
+      },
+      "detailAction": {
+        "id": "detail-empty-action",
+        "text": "Plan a build",
+        "visible": true
+      },
+      "materialsEmpty": false,
+      "materialsAction": {
+        "id": "btn-empty-reset-filter",
+        "text": "Clear filter",
+        "visible": false
+      },
+      "worldsEmpty": false,
+      "firstBuild": {
+        "id": "btn-first-build",
+        "text": "Plan your first build",
+        "visible": true
+      },
+      "materialEmpty": false,
+      "pickMaterial": {
+        "id": "btn-empty-pick-material",
+        "text": "Choose an item",
+        "visible": false
+      },
+      "errorText": ""
+    },
+    "worldNoBuilds": {
+      "view": "view-builds",
+      "detailEmpty": true,
+      "buildsEmpty": true,
+      "buildControls": {
+        "id": "btn-empty-create-world",
+        "text": "Create a world",
+        "visible": false
+      },
+      "detailAction": {
+        "id": "detail-empty-action",
+        "text": "Plan a build",
+        "visible": true
+      },
+      "materialsEmpty": false,
+      "materialsAction": {
+        "id": "btn-empty-reset-filter",
+        "text": "Clear filter",
+        "visible": false
+      },
+      "worldsEmpty": false,
+      "firstBuild": {
+        "id": "btn-first-build",
+        "text": "Plan your first build",
+        "visible": true
+      },
+      "materialEmpty": false,
+      "pickMaterial": {
+        "id": "btn-empty-pick-material",
+        "text": "Choose an item",
+        "visible": false
+      },
+      "errorText": ""
+    },
+    "materials": {
+      "view": "view-materials",
+      "detailEmpty": false,
+      "buildsEmpty": false,
+      "buildControls": {
+        "id": "btn-empty-create-world",
+        "text": "Create a world",
+        "visible": false
+      },
+      "detailAction": {
+        "id": "detail-empty-action",
+        "text": "Plan a build",
+        "visible": false
+      },
+      "materialsEmpty": true,
+      "materialsAction": {
+        "id": "btn-empty-reset-filter",
+        "text": "Clear filter",
+        "visible": true
+      },
+      "worldsEmpty": false,
+      "firstBuild": {
+        "id": "btn-first-build",
+        "text": "Plan your first build",
+        "visible": false
+      },
+      "materialEmpty": false,
+      "pickMaterial": {
+        "id": "btn-empty-pick-material",
+        "text": "Choose an item",
+        "visible": false
+      },
+      "errorText": ""
+    }
+  }
+}

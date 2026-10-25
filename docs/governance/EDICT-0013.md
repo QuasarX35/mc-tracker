@@ -6,7 +6,8 @@
   docs, wiki), 测试部 (`S5Q`, delegated verifier)
 - **Browser execution:** the Lead runs every Chrome launch at `S5` — “browser hands, not
   verifier”; 测试部 authors the frozen cases and analyses the artefacts it produces.
-- **Recorded:** 2026-10-25 (Asia/Singapore) · **Status:** `S1 DRAFTED` — not enacted; see §6
+- **Recorded:** 2026-10-25 (Asia/Singapore) · **Status:** `S6 REPORTED` — `QA_PASS`, cycle 1;
+  stamp `app-qa: verified — 2026-10-25T10:02:35.160Z (49 UI cases)`; see §4.1 and §6
 - **Relates:** [EDICT-0011](EDICT-0011.md) — its R1 deferred expanding the curated 53-item icon
   set; item 6 below is that decision. [EDICT-0012](EDICT-0012.md) — icon rendering and the
   brightness correction this edict builds on.
@@ -828,6 +829,6 @@ those numbers in `PROVENANCE.md` and the design system. 礼部 does not write `r
   lists the font TTF, panorama WebP and panorama manifest, and the `appHash` helper (line 474)
   consumes them — outside its declared scope. F8 requires those hashes, so the deviation is
   accepted and recorded here rather than reverted.
-- Process note: the header uses the dispatch brief's `S1 DRAFTED`. The canonical state machine
-  places a plan carrying R1–R10 at `S2 PLANNED`, audited at `S3 REVIEWED`; the label should be
-  corrected in the ledger at dispatch.
+- Process note: the drafting phase used the dispatch brief's `S1 DRAFTED`. The canonical state
+  machine places a plan carrying R1–R10 at `S2 PLANNED`, audited at `S3 REVIEWED`. This header
+  records the final state, `S6 REPORTED`; the ledger rows record the actual order.

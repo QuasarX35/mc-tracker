@@ -1,0 +1,490 @@
+{
+  "version": 1,
+  "note": "Frozen audit fixture for EDICT-0014 AC8, generated from .tmp/plan/suggestion-table.md by the table rule frozen in EDICT-0014 §3.2 F3; oracle for tests/unit/tracker-suggest.test.mjs and browser cases 60/61.",
+  "fixtures": [
+    {
+      "id": "gold_vault",
+      "build": {
+        "id": "b1",
+        "name": "Gold Vault",
+        "notes": "",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "gold_block",
+        "name": "Gold Block",
+        "reason": "matched \"gold\" in the name"
+      }
+    },
+    {
+      "id": "diamond_mine",
+      "build": {
+        "id": "b2",
+        "name": "Diamond Mine",
+        "notes": "",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "diamond_block",
+        "name": "Diamond Block",
+        "reason": "matched \"diamond\" in the name"
+      }
+    },
+    {
+      "id": "wheat_farm",
+      "build": {
+        "id": "b3",
+        "name": "Wheat Farm",
+        "notes": "",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "wheat",
+        "name": "Wheat",
+        "reason": "matched \"farm\" in the name"
+      }
+    },
+    {
+      "id": "storage_hall",
+      "build": {
+        "id": "b4",
+        "name": "Storage Hall",
+        "notes": "",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "chest",
+        "name": "Chest",
+        "reason": "matched \"storage\" in the name"
+      }
+    },
+    {
+      "id": "nether_highway",
+      "build": {
+        "id": "b5",
+        "name": "Nether Highway",
+        "notes": "",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "netherrack",
+        "name": "Netherrack",
+        "reason": "matched \"nether\" in the name"
+      }
+    },
+    {
+      "id": "iron_golem_grinder",
+      "build": {
+        "id": "b6",
+        "name": "Iron Golem Grinder",
+        "notes": "",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "torch",
+        "name": "Torch",
+        "reason": "matched \"grinder\" in the name"
+      }
+    },
+    {
+      "id": "greenhouse",
+      "build": {
+        "id": "b7",
+        "name": "Greenhouse",
+        "notes": "",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "glass",
+        "name": "Glass",
+        "reason": "matched \"greenhouse\" in the name"
+      }
+    },
+    {
+      "id": "kitchen",
+      "build": {
+        "id": "b8",
+        "name": "Kitchen",
+        "notes": "",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "furnace",
+        "name": "Furnace",
+        "reason": "matched \"kitchen\" in the name"
+      }
+    },
+    {
+      "id": "railway_station",
+      "build": {
+        "id": "b9",
+        "name": "Railway Station",
+        "notes": "",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "rail",
+        "name": "Rail",
+        "reason": "matched \"railway\" in the name"
+      }
+    },
+    {
+      "id": "enchanting_room",
+      "build": {
+        "id": "b10",
+        "name": "Enchanting Room",
+        "notes": "",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": null
+    },
+    {
+      "id": "sheep_pen",
+      "build": {
+        "id": "b11",
+        "name": "Sheep Pen",
+        "notes": "",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "white_wool",
+        "name": "White Wool",
+        "reason": "matched \"sheep\" in the name"
+      }
+    },
+    {
+      "id": "aquarium",
+      "build": {
+        "id": "b12",
+        "name": "Aquarium",
+        "notes": "",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "water_bucket",
+        "name": "Water Bucket",
+        "reason": "matched \"aquarium\" in the name"
+      }
+    },
+    {
+      "id": "notes_library",
+      "build": {
+        "id": "b13",
+        "name": "Build 13",
+        "notes": "needs a big library inside",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "bookshelf",
+        "name": "Bookshelf",
+        "reason": "matched \"library\" in the notes"
+      }
+    },
+    {
+      "id": "notes_brew",
+      "build": {
+        "id": "b14",
+        "name": "Build 14",
+        "notes": "brew potions here",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "brewing_stand",
+        "name": "Brewing Stand",
+        "reason": "matched \"brew\" in the notes"
+      }
+    },
+    {
+      "id": "notes_greenhouse",
+      "build": {
+        "id": "b15",
+        "name": "Outpost",
+        "notes": "greenhouse for crops",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "glass",
+        "name": "Glass",
+        "reason": "matched \"greenhouse\" in the notes"
+      }
+    },
+    {
+      "id": "notes_bridge",
+      "build": {
+        "id": "b16",
+        "name": "Build 16",
+        "notes": "build a bridge over the moat",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "stone_bricks",
+        "name": "Stone Bricks",
+        "reason": "matched \"bridge\" in the notes"
+      }
+    },
+    {
+      "id": "name_beats_notes",
+      "build": {
+        "id": "b17",
+        "name": "Iron Barn",
+        "notes": "storage wall",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "iron_block",
+        "name": "Iron Block",
+        "reason": "matched \"iron\" in the name"
+      }
+    },
+    {
+      "id": "material_stone_bricks",
+      "build": {
+        "id": "b18",
+        "name": "Build 7",
+        "notes": "",
+        "coords": "",
+        "materials": [
+          {
+            "id": "m-stone_bricks",
+            "item": "stone_bricks",
+            "needed": 300,
+            "collected": 0
+          },
+          {
+            "id": "m-torch",
+            "item": "torch",
+            "needed": 10,
+            "collected": 0
+          }
+        ]
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "stone_bricks",
+        "name": "Stone Bricks",
+        "reason": "most of the materials are Stone Bricks"
+      }
+    },
+    {
+      "id": "material_dominant",
+      "build": {
+        "id": "b19",
+        "name": "Build 8",
+        "notes": "",
+        "coords": "",
+        "materials": [
+          {
+            "id": "m-oak_planks",
+            "item": "oak_planks",
+            "needed": 64,
+            "collected": 0
+          },
+          {
+            "id": "m-dirt",
+            "item": "dirt",
+            "needed": 500,
+            "collected": 0
+          }
+        ]
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "dirt",
+        "name": "Dirt",
+        "reason": "most of the materials are Dirt"
+      }
+    },
+    {
+      "id": "world_icon",
+      "build": {
+        "id": "b20",
+        "name": "Build 9",
+        "notes": "",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": {
+          "kind": "item",
+          "slug": "grass_block"
+        }
+      },
+      "expected": {
+        "slug": "grass_block",
+        "name": "Grass Block",
+        "reason": "came from the world icon"
+      }
+    },
+    {
+      "id": "null_plain",
+      "build": {
+        "id": "b21",
+        "name": "Build 42",
+        "notes": "",
+        "coords": "",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": null
+    },
+    {
+      "id": "coords_ignored",
+      "build": {
+        "id": "b22",
+        "name": "Build 43",
+        "notes": "",
+        "coords": "100 / 64 / 100",
+        "materials": []
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": null
+    },
+    {
+      "id": "notes_beats_material",
+      "build": {
+        "id": "b23",
+        "name": "Nothing Here",
+        "notes": "add a lamp later",
+        "coords": "",
+        "materials": [
+          {
+            "id": "m-dirt",
+            "item": "dirt",
+            "needed": 64,
+            "collected": 0
+          }
+        ]
+      },
+      "world": {
+        "id": "w1",
+        "name": "Survival SMP",
+        "icon": null
+      },
+      "expected": {
+        "slug": "lantern",
+        "name": "Lantern",
+        "reason": "matched \"lamp\" in the notes"
+      }
+    }
+  ]
+}

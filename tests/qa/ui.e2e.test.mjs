@@ -6,10 +6,14 @@
  * sentence. The suite is deliberately black-box: it clicks, types and reads the DOM, never
  * app internals, so it fails when a user would notice.
  *
- * 49 cases: onboarding, worlds, builds, title rename (D2), status, deletion, materials,
- * quantity steppers (D5), notes view/edit (D4), coords copy (D3), item picker (D6/D7/D8),
+ * 66 cases: onboarding, worlds, builds, title rename (D2), status, deletion, materials,
+ * quantity steppers (D5/D6), notes view/edit (D4), coords copy (D3), item picker (D6/D7/D8),
  * image upload, search cap, Escape semantics, themed select (D9), backdrop blur (D10),
- * accessibility, responsive layout, visual contract and console cleanliness.
+ * accessibility, responsive layout, visual contract and console cleanliness. EDICT-0014 adds
+ * 17 cases (50–66): paging to every icon + the no-IntersectionObserver fallback, batch reset on
+ * search, name wrapping at 1280/390, the top-layer tooltip, the five zero states, the frozen
+ * suggestion, manual-icon precedence, bulk paste, three undo paths, recent picks, resolved step
+ * labels and a final whole-run console check.
  *
  * Run: node tests/qa/ui.e2e.test.mjs        (Chrome must be launchable, not inside the sandbox)
  */
@@ -171,6 +175,14 @@ test('01 empty state shows the onboarding empties and no console errors', async 
   assert.equal(await page().hidden('#build-empty'), false, 'no-build empty state visible');
   assert.equal(await page().hidden('#detail-empty'), false, 'no-selection empty state visible');
   assert.equal(await page().hidden('#world-empty'), false, 'worlds empty state rendered (gated by view)');
+  // Contract §4 (R3): the shipped build-empty keeps a next-step control, not a toast.
+  const firstBuild = await page().evaluate(`
+    const empty = document.querySelector('#build-empty');
+    const button = empty && empty.querySelector('#btn-first-build');
+    return { inside: !!button, tag: button && button.tagName };
+  `);
+  assert.equal(firstBuild.inside, true, '#btn-first-build lives inside the build empty state');
+  assert.equal(firstBuild.tag, 'BUTTON', 'the next step is a real button');
   const status = (await page().text('#status-line')).trim();
   assert.ok(status.length > 0, 'the live status line announces the load state');
   await shot('01-empty-state');
@@ -657,7 +669,7 @@ test('25 the visual contract keeps the panel, the font and the icon scale', asyn
 
 /* ---------------------------------------------------------------- backdrop */
 
-test('26 the panorama drifts unless reduced motion is requested', async () => {
+test('26 the panorama loops by transform and respects reduced motion (D1)', async () => {
   await reset();
   await page().emulateReducedMotion(false);
   await page().waitFor('window.__backdrop !== undefined');
@@ -666,19 +678,46 @@ test('26 the panorama drifts unless reduced motion is requested', async () => {
     await page().evaluate('return document.documentElement.classList.contains("has-panorama");'),
     true
   );
-  const moving = await page().evaluate(`
-    const style = getComputedStyle(document.querySelector('.backdrop'), '::before');
-    return { image: style.backgroundImage, animation: style.animationName };
+  // Contract §1/D1: the layer keeps `.backdrop` and exactly two div copies, each painting the
+  // strip, and the loop is a transform — never `background-position` and never a ping-pong.
+  const layer = await page().evaluate(`
+    const backdrop = document.querySelector('.backdrop');
+    const children = Array.from(backdrop.children).filter((node) => node.nodeType === 1);
+    return {
+      count: children.length,
+      images: children.map((node) => getComputedStyle(node).backgroundImage),
+      animations: children.map((node) => getComputedStyle(node).animationName),
+    };
   `);
-  assert.match(moving.image, /backdrop\.webp/, 'the generated panorama is the layer image');
-  assert.equal(moving.animation, 'panorama-drift', 'the slow pan is applied');
+  assert.equal(layer.count, 2, 'exactly two backdrop copies');
+  for (const image of layer.images) assert.match(image, /backdrop\.webp/, 'both copies paint the generated strip');
+  assert.ok(layer.animations.some((name) => name && name !== 'none'), 'the loop is applied to the layer');
+  const sample = () =>
+    page().evaluate(`
+      const nodes = Array.from(document.querySelectorAll('.backdrop, .backdrop *'));
+      const moving = nodes.find((node) => getComputedStyle(node).animationName !== 'none');
+      return moving ? getComputedStyle(moving).transform : null;
+    `);
+  const first = await sample();
+  await sleep(1200);
+  const second = await sample();
+  assert.ok(first && second, 'a moving backdrop layer is discoverable');
+  assert.notEqual(first, second, 'the strip has translated after ~1 s of the 180 s loop');
+  const animation = await page().evaluate(`
+    const nodes = Array.from(document.querySelectorAll('.backdrop, .backdrop *'));
+    const moving = nodes.find((node) => getComputedStyle(node).animationName !== 'none');
+    const style = getComputedStyle(moving);
+    return { name: style.animationName, duration: parseFloat(style.animationDuration) };
+  `);
+  assert.ok(animation.duration >= 100, `the loop duration is long (found ${animation.duration}s)`);
   await page().emulateReducedMotion(true);
   await page().reload();
   await page().waitFor('document.querySelector("#world-select") !== null');
-  const still = await page().evaluate(
-    'return getComputedStyle(document.querySelector(".backdrop"), "::before").animationName;'
-  );
-  assert.equal(still, 'none', 'reduced motion stops the pan');
+  const still = await page().evaluate(`
+    const nodes = Array.from(document.querySelectorAll('.backdrop, .backdrop *'));
+    return nodes.map((node) => getComputedStyle(node).animationName).filter((name) => name !== 'none');
+  `);
+  assert.deepEqual(still, [], 'reduced motion stops every backdrop copy');
   await page().emulateReducedMotion(false);
 });
 
@@ -756,34 +795,48 @@ test('30 a non-image upload is refused with an inline error (D7)', async () => {
   assert.equal(await page().evaluate('return document.querySelector("#icon-dialog").open;'), true);
 });
 
-test('31 the picker searches the expanded catalog and caps the grid (D6)', async () => {
+test('31 the picker pages the expanded catalog in 120-tile batches (D2)', async () => {
   await reset();
   await openFirstBuild();
   await page().click('#detail-avatar');
   await page().waitFor('document.querySelector("#icon-dialog").open');
-  const total = await page().count('#icon-grid .icon-tile');
-  const slugs = await page().count('#icon-grid [data-icon-slug]');
-  assert.equal(slugs, 150, 'the first page shows exactly the render cap of catalog tiles');
-  assert.equal(total, 151, 'the cap plus the single None tile in icon mode');
-  assert.match(await page().text('#icon-count-hint'), /showing 150 of \d+ — refine your search/);
+  const firstSlugs = await page().count('#icon-grid [data-icon-slug]');
+  assert.equal(firstSlugs, 120, 'the first batch shows exactly 120 catalog tiles');
+  assert.equal(await page().count('#icon-grid .icon-tile'), 121, 'the batch plus the single None tile');
+  assert.match(await page().text('#icon-count-hint'), /showing 120 of \d+ — scroll for more/,
+    'the hint names the batch and invites scrolling');
+  const sentinel = await page().evaluate(`
+    const grid = document.querySelector('#icon-grid');
+    const last = grid.lastElementChild;
+    return {
+      exists: !!grid.querySelector('#icon-sentinel'),
+      lastIsSentinel: !!last && last.id === 'icon-sentinel',
+      marked: !!last && last.getAttribute('data-icon-sentinel') !== null,
+      hidden: !!last && (last.getAttribute('aria-hidden') === 'true' || last.hidden),
+    };
+  `);
+  assert.equal(sentinel.exists, true, 'the sentinel exists in the grid');
+  assert.equal(sentinel.lastIsSentinel, true, 'the sentinel is the last child of the grid');
+  assert.equal(sentinel.marked, true, 'the sentinel is marked data-icon-sentinel');
+  assert.equal(sentinel.hidden, true, 'the sentinel is invisible to assistive tech');
+  await page().evaluate(`
+    const grid = document.querySelector('#icon-grid');
+    grid.scrollTop = grid.scrollHeight;
+    return true;
+  `);
+  await page().waitFor('document.querySelectorAll("#icon-grid [data-icon-slug]").length > 120');
+  assert.equal(await page().count('#icon-grid [data-icon-slug]'), 240, 'one sentinel hit adds the next 120');
   const lazy = await page().count('#icon-grid img[loading="lazy"]');
   assert.ok(lazy > 0, 'tiles load lazily');
-  for (const query of ['oak log', 'red concrete', 'diamond sword', 'glass']) {
-    await page().fill('#icon-search', query);
-    await page().waitFor('document.querySelectorAll("#icon-grid .icon-tile").length > 0');
-    const hit = await page().evaluate(`
-      const query = ${JSON.stringify(query)};
-      return Array.from(document.querySelectorAll('#icon-grid .icon-tile'))
-        .map((tile) => tile.querySelector('.icon-tile__name').textContent.toLowerCase())
-        .some((name) => name.includes(query.split(' ')[0]) && name.includes(query.split(' ').slice(-1)[0]));
-    `);
-    assert.equal(hit, true, `search "${query}" finds the item`);
-  }
+  await page().fill('#icon-search', 'oak log');
+  await page().waitFor('document.querySelectorAll("#icon-grid [data-icon-slug]").length > 0');
+  const hint = await page().text('#icon-count-hint');
+  assert.match(hint, /showing \d+ of \d+ for "oak log"/, 'a search resets to one batch and reports its own count');
+  const shown = await page().count('#icon-grid [data-icon-slug]');
+  assert.ok(shown <= 120, 'a search never renders more than one batch');
   await page().fill('#icon-search', 'oak_log');
-  const slugHit = await page().evaluate(
-    'return !!document.querySelector("#icon-grid [data-icon-slug=oak_log]");'
-  );
-  assert.equal(slugHit, true, 'a slug query also matches');
+  assert.equal(await page().evaluate('return !!document.querySelector("#icon-grid [data-icon-slug=oak_log]");'), true,
+    'a slug query also matches');
 });
 
 test('32 Escape clears the picker query before closing it', async () => {
@@ -930,6 +983,7 @@ async function stepperRow() {
     const row = document.querySelector('#material-body .mat-row');
     const steps = Array.from(row.querySelectorAll('.mat-step')).map((button) => ({
       step: button.dataset.step,
+      matStep: button.dataset.matStep,
       stack: button.dataset.stack,
       text: button.textContent.trim(),
       aria: button.getAttribute('aria-label'),
@@ -938,17 +992,23 @@ async function stepperRow() {
   `);
 }
 
-test('39 each material row carries the six needed steppers (D5)', async () => {
+test('39 each row carries six resolved steppers with shipped data-step kinds (D6)', async () => {
   await reset();
   await openFirstBuild();
   const row = await stepperRow();
-  assert.equal(row.steps.length, 6, 'exactly six buttons per row');
-  assert.deepEqual(row.steps.map((entry) => entry.step), ['+1', '+10', '+stack', '-1', '-10', '-stack']);
-  assert.deepEqual(row.steps.map((entry) => entry.text), ['+1', '+10', '+stack', '-1', '-10', '-stack'],
-    'the frozen contract labels the stack buttons "+stack", not the resolved number');
+  assert.equal(row.steps.length, 6, 'exactly six buttons per stackable row');
+  assert.deepEqual(row.steps.map((entry) => entry.step), ['+1', '+10', '+stack', '-1', '-10', '-stack'],
+    'data-step keeps the shipped EDICT-0013 literals');
+  assert.deepEqual(row.steps.map((entry) => entry.text), ['+1', '+10', '+64', '-1', '-10', '-64'],
+    'the visible labels are the resolved amounts (stone stacks to 64)');
+  assert.deepEqual(row.steps.map((entry) => entry.matStep), ['+1', '+10', '+64', '-1', '-10', '-64'],
+    'data-mat-step carries the same resolved amount');
   const stoneStack = row.steps.find((entry) => entry.step === '+stack');
-  assert.equal(stoneStack.stack, '64', 'stone stacks to 64 (contract §4 data-stack)');
-  assert.match(stoneStack.aria, /full stack of 64/, 'the accessible name states the resolved size');
+  assert.equal(stoneStack.stack, '64', 'data-stack carries the integer');
+  assert.match(stoneStack.aria, /Add a full stack \(64\) to .+ needed/,
+    'the accessible name states the resolved size');
+  assert.match(row.steps.find((entry) => entry.step === '+1').aria, /Add 1 .+ to .+ needed/,
+    'the ±1 controls keep their numeric accessible name');
 });
 
 test('40 the steppers climb by 1, by 10 and by one stack (D5)', async () => {
@@ -983,7 +1043,7 @@ test('41 the steppers never take needed below one (D5)', async () => {
   assert.equal(await page().value(`[data-mat="${row}"][data-mat-field="needed"]`), '1');
 });
 
-test('42 stack buttons use the item own stack size (D5)', async () => {
+test('42 stack buttons use the item own stack size and vanish at one (D6/D7)', async () => {
   await reset();
   await page().click('#btn-new-build');
   await page().waitFor('document.querySelector("#build-dialog").open');
@@ -993,19 +1053,28 @@ test('42 stack buttons use the item own stack size (D5)', async () => {
   await addMaterialViaPicker('egg', { slug: 'egg' });
   await page().waitFor('document.querySelectorAll("#material-body .mat-row").length === 1');
   const egg = await stepperRow();
-  assert.deepEqual(egg.steps.filter((entry) => entry.step === '+stack').map((entry) => entry.stack), ['16'],
-    'an egg stacks to 16');
+  assert.equal(egg.steps.length, 6, 'an egg still shows six controls');
+  assert.deepEqual(egg.steps.map((entry) => entry.step), ['+1', '+10', '+stack', '-1', '-10', '-stack']);
+  assert.deepEqual(egg.steps.map((entry) => entry.text), ['+1', '+10', '+16', '-1', '-10', '-16'],
+    'the egg labels resolve to 16');
+  assert.equal(egg.steps.find((entry) => entry.step === '+stack').stack, '16', 'an egg stacks to 16');
   await addMaterialViaPicker('water bucket', { slug: 'water_bucket' });
   await page().waitFor('document.querySelectorAll("#material-body .mat-row").length === 2');
   const buckets = await page().evaluate(`
     const rows = Array.from(document.querySelectorAll('#material-body .mat-row'));
     const row = rows.find((entry) => entry.querySelector('.mat-row__name').textContent.trim() === 'Water Bucket');
-    const button = row.querySelector('[data-step="+stack"]');
-    return { stack: button.dataset.stack, text: button.textContent.trim(), aria: button.getAttribute('aria-label') };
+    return {
+      steps: Array.from(row.querySelectorAll('.mat-step')).map((button) => button.dataset.step),
+      texts: Array.from(row.querySelectorAll('.mat-step')).map((button) => button.textContent.trim()),
+      stackNodes: row.querySelectorAll('[data-step$="stack"]').length,
+      aria: Array.from(row.querySelectorAll('.mat-step')).map((button) => button.getAttribute('aria-label') || ''),
+    };
   `);
-  assert.equal(buckets.stack, '1', 'a filled bucket stacks to one');
-  assert.equal(buckets.text, '+stack', 'the visible label stays the frozen "+stack"');
-  assert.match(buckets.aria, /full stack of 1/, 'the accessible name states the resolved stack size');
+  assert.deepEqual(buckets.steps, ['+1', '+10', '-1', '-10'], 'a stack of one keeps only the four numeric steps');
+  assert.deepEqual(buckets.texts, ['+1', '+10', '-1', '-10']);
+  assert.equal(buckets.stackNodes, 0, 'no stack node is emitted at stack 1');
+  assert.equal(buckets.aria.some((label) => /full stack/i.test(label)), false,
+    'nothing claims a full stack for a stack of one');
 });
 
 test('43 the needed input stays type=number with the spinners hidden (D5)', async () => {
@@ -1086,17 +1155,38 @@ test('47 the themed select path is active in this Chrome (D9)', async () => {
 
 /* ------------------------------------------------------------------- D10 */
 
-test('48 the backdrop is less blurred and still 2560x640 (D10)', async () => {
+test('48 the backdrop is less blurred, loops 2560x640 and stops under reduced motion (D1/D10)', async () => {
   await reset();
   await page().emulateReducedMotion(false);
   await page().waitFor('window.__backdrop !== undefined');
-  const layer = await page().evaluate(`
-    const style = getComputedStyle(document.querySelector('.backdrop'), '::before');
-    return { filter: style.filter };
+  const layers = await page().evaluate(`
+    return Array.from(document.querySelectorAll('.backdrop > .backdrop__layer')).map((node) => {
+      const style = getComputedStyle(node);
+      return {
+        filter: style.filter,
+        backgroundImage: style.backgroundImage,
+        animationName: style.animationName,
+        animationDuration: style.animationDuration,
+      };
+    });
   `);
-  const match = /blur\(([\d.]+)px\)/.exec(layer.filter);
-  assert.ok(match, `the layer carries a blur (${layer.filter})`);
-  assert.ok(Number(match[1]) <= 1, `the blur is at most 1px (found ${match[1]}px)`);
+  assert.equal(layers.length, 2, 'the loop is two copies of the strip (D1)');
+  const pseudo = await page().evaluate(`
+    return getComputedStyle(document.querySelector('.backdrop'), '::before').filter;
+  `);
+  assert.equal(pseudo, 'none', 'the blur moved off the pseudo-element onto the layers');
+  for (const layer of layers) {
+    const match = /blur\(([\d.]+)px\)/.exec(layer.filter);
+    assert.ok(match, `each layer carries a blur (${layer.filter})`);
+    assert.ok(Number(match[1]) <= 1, `each layer blurs at most 1px (found ${match[1]}px)`);
+    assert.match(layer.backgroundImage, /backdrop\.webp/);
+    assert.notEqual(layer.animationName, 'none', 'the strip animates');
+    assert.match(layer.animationDuration, /180s/, 'the loop runs 180 s (D1 supersedes EDICT-0010 120 s)');
+  }
+  const t0 = await page().evaluate(`return getComputedStyle(document.querySelector('.backdrop > .backdrop__layer')).transform;`);
+  await sleep(1200);
+  const t1 = await page().evaluate(`return getComputedStyle(document.querySelector('.backdrop > .backdrop__layer')).transform;`);
+  assert.notEqual(t0, t1, 'the transform advances over time');
   const size = await page().evaluate(`
     return new Promise((resolve) => {
       const image = new Image();
@@ -1106,11 +1196,556 @@ test('48 the backdrop is less blurred and still 2560x640 (D10)', async () => {
     });
   `);
   assert.deepEqual(size, { width: 2560, height: 640 }, 'the regenerated backdrop keeps its strip geometry');
+  assert.equal(size.width, 4 * size.height, 'the strip keeps its 4:1 arithmetic');
+  await page().emulateReducedMotion(true);
+  await page().waitFor('getComputedStyle(document.querySelector(".backdrop > .backdrop__layer")).animationName === "none"');
   await shot('48-backdrop-narrow-blur');
+});
+
+test('49 the whole run stayed free of console errors', async () => {
+  assert.deepEqual(app.consoleErrors, []);
+});
+
+/* ------------------------------------------- EDICT-0014 helpers (D2/D4/D5) *//** Open the icon picker from the selected build's avatar. */
+async function openPicker() {
+  await page().click('#detail-avatar');
+  await page().waitFor('document.querySelector("#icon-dialog").open');
+}
+
+/** Fire a bubbling pointerover the way a real pointer would reach a delegated listener. */
+async function pointerOver(selector) {
+  return page().evaluate(`
+    const node = document.querySelector(${JSON.stringify(selector)});
+    if (!node) return 'missing';
+    node.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, relatedTarget: null }));
+    return 'ok';
+  `);
+}
+
+async function pointerOut(selector) {
+  return page().evaluate(`
+    const node = document.querySelector(${JSON.stringify(selector)});
+    if (!node) return 'missing';
+    node.dispatchEvent(new PointerEvent('pointerout', { bubbles: true, relatedTarget: document.body }));
+    return 'ok';
+  `);
+}
+
+async function tooltipState() {
+  return page().evaluate(`
+    const tip = document.querySelector('#mc-tooltip');
+    if (!tip) return null;
+    const style = getComputedStyle(tip);
+    const rect = tip.getBoundingClientRect();
+    const visible = !tip.hidden && style.display !== 'none' && style.visibility !== 'hidden'
+      && rect.width > 0 && rect.height > 0;
+    return {
+      visible,
+      text: tip.textContent.trim(),
+      inDialog: !!tip.closest('dialog[open]'),
+      inViewport: rect.x >= -1 && rect.y >= -1 && rect.right <= window.innerWidth + 1
+        && rect.bottom <= window.innerHeight + 1,
+    };
+  `);
+}
+
+async function loadPickerBatch(target) {
+  await page().evaluate(`
+    const grid = document.querySelector('#icon-grid');
+    grid.scrollTop = grid.scrollHeight;
+    return true;
+  `);
+  await page().waitFor(`document.querySelectorAll('#icon-grid [data-icon-slug]').length >= ${target}`, { timeout: 5000 });
+}
+
+/* ------------------------------------------ EDICT-0014 cases (D2-D11) */
+
+test('50 the picker pages the whole catalog and works without IntersectionObserver (D2)', async () => {
+  await reset();
+  await openFirstBuild();
+  await openPicker();
+  assert.equal(await page().count('#icon-grid [data-icon-slug]'), 120, 'first batch of 120');
+  let count = 120;
+  for (let attempt = 0; attempt < 20 && count < 1368; attempt += 1) {
+    await page().evaluate(`
+      const grid = document.querySelector('#icon-grid');
+      grid.scrollTop = grid.scrollHeight;
+      return true;
+    `);
+    await page().waitFor(`document.querySelectorAll('#icon-grid [data-icon-slug]').length > ${count}`, { timeout: 4000 });
+    count = await page().count('#icon-grid [data-icon-slug]');
+  }
+  assert.equal(count, 1368, 'the whole catalog is reachable by scrolling');
+  const distinct = await page().evaluate(`
+    return new Set(Array.from(document.querySelectorAll('#icon-grid [data-icon-slug]'))
+      .map((tile) => tile.dataset.iconSlug)).size;
+  `);
+  assert.equal(distinct, 1368, 'every tile is a distinct slug');
+  assert.match(await page().text('#icon-count-hint'), /showing 1368 of 1368/);
+  const last = await page().evaluate(`
+    const tiles = Array.from(document.querySelectorAll('#icon-grid [data-icon-slug]'));
+    const tile = tiles[tiles.length - 1];
+    tile.click();
+    return tile.dataset.iconSlug;
+  `);
+  await page().click('#icon-use');
+  await page().waitFor('!document.querySelector("#icon-dialog").open');
+  const state = await appState();
+  const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
+  const heading = (await page().text('#detail-heading')).trim();
+  const build = world.builds.find((entry) => entry.name === heading);
+  assert.ok(build, `the selected build is ${heading}`);
+  assert.equal(build.icon && build.icon.slug, last, 'the last tile is usable and commits');
+  await openPicker();
+  await page().click('#icon-cancel');
+  await page().waitFor('!document.querySelector("#icon-dialog").open');
+  await page().evaluate('delete window.IntersectionObserver; return true;');
+  await openPicker();
+  assert.equal(await page().count('#icon-grid [data-icon-slug]'), 120, 'the first batch is unchanged');
+  await page().evaluate(`
+    const grid = document.querySelector('#icon-grid');
+    grid.scrollTop = grid.scrollHeight;
+    grid.dispatchEvent(new Event('scroll'));
+    return true;
+  `);
+  await page().waitFor('document.querySelectorAll("#icon-grid [data-icon-slug]").length > 120', { timeout: 4000 });
+  assert.ok((await page().count('#icon-grid [data-icon-slug]')) >= 240,
+    'the scroll fallback pages when IntersectionObserver is missing');
+  await page().click('#icon-cancel');
+});
+
+test('51 typing a query resets the batch and reports its own match count (D2)', async () => {
+  await reset();
+  await openFirstBuild();
+  await openPicker();
+  await loadPickerBatch(240);
+  await page().fill('#icon-search', 'stone');
+  await page().waitFor('document.querySelectorAll("#icon-grid [data-icon-slug]").length > 0');
+  const hint = await page().text('#icon-count-hint');
+  assert.match(hint, /showing \d+ of \d+ for "stone"/, 'the hint names the query and its match count');
+  assert.ok((await page().count('#icon-grid [data-icon-slug]')) <= 120, 'a query never renders more than one batch');
+  await page().fill('#icon-search', '');
+  await page().waitFor('document.querySelectorAll("#icon-grid [data-icon-slug]").length === 120');
+  assert.match(await page().text('#icon-count-hint'), /showing 120 of 1368 — scroll for more/,
+    'clearing the query restores the first batch and the scroll hint');
+});
+
+test('52 long names wrap instead of truncating at 1280 and 390 (D3)', async () => {
+  await reset();
+  await page().setViewport(1280, 900);
+  await openFirstBuild();
+  await openPicker();
+  await page().fill('#icon-search', 'Wayfinder');
+  await page().waitFor('document.querySelectorAll("#icon-grid [data-icon-slug]").length > 0');
+  const longest = '.icon-tile__name';
+  const measure = async (selector) => page().evaluate(`
+    const nodes = Array.from(document.querySelectorAll(${JSON.stringify(selector)}));
+    return nodes.map((node) => {
+      const style = getComputedStyle(node);
+      return {
+        text: node.textContent.trim(),
+        overflow: style.textOverflow,
+        whiteSpace: style.whiteSpace,
+        clipped: node.scrollWidth > node.clientWidth + 1,
+      };
+    });
+  `);
+  for (const entry of await measure(longest)) {
+    assert.notEqual(entry.overflow, 'ellipsis', `${entry.text} is not ellipsised`);
+    assert.notEqual(entry.whiteSpace, 'nowrap', `${entry.text} may wrap`);
+    assert.equal(entry.clipped, false, `${entry.text} fits its tile at 1280`);
+  }
+  await page().click('#icon-cancel');
+  const rowsBefore = await page().count('#material-body .mat-row');
+  await addMaterialViaPicker('Wayfinder', { slug: 'wayfinder_armor_trim_smithing_template', needed: 1 });
+  await page().waitFor(`document.querySelectorAll("#material-body .mat-row").length === ${rowsBefore + 1}`);
+  const wayfinder = await page().evaluate(`
+    return Array.from(document.querySelectorAll('#material-body .mat-row')).some((row) => {
+      const name = row.querySelector('.mat-row__name');
+      return !!name && name.textContent.includes('Wayfinder');
+    });
+  `);
+  assert.equal(wayfinder, true, 'the long-named material row is present');
+  await page().setViewport(390, 844);
+  await sleep(200);
+  for (const entry of [...(await measure('.mat-row__name')), ...(await measure('#mat-choice-name'))]) {
+    assert.notEqual(entry.overflow, 'ellipsis', `${entry.text} is not ellipsised at 390`);
+    assert.equal(entry.clipped, false, `${entry.text} fits the phone width`);
+  }
+  await page().clearViewport();
+});
+
+test('53 the picker tooltip paints in the dialog top layer and hides on Escape (D4)', async () => {
+  await reset();
+  await openFirstBuild();
+  await openPicker();
+  await page().fill('#icon-search', 'stone');
+  await page().waitFor('document.querySelectorAll("#icon-grid .icon-tile[data-icon-slug]").length > 0');
+  assert.equal(await pointerOver('#icon-grid .icon-tile[data-icon-slug]'), 'ok');
+  await page().waitFor('document.querySelector("#mc-tooltip") && !document.querySelector("#mc-tooltip").hidden');
+  const tip = await tooltipState();
+  assert.ok(tip && tip.visible, 'the tooltip is visible');
+  assert.ok(tip.text.length > 0, 'the tooltip carries the frozen data-tip text');
+  assert.equal(tip.inDialog, true, 'the tooltip is appended inside the open dialog');
+  assert.equal(tip.inViewport, true, 'the tooltip is clamped into the viewport');
+  const topmost = await page().evaluate(`
+    const tip = document.querySelector('#mc-tooltip');
+    const rect = tip.getBoundingClientRect();
+    const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+    return !!hit && (hit === tip || tip.contains(hit));
+  `);
+  assert.equal(topmost, true, 'the tooltip is the topmost element at its centre');
+  await page().press('Escape');
+  await page().waitFor('!document.querySelector("#mc-tooltip") || document.querySelector("#mc-tooltip").hidden');
+});
+
+test('54 tooltips work on material rows and inside the world dialog (D4)', async () => {
+  await reset();
+  await openFirstBuild();
+  assert.equal(await pointerOver('#material-body .mat-row .slot'), 'ok');
+  await page().waitFor('document.querySelector("#mc-tooltip") && !document.querySelector("#mc-tooltip").hidden');
+  const rowTip = await tooltipState();
+  assert.ok(rowTip.text.length > 0, 'a material row reveals its item name');
+  assert.equal(rowTip.inDialog, false, 'with no dialog open the tooltip lives on the body');
+  await pointerOut('#material-body .mat-row .slot');
+  await page().waitFor('!document.querySelector("#mc-tooltip") || document.querySelector("#mc-tooltip").hidden');
+  await page().click('#tab-worlds');
+  await page().click('#btn-new-world-2');
+  await page().waitFor('document.querySelector("#world-dialog").open');
+  assert.equal(await pointerOver('#world-icon'), 'ok');
+  await page().waitFor('document.querySelector("#mc-tooltip") && !document.querySelector("#mc-tooltip").hidden');
+  const worldTip = await tooltipState();
+  assert.equal(worldTip.inDialog, true, 'inside the world dialog the tooltip attaches to it');
+  await page().click('#world-dialog button[value="cancel"]');
+});
+
+test('55 every zero state offers its next action (D5)', async () => {
+  await reset({ demo: false });
+  await page().click('#tab-worlds');
+  assert.equal(await page().hidden('#world-empty'), false, 'worlds empty state visible');
+  const worldCta = await page().evaluate(`
+    const button = document.querySelector('#world-empty #btn-empty-create-world');
+    return button ? { exists: true, hidden: button.hidden } : { exists: false };
+  `);
+  assert.equal(worldCta.exists, true, '#world-empty carries #btn-empty-create-world');
+  await page().click('#world-empty #btn-empty-create-world');
+  await page().waitFor('document.querySelector("#world-dialog").open');
+  await page().fill('#world-name', 'Fresh World');
+  await page().click('#world-save');
+  await page().waitFor('!document.querySelector("#world-dialog").open');
+  await page().click('#tab-builds');
+  assert.equal(await page().hidden('#build-empty'), false, 'no-build state after the first world');
+  await page().click('#build-empty #btn-first-build');
+  await page().waitFor('document.querySelector("#build-dialog").open');
+  await page().fill('#build-dlg-name', 'Empty Build');
+  await page().click('#build-dialog button[type="submit"]:not([formnovalidate])');
+  await page().waitFor('!document.querySelector("#build-dialog").open');
+  const detailCta = await page().evaluate(`
+    const empty = document.querySelector('#detail-empty');
+    const action = document.querySelector('#detail-empty-action');
+    return {
+      hidden: !empty || empty.hidden,
+      action: !!action,
+      inside: !!action && !!empty && empty.contains(action),
+      actionHidden: !action || action.hidden,
+    };
+  `);
+  assert.equal(detailCta.action, true, '#detail-empty carries its action');
+  assert.equal(detailCta.inside, true, 'the action lives inside #detail-empty');
+  assert.equal(detailCta.actionHidden, false, 'the action is rendered, not a dead node');
+  assert.equal(detailCta.hidden, true, 'with a build selected the detail empty state is hidden');
+  const materialEmpty = await page().evaluate(`
+    const empty = document.querySelector('#material-empty');
+    const button = document.querySelector('#btn-empty-pick-material');
+    return { exists: !!empty, button: !!button, buttonInside: !!(empty && empty.contains(button)) };
+  `);
+  assert.equal(materialEmpty.exists, true, '#material-empty is a container');
+  assert.equal(materialEmpty.buttonInside, true, '#btn-empty-pick-material lives in it');
+  await page().click('#btn-empty-pick-material');
+  await page().waitFor('document.activeElement && document.activeElement.id === "mat-choice"',
+    { timeout: 3000 });
+  await page().click('#tab-materials');
+  await page().fill('#mat-search', 'zzz-no-such-item');
+  await page().waitFor('!document.querySelector("#world-material-empty").hidden');
+  const resetCta = await page().evaluate(`
+    const empty = document.querySelector('#world-material-empty');
+    const button = document.querySelector('#btn-empty-reset-filter');
+    return { button: !!button, inside: !!(empty && empty.contains(button)) };
+  `);
+  assert.equal(resetCta.button, true, '#btn-empty-reset-filter exists');
+  assert.equal(resetCta.inside, true, 'the reset control lives in the filtered empty state');
+  await page().click('#btn-empty-reset-filter');
+  await page().waitFor('document.querySelector("#mat-search").value === ""');
+  assert.equal(await page().hidden('#world-material-empty'), true, 'resetting the filter brings the rows back');
+});
+
+test('56 the avatar suggests an icon without storing it (D8)', async () => {
+  await reset();
+  await page().click('#btn-new-build');
+  await page().waitFor('document.querySelector("#build-dialog").open');
+  await page().fill('#build-dlg-name', 'Gold Vault');
+  await page().click('#build-dialog button[type="submit"]:not([formnovalidate])');
+  await page().waitFor('!document.querySelector("#build-dialog").open');
+  const avatar = await page().evaluate(`
+    const node = document.querySelector('#detail-avatar');
+    return { auto: node.dataset.iconAuto, title: node.title, html: node.innerHTML };
+  `);
+  assert.equal(avatar.auto, 'true', 'the avatar marks a suggestion');
+  assert.match(avatar.title, /matched "gold" in the name/, 'the title explains the reason');
+  assert.match(avatar.html, /assets\/icons\/gold_block\.png/, 'the suggested icon is shown');
+  const state = await appState();
+  const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
+  const build = world.builds.find((entry) => entry.name === 'Gold Vault');
+  assert.equal(build.icon, null, 'a suggestion is never stored on the build');
+  await openPicker();
+  assert.match(await page().text('#icon-suggest-note'), /Suggested from "gold"/);
+  assert.equal(await page().evaluate('return !!document.querySelector("#icon-grid [data-icon-suggested=true]");'),
+    true, 'the suggested tile is marked');
+  await page().click('#icon-grid [data-icon-suggested=true]');
+  await page().click('#icon-use');
+  await page().waitFor('!document.querySelector("#icon-dialog").open');
+  const saved = await appState();
+  const savedWorld = saved.worlds.find((entry) => entry.id === saved.activeWorldId);
+  const savedBuild = savedWorld.builds.find((entry) => entry.name === 'Gold Vault');
+  assert.equal(savedBuild.icon && savedBuild.icon.slug, 'gold_block', 'choosing the suggestion stores it');
+  assert.equal(savedBuild.iconAuto, false, 'a manual choice clears the auto flag');
+});
+
+test('57 a stored icon is never replaced by the suggestion (D8)', async () => {
+  await reset();
+  await page().click('#btn-new-build');
+  await page().waitFor('document.querySelector("#build-dialog").open');
+  await page().fill('#build-dlg-name', 'Wheat Farm');
+  await page().click('#build-dialog button[type="submit"]:not([formnovalidate])');
+  await page().waitFor('!document.querySelector("#build-dialog").open');
+  await page().click('#build-rename');
+  await page().fill('#build-name', 'Wheat Farm Manual');
+  await page().press('Enter');
+  await openPicker();
+  await page().fill('#icon-search', 'apple');
+  await page().waitFor('document.querySelectorAll("#icon-grid .icon-tile[data-icon-slug]").length > 0');
+  await page().click('#icon-grid [data-icon-slug=apple]');
+  await page().click('#icon-use');
+  await page().waitFor('!document.querySelector("#icon-dialog").open');
+  await page().click('#build-rename');
+  await page().fill('#build-name', 'Wheat Farm');
+  await page().press('Enter');
+  const after = await page().evaluate(`
+    const node = document.querySelector('#detail-avatar');
+    return { auto: node.dataset.iconAuto || '', html: node.innerHTML, title: node.title };
+  `);
+  assert.equal(after.auto, '', 'a stored icon is not an auto suggestion');
+  assert.match(after.html, /assets\/icons\/apple\.png/, 'the manual apple survives the rename');
+});
+
+test('58 bulk paste reviews matched and unknown lines and commits once (D9)', async () => {
+  await reset();
+  await page().click('#btn-new-build');
+  await page().waitFor('document.querySelector("#build-dialog").open');
+  await page().fill('#build-dlg-name', 'Bulk Build');
+  await page().click('#build-dialog button[type="submit"]:not([formnovalidate])');
+  await page().waitFor('!document.querySelector("#build-dialog").open');
+  await page().click('#bulk-paste');
+  await page().waitFor('document.querySelector("#bulk-dialog").open');
+  await page().fill('#bulk-input', [
+    '64 stone bricks',
+    '- 32 glass',
+    '+1 oak log',
+    '20x oak log',
+    '3 stone bricks',
+    'mystery goo',
+    '- 5 diamond',
+  ].join('\n'));
+  await page().waitFor('document.querySelectorAll("#bulk-review .bulk-row").length >= 4');
+  const review = await page().evaluate(`
+    const rows = Array.from(document.querySelectorAll('#bulk-review .bulk-row'));
+    return rows.map((row) => ({
+      state: row.dataset.bulkState,
+      qty: row.querySelector('[data-bulk-qty]') && row.querySelector('[data-bulk-qty]').value,
+      text: row.textContent.trim(),
+    }));
+  `);
+  const matched = review.filter((row) => row.state === 'matched');
+  assert.equal(matched.length, 4, 'four lines matched (duplicates merged)');
+  assert.equal(review.filter((row) => row.state === 'unknown').length, 1, 'the unknown line is listed, not added');
+  assert.equal(matched.find((row) => /stone bricks/i.test(row.text)).qty, '67', 'duplicate quantities merge');
+  assert.equal(matched.find((row) => /oak log/i.test(row.text)).qty, '21', 'case-insensitive merge by slug');
+  await page().click('#bulk-add');
+  await page().waitFor('!document.querySelector("#bulk-dialog").open');
+  const rows = await page().evaluate(`
+    return Array.from(document.querySelectorAll('#material-body .mat-row')).map((row) => ({
+      name: row.querySelector('.mat-row__name').textContent.trim(),
+      needed: row.querySelector('[data-mat-field=needed]').value,
+    }));
+  `);
+  assert.equal(rows.length, 4, 'matched lines become materials in one commit');
+  assert.ok(!rows.some((row) => /mystery/i.test(row.name)), 'unknown lines are not added');
+});
+
+test('59 undo restores a deleted material, and expires after six seconds (D10)', async () => {
+  await reset();
+  await openFirstBuild();
+  const before = await appState();
+  const rowsBefore = await page().count('#material-body .mat-row');
+  assert.ok(rowsBefore >= 1, 'the demo build starts with materials');
+  await page().click('#material-body .mat-row .row-delete');
+  await page().waitFor(`document.querySelectorAll("#material-body .mat-row").length === ${rowsBefore - 1}`);
+  assert.equal(await page().hidden('#toast-action'), false, 'the toast offers Undo');
+  await page().waitFor('document.querySelector("#toast").textContent.includes("Undo")');
+  await page().click('#toast-action');
+  await page().waitFor(`document.querySelectorAll("#material-body .mat-row").length === ${rowsBefore}`);
+  assert.deepEqual(await appState(), before, 'the restore is a deep-equal snapshot');
+  await page().click('#material-body .mat-row .row-delete');
+  await page().waitFor(`document.querySelectorAll("#material-body .mat-row").length === ${rowsBefore - 1}`);
+  await sleep(6800);
+  const expired = await page().evaluate(`
+    const action = document.querySelector('#toast-action');
+    return { hidden: !action || action.hidden || !action.offsetParent, text: document.querySelector('#toast').textContent.trim() };
+  `);
+  assert.equal(expired.hidden, true, 'the undo action is gone after six seconds');
+});
+
+test('60 undo restores a deleted build and its selection (D10)', async () => {
+  await reset();
+  await openFirstBuild();
+  const before = await appState();
+  const name = await page().text('#detail-heading');
+  await page().click('#build-delete');
+  await page().waitFor('document.querySelector("#confirm-dialog").open');
+  await page().click('#confirm-ok');
+  await page().waitFor('document.querySelector("#confirm-dialog") && !document.querySelector("#confirm-dialog").open');
+  await page().click('#toast-action');
+  await page().waitFor('document.querySelectorAll("#build-list .build-entry").length > 0');
+  assert.deepEqual(await appState(), before, 'the build and its materials are restored');
+  assert.ok((await page().text('#detail-heading')).includes(name.trim()),
+    'the restored build is selected again');
+});
+
+test('61 undo restores a deleted world (D10)', async () => {
+  await reset();
+  await page().click('#tab-worlds');
+  await page().click('#btn-new-world-2');
+  await page().waitFor('document.querySelector("#world-dialog").open');
+  await page().fill('#world-name', 'Doomed World');
+  await page().click('#world-save');
+  await page().waitFor('!document.querySelector("#world-dialog").open');
+  const before = await appState();
+  await page().click('#tab-worlds');
+  await page().evaluate(`
+    const cards = Array.from(document.querySelectorAll('#world-cards .world-card'));
+    const card = cards.find((entry) => entry.textContent.includes('Doomed World'));
+    card.querySelector('[data-world-delete]').click();
+    return true;
+  `);
+  await page().waitFor('document.querySelector("#confirm-dialog").open');
+  await page().click('#confirm-ok');
+  await page().waitFor('!document.querySelector("#confirm-dialog").open');
+  await page().click('#toast-action');
+  await page().waitFor('document.querySelectorAll("#world-cards .world-card").length >= 3');
+  assert.deepEqual(await appState(), before, 'the world and its builds come back unchanged');
+});
+
+test('62 recent picks come first in the unfiltered picker (D11)', async () => {
+  await reset();
+  await openFirstBuild();
+  for (const name of ['apple', 'dirt']) {
+    await page().click('#detail-avatar');
+    await page().waitFor('document.querySelector("#icon-dialog").open');
+    await page().fill('#icon-search', name);
+    await page().waitFor(`document.querySelector('#icon-grid [data-icon-slug=${name}]') !== null`);
+    await page().click(`#icon-grid [data-icon-slug=${name}]`);
+    await page().click('#icon-use');
+    await page().waitFor('!document.querySelector("#icon-dialog").open');
+  }
+  await openPicker();
+  const order = await page().evaluate(`
+    const tiles = Array.from(document.querySelectorAll('#icon-grid .icon-tile[data-icon-slug]'));
+    return {
+      recent: tiles.filter((tile) => tile.dataset.iconRecent === 'true').map((tile) => tile.dataset.iconSlug),
+      firstSlugs: tiles.slice(0, 2).map((tile) => tile.dataset.iconSlug),
+    };
+  `);
+  assert.deepEqual(order.recent, ['dirt', 'apple'], 'the two picks are recent, latest first');
+  assert.deepEqual(order.firstSlugs, ['dirt', 'apple'], 'recent tiles lead the first batch');
+  await page().click('#icon-cancel');
+});
+
+test('63 recents survive a reload, cap at eight and drop unknown slugs (D11)', async () => {
+  await reset();
+  const seeded = ['stone', 'dirt', 'apple', 'glass', 'egg', 'torch', 'sand', 'oak_log', 'gravel', 'coal', 'not_a_real_slug', 'stone'];
+  await page().evaluate(`localStorage.setItem('mc-build-tracker:recent', ${JSON.stringify(JSON.stringify(seeded))}); return true;`);
+  await page().reload();
+  await page().waitFor('document.querySelector("#world-select") !== null');
+  await openFirstBuild();
+  await openPicker();
+  const recents = await page().evaluate(`
+    const tiles = Array.from(document.querySelectorAll('#icon-grid .icon-tile[data-icon-slug]'));
+    return tiles.filter((tile) => tile.dataset.iconRecent === 'true').map((tile) => tile.dataset.iconSlug);
+  `);
+  assert.equal(recents.length, 8, 'the list caps at eight');
+  assert.deepEqual(recents, seeded.slice(0, 8), 'order and dedupe survive; the unknown slug is dropped');
+  const exported = await page().evaluate(`
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v1'));
+    return window.TrackerModel.exportJSON(state);
+  `);
+  assert.equal(exported.includes('mc-build-tracker:recent'), false, 'recents are browser-local, not exported');
+  await page().click('#icon-cancel');
+});
+
+test('64 resolved labels and stack-1 omission hold for several items (D6/D7)', async () => {
+  await reset();
+  await page().click('#btn-new-build');
+  await page().waitFor('document.querySelector("#build-dialog").open');
+  await page().fill('#build-dlg-name', 'Stack Spread');
+  await page().click('#build-dialog button[type="submit"]:not([formnovalidate])');
+  await page().waitFor('!document.querySelector("#build-dialog").open');
+  const expected = [['stone', 'stone', '64'], ['egg', 'egg', '16'], ['water bucket', 'water_bucket', '1']];
+  for (const [query, slug] of expected) await addMaterialViaPicker(query, { slug, needed: 7 });
+  await page().waitFor('document.querySelectorAll("#material-body .mat-row").length === 3');
+  const rows = await page().evaluate(`
+    return Array.from(document.querySelectorAll('#material-body .mat-row')).map((row) => ({
+      name: row.querySelector('.mat-row__name').textContent.trim(),
+      steps: Array.from(row.querySelectorAll('.mat-step')).map((button) => ({
+        step: button.dataset.step, text: button.textContent.trim(), matStep: button.dataset.matStep,
+      })),
+    }));
+  `);
+  const stackOf = (name) => rows.find((row) => row.name === name);
+  assert.deepEqual(stackOf('Stone').steps.map((entry) => entry.text), ['+1', '+10', '+64', '-1', '-10', '-64']);
+  assert.deepEqual(stackOf('Egg').steps.map((entry) => entry.text), ['+1', '+10', '+16', '-1', '-10', '-16']);
+  assert.deepEqual(stackOf('Water Bucket').steps.map((entry) => entry.step), ['+1', '+10', '-1', '-10']);
+});
+
+test('65 the suggestion is pure, deterministic and null with two arguments (D8)', async () => {
+  await reset();
+  const probe = await page().evaluate(`
+    const catalog = window.MC_ICON_SET.map((slug) => ({ slug, name: window.MC_ICON_NAMES[slug] }));
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v1'));
+    const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
+    const build = world.builds[0];
+    const before = JSON.stringify(state);
+    const two = window.TrackerModel.suggestIcon(build, world);
+    const three = window.TrackerModel.suggestIcon(build, world, catalog);
+    const again = window.TrackerModel.suggestIcon(build, world, catalog);
+    return { two, three, stable: JSON.stringify(three) === JSON.stringify(again), stateUnchanged: JSON.stringify(state) === before };
+  `);
+  assert.equal(probe.two, null, 'two arguments return null');
+  assert.equal(probe.stable, true, 'three arguments are deterministic');
+  assert.equal(probe.stateUnchanged, true, 'the helper is pure');
+  const gold = await page().evaluate(`
+    const catalog = window.MC_ICON_SET.map((slug) => ({ slug, name: window.MC_ICON_NAMES[slug] }));
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v1'));
+    const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
+    return window.TrackerModel.suggestIcon(
+      { name: 'Gold Vault', notes: '', coords: '', materials: [] }, world, catalog
+    );
+  `);
+  assert.equal(gold && gold.slug, 'gold_block', 'the frozen keyword table decides');
+  assert.equal(gold && gold.reason, 'matched "gold" in the name');
 });
 
 /* ------------------------------------------------------------- suite tail */
 
-test('49 the whole run stayed free of console errors', async () => {
+test('66 the whole run, including the new surfaces, stayed free of console errors', async () => {
   assert.deepEqual(app.consoleErrors, []);
 });

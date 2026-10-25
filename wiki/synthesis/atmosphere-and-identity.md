@@ -32,12 +32,15 @@ pattern rather than a one-off.
    index ([[In-game GUI design]]). A tool that reads `panorama_*.png` from the jar ships a
    blank screen.
 4. **Convert taste into measurable properties.** "Just like the menu" became: a blurred layer
-   present, an animation named `panorama-drift`, a scrim token, a frozen state under
+   present, an animation named `backdrop-translate`, a scrim token, a frozen state under
    `prefers-reduced-motion`, a dirt fallback when the URL is blocked, and no console errors.
    Each is asserted in the browser suite. When the emperor asked for less blur (EDICT-0013), the
    taste was re-expressed as numbers: bake radius 8 → 2.5, CSS `blur(2px)` → `1px` (`1.5px` at
    ≤640 px), scrim 0.12 → 0.2, and edge-variance 1,132.6 → 1,379.9 on the same 1,280×900 strip
-   ([[In-game GUI design]]).
+   ([[In-game GUI design]]). EDICT-0014 added the motion half: six resolved inputs, four side
+   faces stitched with a wrap crossfade into a 2,560×640 strip, baked at 2.0, displayed as two
+   copies translated −50 % over 180 s — a seamless one-direction loop in place of the 120 s
+   ping-pong.
 
 ## Identity: item icon or upload
 
@@ -46,7 +49,10 @@ catalog** — the game's 256×256 inventory renders (EDICT-0011), expanded from 
 EDICT-0013 — or an uploaded picture centre-cropped to 128×128 and stored as an inline
 WebP/PNG data URL (≤120 000 chars). Uploads therefore travel with backups but count against
 browser storage; the cap is enforced in the model, so a bad import cannot bloat or corrupt the
-state. A missing icon file falls back to the subject's initial rather than a broken image.
+state. A missing icon file falls back to the subject's initial rather than a broken image. The
+picker pages 120 tiles at a time and keeps appending until all 1,368 are rendered, recent picks
+lead the unfiltered list, and a deterministic suggestion can mark a tile with a stated reason —
+without ever replacing a manual choice.
 
 ## Typography is identity
 
@@ -67,12 +73,19 @@ redistribution]]).
   exports large and can hit `localStorage` limits; the app surfaces quota errors but cannot
   prevent them ([[Local-first tracking]]).
 - **Authenticity has a taste dimension.** Pan speed, blur radius and scrim alpha were tuned
-  against screenshots, not measured. EDICT-0013 settled the direction (sharper: bake 2.5, CSS
-  1 px, scrim 0.2) but not the comparison — nobody has watched it beside the real title screen on
-  a physical display, so "menu-like" remains partly a judgement ([[Open questions]]).
+  against screenshots, not measured. EDICT-0013 settled the sharpness (bake 2.5, CSS 1 px, scrim
+  0.2) and EDICT-0014 the motion (a 180 s seamless loop over four stitched sides), but not the
+  comparison — nobody has watched it beside the real title screen on a physical display, so
+  "menu-like" remains partly a judgement ([[Open questions]]).
 - **A large identity catalog is a discovery problem.** 1,368 icons in one dialog is search-first:
-  the picker renders ~150 tiles and asks the user to refine, with curated/common items first.
-  Broad coverage does not by itself make a particular item findable.
+  the picker pages 120 tiles at a time and never stops short, with curated/common items first,
+  recents from the browser, and a deterministic suggestion. That fixes reachability but not
+  finding: there is no letter jump or virtual list, so an obscure item still depends on search
+  ([[Open questions]]).
+- **The suggestion is editorial.** A frozen keyword table ranks name, notes, world name and
+  material list and explains its pick; it is deterministic and cheap, not intelligent, and a
+  plausible wrong icon is always possible. The reason string is the honesty mechanism
+  ([[Open questions]]).
 - **Emulation is not a device.** 390 px and reduced-motion are emulated in headless Chrome;
   no phone or OS-level motion preference was physically observed.
 - **Resolution is a one-off local upgrade.** The 256 px identity icons depend on an export of
@@ -83,4 +96,6 @@ redistribution]]).
 
 - Implements the product-facing side of [[Vanilla assets without redistribution]].
 - Extends [[In-game GUI design]] from chrome into atmosphere and identity.
-- Verified by [[Testing a UI like a user]] (49 browser flows at the time).
+- Verified by [[Testing a UI like a user]] (66 browser flows at the time).
+- Extended by EDICT-0014's interaction pass: paging, recents and the suggestion make a
+  1,368-icon identity catalog usable; the backdrop became a seamless 180 s loop.

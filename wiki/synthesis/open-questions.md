@@ -78,18 +78,42 @@ question that a future source or a future session could close.
   it grades. Assertions recompute expectations from the DOM and read only persisted state, but a
   reviewer should treat suite quality as the thing to audit. EDICT-0013 moved the split again: the
   verifier's sandbox could not launch Chrome, so the Lead seat was the browser hands, 测试部
-  authored the frozen cases and judged, and the stamp is the execution trace
+  authored the frozen cases and judged, and the stamp is the execution trace; EDICT-0014 repeated
+  the arrangement for 66 cases, with the suggestion fixtures as an independent oracle
   ([[Testing a UI like a user]]).
 - **Avatar storage economics.** 128×128 WebP at ≤120 000 chars keeps single images tiny, but the
   point where several uploads start hurting `localStorage` and backup size is untested
   ([[Atmosphere and identity without shipping assets]]).
-- ~~**Menu atmosphere is taste.**~~ **Resolved by EDICT-0013.** The emperor's direction settled
-  it: less blur, more readable backdrop. Bake radius 8 → 2.5, CSS 2 → 1 px (1.5 px at ≤640 px),
-  scrim 0.12 → 0.2; edge-variance 1,132.6 → 1,379.9 on the same 1,280×900 strip
+- ~~**Menu atmosphere is taste.**~~ **Resolved by EDICT-0013 and EDICT-0014.** The emperor's
+  direction settled it: less blur, more readable backdrop. Bake radius 8 → 2.5 and CSS 2 → 1 px
+  (1.5 px at ≤640 px), scrim 0.12 → 0.2, edge-variance 1,132.6 → 1,379.9 on the same 1,280×900
+  strip (EDICT-0013); EDICT-0014 made the rotation seamless — six resolved inputs, four stitched
+  sides, 2,560×640, bake 2.0, two copies over 180 s, 55,096 B. The remaining question is the
+  side-by-side comparison below, not the direction ([[In-game GUI design]]).
+- **Tracker: backdrop side-by-side comparison.** Nobody has yet watched the treatment beside the
+  real title screen on a physical display. The numbers bound the change and show the image is
+  sharper and the loop seamless; they cannot judge whether it feels right
   ([[In-game GUI design]]).
-- **Tracker: backdrop side-by-side comparison.** Nobody has yet watched the new treatment beside
-  the real title screen on a physical display. The numbers bound the change and show the image is
-  sharper; they cannot judge whether it feels right ([[In-game GUI design]]).
+- **Tracker: suggestion coverage is only as good as its table.** `suggestIcon` ranks a frozen
+  keyword table (notes, then world name, name, most-needed material, world icon) and 38 unit
+  cases run on 23 frozen builds. Keywords outside the table, irregular item names and builds with
+  no signal all fall to `null`; whether users accept a suggested icon that is plausible but wrong
+  is untested ([[Minecraft Build Tracker]]).
+- **Tracker: paging is scroll-only discovery.** All 1,368 items are reachable by scrolling 120 at
+  a time, but there is no letter jump or virtual list; an obscure item depends on search, recents
+  or the suggestion. Whether that is enough for real use is unmeasured
+  ([[In-game GUI design]]).
+- **Tracker: bulk paste adds only the matched set.** Unknown lines are shown unmatched and are
+  not added; the matcher is exact name/slug then a unique ≥3-character prefix, no edit distance.
+  A user pasting a misspelled list gets a partial add, and the review rows are the only recovery
+  ([[Minecraft Build Tracker]]).
+- **Tracker: undo is one level and expires.** Six seconds, invalidated by any later commit; two
+  deletions in a row leave only the last restorable. Whether that meets a user's mental model of
+  "undo" is untested ([[In-game GUI design]]).
+- **Testing: e2e evidence can land in the previous edict's folder.** A few EDICT-0014
+  screenshots were written under `reports/qa/evidence/edict-0013/`; the Lead restored those
+  artefacts, but the suite should take an output-directory argument so a run's evidence is
+  reproducible in one place ([[Testing a UI like a user]]).
 - **Physical device + real OS motion preference.** Both mobile layout and reduced-motion are
   emulated in headless Chrome, not observed on hardware ([[Testing a UI like a user]]).
 - **Corpus domain.** The wiki now covers its own pattern plus one product. A third domain

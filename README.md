@@ -16,11 +16,16 @@ a backup and **Import** to restore it.
 - **Builds** — plan a build with status (Planned / Building / Done), coordinates, notes and its
   own icon/avatar, visible in the list and the detail header. Rename with the pencil beside the
   title, copy coordinates from the field, and view/edit notes in place.
-- **Materials** — choose each block from the full item catalog, give it `needed` / `got`, and use
-  the `+1 / +10 / +stack` and `-1 / -10 / -stack` steppers; the build's XP bar fills as you
-  gather.
+- **Materials** — choose each block from the full item catalog or paste a whole list, give it
+  `needed` / `got`, and use the resolved `+1 / +10 / +64` (or `+16`) steppers; stack-1 items
+  show four buttons instead of six. The build's XP bar fills as you gather.
 - **Shopping list** — every item summed across all builds in the world, sorted so outstanding
   items come first, filterable, copyable as text (`Stone Bricks x640 (440 left)`).
+- **Quality of life** — deleting a material, build or world offers **Undo** for 6 seconds; recent
+  picks lead the icon picker; the picker suggests an icon from the build's name, notes or
+  materials and states why, without replacing a choice you made; one shared tooltip follows the
+  slot and is never painted under a dialog; empty screens offer the next action instead of an
+  error toast. The picker pages 120 tiles at a time, so all 1,368 items are reachable.
 - **Sample data** — `src/index.html?demo=1` seeds two example worlds if storage is empty.
   Deep links: `?tab=builds|materials|worlds`.
 
@@ -61,6 +66,11 @@ minecarts, shulker boxes, beds, cakes/stews, books, maps, banner patterns and di
 EDICT-0012 lighting classification (`block` / `flat` / `3d-other`, 407 / 620 / 341) is preserved,
 and five flat sprites that cannot be re-lit are copied byte-for-byte and disclosed.
 
+The picker pages in 120-tile batches instead of a render cap, so every slug is reachable and the
+count hint reports loaded progress. `MC_ICON_SET` stays an array of slug strings while
+`MC_ICON_NAMES` and `MC_ICON_STACKS` are slug-keyed objects — consumers should not assume one
+shape for all three.
+
 IconExporter 1.3.1 renders **3D (block-model) icons about a third too dark** — a non-uniform
 pose scale flattens Minecraft's GUI diffuse lighting (fixed upstream in IconExporter PR #41,
 unreleased for 1.21.4 at export time). The extractor therefore restores the vanilla inventory
@@ -91,11 +101,13 @@ The tiled dirt background is the fallback. For the in-game title-screen look, ex
 ```
 
 It writes `src/assets/panorama/backdrop.webp` (git-ignored), plus the committed
-`manifest.json` and `PROVENANCE.md`. The current strip is 2,560×640, baked at Gaussian radius
-**2.5** (`--blur`, 0–3 guard), brightness 0.95 / saturation 0.92, 45,664 B; the app displays it
-with CSS `blur(1px)` (1.5 px at ≤640 px) behind a **0.2** scrim and a 120 s pan. It
+`manifest.json` and `PROVENANCE.md`. The strip is 2,560×640, baked at Gaussian radius **2.0**
+(ceiling 2), brightness 0.95 / saturation 0.92, 55,096 B (sha256 `331253bd…`), composed from
+six resolved panorama inputs — four side faces stitched with a wrap crossfade, the top/bottom
+caps recorded but not stitched. The app displays two copies translated −50 % over **180 s** (a
+seamless loop) with CSS `blur(1px)` (1.5 px at ≤640 px) behind a **0.2** scrim. It
 feature-detects the file: if it exists the scene shows; if not, the dirt texture stays and
-nothing errors. `prefers-reduced-motion` disables the pan.
+nothing errors. `prefers-reduced-motion` stops the loop.
 
 > Modern clients ship **1×1 placeholder** panorama files in the version jar; the real
 > 1024×1024 faces live in the content-addressed asset store reached through
@@ -132,26 +144,28 @@ seal, lint — before it is reported. See [`AGENTS.md`](AGENTS.md) §6.5.
 node --check src/app.js && node --check src/tracker/model.js
 node tests/unit/tracker-model.test.mjs                # 22 model cases
 node tests/unit/tracker-icons.test.mjs                # 9 identity cases
+node tests/unit/tracker-suggest.test.mjs              # 38 suggestion cases (frozen fixtures)
 node tests/qa/tracker.acceptance.test.mjs             # 17 acceptance + static contract cases
 node tests/qa/tracker-icons.acceptance.test.mjs       # 8 identity/backdrop acceptance cases
 node tests/qa/tracker-icon-resolution.acceptance.test.mjs  # 7 high-resolution icon cases
 node tests/qa/edict-0013-assets.acceptance.test.mjs   # 11 catalog/font/dropdown/stack/backdrop cases
-python tests/qa/mc_ui_audit.py                        # 138 contrast/structure/pixel/identity/interaction cases
+node tests/qa/edict-0014.acceptance.test.mjs          # 14 paging/tooltip/empty/stepper/paste/undo/recents cases
+python tests/qa/mc_ui_audit.py                        # 147 contrast/structure/pixel/identity/interaction cases
 # wiki + governance (the wiki is a required output of every edict)
 node src/wiki/cli.mjs lint                      # incl. the edict-sync rule
 node src/wiki/cli.mjs sync                      # which completed edicts have been ingested
 node src/wiki/cli.mjs index --check             # catalogue freshness
 
 # UI acceptance (real Chrome, driven over the DevTools Protocol — no packages)
-node tests/qa/ui.e2e.test.mjs                   # 49 user-flow cases (identity + interaction + backdrop)
+node tests/qa/ui.e2e.test.mjs                   # 66 user-flow cases (identity + interaction + backdrop)
 node scripts/app-qa.mjs run                     # run them AND stamp the app sources
 node scripts/app-qa.mjs status                  # verified / STALE
 
 ```
 
-Current status: **60/60** unit cases (model, identity, app-qa, wiki), **71/71** acceptance
-cases, **138/138** UI-audit cases, **49/49** browser flows — screenshots verified at 1280 px and
-390 px.
+Current status: **98/98** unit cases (model, identity, suggestion, app-qa, wiki), **85/85**
+acceptance cases, **147/147** UI-audit cases, **66/66** browser flows — screenshots verified at
+1280 px and 390 px, stamp `2026-10-25T12:27:45.271Z` covering 8 hashed sources.
 
 ## Scope and honesty
 

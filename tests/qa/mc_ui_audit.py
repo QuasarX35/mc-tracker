@@ -463,8 +463,17 @@ def audit_identity() -> None:
     for selector in (".avatar", ".icon-grid", ".icon-tile", ".detail__avatar", ".notes__text", ".mat-steps"):
         check(f"identity/css-{selector}", selector in CSS, f"{selector} styled")
     check("identity/css-no-picker-tab", ".picker-tab" not in CSS, "retired picker tab styles are gone (D7)")
-    check("identity/panorama-layer", ":root.has-panorama .backdrop::before" in CSS, "panorama layer only when detected")
-    check("identity/panorama-pan", "@keyframes panorama-drift" in CSS, "slow pan keyframes exist")
+    check(
+        "identity/panorama-layer",
+        ":root.has-panorama .backdrop__layer" in CSS
+        and ":root.has-panorama .backdrop::before" not in CSS,
+        "the two-copy layer only appears when a panorama is detected (EDICT-0014 D1)",
+    )
+    check(
+        "identity/panorama-pan",
+        "@keyframes backdrop-translate" in CSS and "backdrop-translate 180s" in CSS,
+        "the 180 s transform loop keyframes exist (supersedes EDICT-0010's 120 s pan)",
+    )
     check("identity/reduced-motion", "animation: none" in CSS, "motion can be disabled")
     check("identity/scrim", "--backdrop-scrim-alpha" in CSS, "text scrim token exists")
     check("identity/gitignore-pixels", "src/assets/panorama/*.webp" in html_files["gitignore"], "generated backdrop not committed")
@@ -533,20 +542,23 @@ def audit_edict0013() -> None:
     blur = float(compose.get("blur_radius", 99))
     check(
         "panorama/blur-baked",
-        blur == 2.5,
-        f"the regeneration bakes the frozen blur_radius {blur} (was 8; D10 freezes 2.5)",
+        blur <= 2 and blur > 0,
+        f"the six-face regeneration bakes blur_radius {blur} (EDICT-0014 ceiling 2)",
     )
     check(
         "panorama/composition",
         compose.get("width") == 2560
         and compose.get("height") == 640
-        and compose.get("faces") == 4
-        and compose.get("pan_seconds", 0) > 0
-        and len(panorama.get("inputs") or []) == 4,
-        "four-face 2560x640 backdrop composition unchanged apart from the blur",
+        and compose.get("width") == 4 * compose.get("height")
+        and compose.get("faces") == 6
+        and compose.get("sides") == 4
+        and compose.get("seamless") is True
+        and compose.get("loop_seconds") == 180
+        and len(panorama.get("inputs") or []) == 6,
+        "six resolved inputs, four stitched sides, seamless 2560x640 strip, 180 s loop",
     )
     css_blur = re.search(
-        r":root\.has-panorama \.backdrop::before\s*\{[^}]*filter:\s*blur\(([\d.]+)px\)", CSS
+        r":root\.has-panorama \.backdrop__layer\s*\{[^}]*filter:\s*blur\(([\d.]+)px\)", CSS
     )
     check(
         "panorama/css-blur",
@@ -599,12 +611,100 @@ def audit_edict0013() -> None:
 
 
 
+def audit_edict0014() -> None:
+    """EDICT-0014 statics: paging, tooltip, zero states, suggestion, bulk, undo, recents.
+
+    These are source-level rules that mirror the frozen browser cases 50–66; the browser
+    suite proves behaviour, this proves the markup contract did not drift while implementing.
+    """
+    check(
+        "edict0014/sentinel",
+        "icon-sentinel" in APP
+        and "IntersectionObserver" in APP
+        and "scroll for more" in APP
+        and "refine your search" not in APP
+        and "limit = 150" not in APP,
+        "one grid sentinel (created lazily), IntersectionObserver paging, scroll hint, no 150-tile cap",
+    )
+    check(
+        "edict0014/tooltip",
+        "mc-tooltip" in APP
+        and "pointerover" in APP
+        and "pointerout" in APP
+        and "pointerenter" not in APP
+        and "pointerleave" not in APP
+        and re.search(r"\.slot[^{]*\[data-tip\][^{]*:(?:hover|focus)", CSS) is None,
+        "single #mc-tooltip created on demand, bubbling pointerover/out delegation, no CSS pseudo tooltip",
+    )
+    controls = (
+        "btn-first-build",
+        "btn-empty-create-world",
+        "detail-empty-action",
+        "btn-empty-pick-material",
+        "btn-empty-reset-filter",
+    )
+    check(
+        "edict0014/empty-states",
+        all(control in HTML for control in controls)
+        and "Create a world first." not in APP,
+        "five shipped zero-state containers with their next-step controls; no toast-only path",
+    )
+    check(
+        "edict0014/bulk",
+        "bulk-dialog" in HTML
+        and "bulk-input" in HTML
+        and "bulk-review" in HTML
+        and "bulk-add" in HTML
+        and "parseBulk" in MODEL,
+        "bulk dialog surfaces and the pure parser live in the model",
+    )
+    check(
+        "edict0014/undo",
+        "toast-action" in APP
+        and "offerUndo" in APP
+        and "6000" in APP
+        and "cannot be undone" not in HTML,
+        "undo action created with the notice, one offerUndo snapshot, six-second window wording",
+    )
+    check(
+        "edict0014/recents",
+        "mc-build-tracker:recent" in APP
+        and "data-icon-recent" in APP
+        and "pickerRecents" in APP,
+        "browser-local recent picks, capped and marked on tiles",
+    )
+    check(
+        "edict0014/suggestion",
+        "suggestIcon" in MODEL
+        and "iconAuto" in MODEL
+        and "icon-suggest-note" in HTML
+        and "data-icon-suggested" in APP
+        and "data-icon-auto" in APP,
+        "model suggestion helper + display-only iconAuto + picker note/tile hooks",
+    )
+    check(
+        "edict0014/step-labels",
+        "data-mat-step" in APP
+        and "stackSizeFor" in APP
+        and re.search(r"stack\s*===\s*1", APP) is not None,
+        "resolved step labels, stack size lookup and the stack-1 omission branch",
+    )
+    check(
+        "edict0014/backdrop-two-copies",
+        CSS.count("has-panorama .backdrop") >= 1
+        and "translateX" in CSS
+        and "panorama-drift" not in CSS,
+        "two-copy transform loop replaces the background-position pan",
+    )
+
+
 def main() -> int:
     audit_contrast()
     audit_structure()
     audit_icons()
     audit_identity()
     audit_edict0013()
+    audit_edict0014()
     for case, ok, detail in results:
         print(f"{'PASS' if ok else 'FAIL'} {case} — {detail}")
     failed = [case for case, ok, _ in results if not ok]

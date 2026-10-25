@@ -86,8 +86,10 @@ test('AC-I5 the visual contract covers avatars, the picker and the panorama laye
     assert.ok(CSS.includes(selector), `missing ${selector}`);
   }
   assert.ok(!CSS.includes('.picker-tab'), 'the retired picker tab styles must be gone (D7)');
-  assert.match(CSS, /:root\.has-panorama \.backdrop::before/);
-  assert.match(CSS, /@keyframes panorama-drift/);
+  assert.match(CSS, /:root\.has-panorama \.backdrop__layer/);
+  assert.match(CSS, /\.backdrop__layer:nth-child\(2\)/);
+  assert.match(CSS, /@keyframes backdrop-translate/);
+  assert.match(CSS, /backdrop-translate 180s/);
   assert.match(CSS, /--panorama-image/);
   assert.match(CSS, /--backdrop-scrim-alpha/);
   assert.match(CSS, /prefers-reduced-motion: reduce\)[\s\S]{0,200}animation: none/, 'reduced motion must stop the pan');

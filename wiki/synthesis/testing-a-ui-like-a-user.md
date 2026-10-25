@@ -38,9 +38,14 @@ visual contract (panel grey, square corners, the Minecraft bitmap face, 256 px i
 downscaled smoothly, tiled textures pixelated) and a global "no console errors" case. EDICT-0013
 added the interaction set: title rename (save, cancel, Escape, blank refusal, focus return),
 coords copy with its disabled empty state, notes view/edit and `Ctrl`/`Cmd`+`Enter`, the six
-steppers with stack sizes and the clamp at 1, the single picker (search, 150-tile render cap,
-footer upload, pick-item mode), the material chooser, the themed-select probe and the sharper
-backdrop — 49 cases in total.
+steppers with stack sizes and the clamp at 1, the single picker (search, footer upload, pick-item
+mode), the material chooser, the themed-select probe and the sharper backdrop. EDICT-0014 added
+the second interaction set: paging until the last of 1,368 tiles is reachable (121 first batch,
+`zombified_piglin_spawn_egg` last), one top-layer tooltip checked with `elementFromPoint`, the
+five empty-state controls, resolved `+64` labels and four-button stack-1 rows, bulk paste
+(4 matched + 3 unknown), Undo restoring a deep-equal snapshot within six seconds, recent picks
+first, the frozen suggestion fixtures, and the seamless two-copy backdrop probe (transform
+sampled 1 s apart, frames differ, reduced motion none). The suite is 66 cases in total.
 
 ## The "always" half: a stamp, not a reminder
 
@@ -66,18 +71,28 @@ green; a modified source file turns it red again and names the file.
   mode: a separate 测试部 teammate authored the high-resolution icon acceptance cases from the
   requirement before the implementation finished and held the QA verdict — author ≠ verifier.
 - **Headless by default, not by principle.** Real devices, touch and OS file pickers are out of
-  scope; the 390 px case is viewport emulation. EDICT-0013's `::picker(select)` probe needed a
-  headed Chrome because the popup is an OS-level window.
+  scope; the 390 px case is viewport emulation. EDICT-0013's `::picker(select)` probe and
+  EDICT-0014's tooltip and backdrop-transform sampling needed a headed Chrome because the popup
+  is an OS-level window and the animation is sampled from a real page.
 - **Browser hands are not the verifier's.** In EDICT-0013 the verifier's sandbox could not start
   Chrome (`FATAL:mojo platform_channel.cc:112 ... Access is denied. (0x5)`); the Lead seat ran
   every browser launch under `danger-full-access`, while 测试部 authored the frozen cases,
-  analysed the artefacts and judged. Independence moved from "same agent runs and grades" to
-  "author and grader are separate from the hands"; the stamp remains the execution trace.
+  analysed the artefacts and judged. EDICT-0014 repeated the split for all 66 cases. Independence
+  moved from "same agent runs and grades" to "author and grader are separate from the hands"; the
+  stamp remains the execution trace.
 - **A native popup is not a page.** Chrome's `<select>` popup is an OS-level window that
   `Page.captureScreenshot` cannot capture; the themed-dropdown claim therefore rests on
   `CSS.supports` + computed `::picker(select)` styles plus the `:open` observation and a
   screenshot of the closed control, not on a picture of the open menu. That is a weaker artefact
   than a screenshot, and it is labelled as such.
+- **Animation is sampled, not observed.** The seamless loop is verified by two `transform` samples
+  one second apart, a frame difference and the reduced-motion branch — not by watching 180 s of
+  rotation. A slow drift or a seam that only shows at the wrap could pass the sample check and
+  still look wrong to a person.
+- **Evidence can leak across edicts.** A few EDICT-0014 screenshots still land in
+  `reports/qa/evidence/edict-0013/`; the Lead restored those artefacts byte-for-byte, but the
+  suite should take an output-directory argument so one run's evidence is reproducible in one
+  folder.
 - **The stamp says "the suite passed", not "the suite is good".** A weak test suite stamps just
   as happily as a strong one; the gate guarantees freshness, not judgement.
 - **One browser, sequential cases.** A hang fails the file; there is no sharding.
@@ -93,3 +108,6 @@ green; a modified source file turns it red again and names the file.
   tool fail when it is skipped.
 - EDICT-0013 pushed the mechanism to 49 flows and made the browser-hand split explicit; the
   stamp now covers the baked font/panorama assets as well as the app sources.
+- EDICT-0014 pushed it to 66 flows, added the frozen suggestion fixtures as an oracle, and kept
+  the Lead-as-browser-hands split; the stamp stayed green at
+  `2026-10-25T12:27:45.271Z` with 66 UI cases.

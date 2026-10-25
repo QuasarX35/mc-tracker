@@ -34,7 +34,10 @@ and the bitmap font are right, a flat CSS prototype already reads as Minecraft. 
 - **Slots and XP bars** are semantic objects in the game's visual vocabulary: a 30×30 inset
   square holding a 22 px item render (downscaled from the game's 256 px inventory render), and
   a green bar with a lighter top band.
-- **Vanilla tooltip**: `#100010` plate with a `#5000ff` border — instantly recognisable.
+- **Vanilla tooltip in the top layer.** The plate is `#100010` with a `#5000ff` border, but since
+  EDICT-0014 one shared `#mc-tooltip` carries every `data-tip` instead of per-slot
+  `::after`/`::before` rules: it is appended to the open `<dialog>` (so `overflow` cannot clip
+  it), positioned fixed, clamped to the viewport and flips below when the slot lacks room above.
 - **A textured world behind the panel** (tiled dirt, darkened with a vignette) supplies the
   "in-game screen" framing that a flat colour cannot.
 
@@ -63,6 +66,23 @@ renders**, exported locally from the owner's client and kept out of version cont
 `image-rendering: pixelated`; the item renders are displayed with `image-rendering: auto`
 because nearest-scaling a 256 px render into a 22 px slot aliases (EDICT-0011).
 
+## The browser defaults are a design surface
+
+A 2011 game had no OS scrollbar, no native tooltip clipped by `overflow` and no dead-end toast.
+The EDICT-0014 lesson is that wherever the browser's default is visible, it is part of the design
+whether or not it was designed:
+
+- **One tooltip, in the top layer.** Per-slot CSS pseudo-elements looked correct until a dialog's
+  `overflow` or a later sibling painted over them; the shared fixed surface fixes the stacking
+  problem once, at the cost of a small JavaScript positioner and a 44 px flip threshold.
+- **Paging, not a render cap.** A picker that renders 150 of 1,368 items is lying about its
+  contents. Appending 120 tiles on a sentinel keeps the DOM cheap and the count hint honest
+  (`showing N of 1368 — scroll for more`), and the last tile is a real, focusable target.
+- **An empty screen is a control surface.** A view that only offers a toast ("Create a world
+  first.") teaches nothing; five zero states each carry the next action in place.
+- **Wrapping is geometry.** Item names ellipsed to fit a fixed slot are the browser silently
+  editing the copy; wrapping 2–3 lines keeps the panel's dimensions honest at 1280 and 390 px.
+
 ## Tensions
 
 - **Contrast vs. fidelity.** Vanilla draws white text on light grey, which fails WCAG AA. The
@@ -80,10 +100,20 @@ because nearest-scaling a 256 px render into a 22 px slot aliases (EDICT-0011).
   `appearance: base-select` (Chrome 155 in this build). If the product must look identical in
   Firefox and Safari, the only options are a JavaScript listbox or the unthemed OS popup — the
   design system currently ships the split and documents it.
-- **Taste is measurable only up to a point.** The backdrop is now defined by numbers (bake 2.5,
-  CSS 1 px, scrim 0.2, edge-variance 1,132.6 → 1,379.9), but the comparison that would settle it
-  — side by side with the real title screen on a physical display — has not been made
-  ([[Open questions]]).
+- **Taste is measurable only up to a point.** The backdrop is now defined by numbers (six inputs,
+  four stitched sides, 2,560×640, bake 2.0, CSS 1 px, 0.2 scrim, 180 s seamless loop), but the
+  comparison that would settle it — side by side with the real title screen on a physical display
+  — has not been made ([[Open questions]]).
+- **Seamless is a loop, not a video.** Two copies translated −50 % over 180 s give a clean wrap
+  with one style rule; the cost is that the strip must tile perfectly and the eye sees the same
+  four side faces every cycle. A true six-face orbit would need more usable source views than the
+  release ships (the top/bottom caps are recorded, not stitched).
+- **Paging trades completeness for discovery.** All 1,368 items are reachable but only by
+  scrolling; there is no letter jump or virtual list, so finding an obscure item depends on
+  search, recents or the suggestion ([[Open questions]]).
+- **The suggestion is editorial, not intelligent.** A frozen keyword table can recommend a
+  plausible-looking wrong icon; the reason string makes the guess visible, and the fixture table
+  is the contract — deterministic, not a model ([[Open questions]]).
 
 ## Real assets versus drawn ones
 
@@ -110,12 +140,14 @@ own appearance; a reference measurement belongs in the acceptance criteria.
 ## Panorama backdrop
 
 The menu's atmosphere is not the GUI chrome — it is the panorama behind it: six cube-face
-screenshots of a world, blurred and slowly rotating. The app reproduces the treatment with four
-stitched side faces, a **baked Gaussian radius of 2.5** (down from 8), a 120 s ping-pong pan,
-CSS `blur(1px)` (1.5 px at ≤640 px) and a **0.2** scrim, and it freezes under
-`prefers-reduced-motion`. The sharper bake was EDICT-0013's answer to the emperor's "less blurred
-so you can tell what it is"; edge-variance on the same 1,280×900 strip rose from 1,132.6 to
-1,379.9 and the strip grew from 15,280 to 45,664 B. Crucially, the source is odd: the version
+screenshots of a world, blurred and slowly rotating. The app resolves six inputs, stitches the
+four side faces with a wrap crossfade (the caps are recorded but not stitched), bakes at a
+Gaussian radius of **2.0** and composes a 2,560×640 strip (55,096 B, sha256 `331253bd…bf1a5`).
+Display is two copies translated −50 % over **180 s** with CSS `blur(1px)` (1.5 px at ≤640 px) and
+a **0.2** scrim, and `prefers-reduced-motion` sets the animation to none. EDICT-0013's sharper
+bake answered the emperor's "less blurred so you can tell what it is": edge-variance on the same
+1,280×900 strip rose from 1,132.6 to 1,379.9 and the strip grew from 15,280 to 45,664 B; EDICT-0014
+made the rotation seamless and settled the geometry. Crucially, the source is odd: the version
 jar's `panorama_*.png` files are 1×1 placeholders; the real 1024×1024 faces live in the asset
 store and are resolved through the asset index. Identity avatars sit at the other end of the
 same idea: small, square, bevelled slots that make a world or build recognisable at a glance
@@ -129,3 +161,6 @@ same idea: small, square, bevelled slots that make a world or build recognisable
 - Extended into atmosphere and identity by [[Atmosphere and identity without shipping assets]].
 - Extended by EDICT-0013 into native-widget theming and the game's own bitmap face, with the
   frozen DOM contract as the interface between the pattern and its implementation.
+- Extended by EDICT-0014 into the browser-default surface: one top-layer tooltip, append-only
+  paging instead of a render cap, five real empty states, wrapped names, undo, recents and a
+  deterministic icon suggestion ([[Minecraft Build Tracker]]).

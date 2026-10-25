@@ -115,7 +115,10 @@ ul { list-style: none; padding: 0; }
 /* [hidden] must beat the component display rules (flex buttons, grid editors, upload row). */
 .mc-btn[hidden],
 .icon-upload[hidden],
-.notes-editor[hidden] { display: none; }
+.notes-editor[hidden],
+.toast[hidden],
+.empty[hidden],
+.icon-suggest[hidden] { display: none; }
 
 .skip-link {
   position: absolute;
@@ -413,6 +416,10 @@ input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 .empty__text { color: var(--mc-text-muted); margin-bottom: var(--space-3); font-size: 15px; }
 
+/* EDICT-0014 F4: empty states carry the way forward, so they are containers, not bare lines. */
+.empty--inline { padding: var(--space-4); }
+.empty > .mc-btn + .mc-btn { margin-left: var(--space-2); }
+
 /* ---------------------------------------------------------- builds layout */
 .builds {
   display: grid;
@@ -612,7 +619,7 @@ input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .progress-col, .builds-col { text-align: right; }
 
 .mat-row__item { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
-.mat-row__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mat-row__name { overflow-wrap: break-word; word-break: break-word; }
 
 .mat-row__bar {
   display: block;
@@ -644,21 +651,24 @@ input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .slot img { width: 22px; height: 22px; display: block; image-rendering: auto; }
 .slot__letter { font-size: 16px; color: var(--mc-white); text-shadow: 2px 2px 0 #2b2b2b; }
 
-.slot[data-tip]:hover::after,
-.slot[data-tip]:focus-visible::after {
-  content: attr(data-tip);
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 8px);
-  transform: translateX(-50%);
-  z-index: 20;
+/* EDICT-0014 F3: one tooltip layer, positioned by app.js from each element's data-tip.
+   No per-slot ::after bubbles any more — a single element is clamped to the viewport and
+   can flip below the trigger, which the CSS pseudo-element could not do. */
+.mc-tooltip {
+  position: fixed;
+  z-index: 70;
+  max-width: min(280px, calc(100vw - 16px));
   padding: 4px 8px;
   background: var(--mc-tip-bg);
   border: 2px solid var(--mc-tip-border);
   color: var(--mc-white);
+  font-family: var(--font-pixel);
   font-size: 13px;
-  white-space: nowrap;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: break-word;
   text-shadow: 1px 1px 0 #000;
+  pointer-events: none;
 }
 
 .mat-row .mc-input {
@@ -747,9 +757,34 @@ input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 .mat-choice:hover { background: #101010; }
 .mat-choice:focus-visible { outline: 3px solid var(--mc-gold); outline-offset: 1px; }
-.mat-choice__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mat-choice__name { min-width: 0; overflow-wrap: break-word; word-break: break-word; }
 .mat-choice__name--empty { color: #8f8f8f; text-shadow: none; }
 .add__error { flex: 1 1 100%; margin: 0; }
+
+/* EDICT-0014 F5: bulk paste review — matched rows editable in the list, unknown rows flagged. */
+.bulk-review {
+  display: grid;
+  gap: 2px;
+  max-height: 168px;
+  overflow: auto;
+  padding: 4px;
+  background: var(--mc-row-line);
+  border: var(--border-hard);
+}
+.bulk-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 4px 8px;
+  background: var(--mc-row);
+  color: var(--mc-text-on-dark);
+  font-size: 14px;
+  text-shadow: 1px 1px 0 #2b2b2b;
+}
+.bulk-row[data-bulk-state='unknown'] { background: var(--mc-row-alt); color: var(--mc-red); }
+.bulk-row__name { overflow-wrap: break-word; word-break: break-word; }
+.bulk-row__qty { text-align: right; }
 
 /* ---------------------------------------------------------- materials view */
 .filters {
@@ -813,13 +848,20 @@ input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; marg
   font-size: 14px;
 }
 
-/* ----------------------------------------------------------------- toast */
+/* ---------------------------------------------------------------- toast */
+/* EDICT-0014 F6: the toast can carry one Undo action next to its message. */
 .toast {
   position: fixed;
   left: 50%;
   bottom: var(--space-5);
   transform: translateX(-50%);
   z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  max-width: calc(100vw - 24px);
   padding: var(--space-2) var(--space-4);
   background: var(--mc-tip-bg);
   border: 2px solid var(--mc-tip-border);
@@ -827,6 +869,22 @@ input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; marg
   font-size: 15px;
   box-shadow: var(--shadow-hard);
 }
+
+.toast__action {
+  appearance: none;
+  cursor: pointer;
+  padding: 2px 8px;
+  font-family: var(--font-pixel);
+  font-size: 13px;
+  line-height: 1.2;
+  background: var(--mc-panel);
+  color: var(--mc-text);
+  border: var(--border-hard);
+  box-shadow: var(--bevel-out);
+}
+.toast__action:hover { background: #d8d8d8; }
+.toast__action:active { box-shadow: var(--bevel-in); transform: translateY(1px); }
+.toast__action:focus-visible { outline: 3px solid var(--mc-gold); outline-offset: 1px; }
 
 /* ---------------------------------------------------------------- footer */
 .footer {
@@ -841,9 +899,11 @@ input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; marg
 
 
 /* ------------------------------------------------------------- backdrops */
-/* EDICT-0010: the dirt texture stays as the guaranteed fallback; when the
-   locally generated panorama is present, a blurred, slowly panning layer is
-   revealed above it and the dirt is hidden. */
+/* EDICT-0010/EDICT-0014 F2: the dirt texture stays as the guaranteed fallback; when the
+   locally generated panorama is present, two identical, slowly translating layers are
+   revealed on top of it and the dirt is hidden. Each layer is two strip-widths wide with
+   the strip repeated, so a translate of exactly one strip (-50% of its own width) wraps
+   seamlessly: at the end of the loop the second layer sits where the first one started. */
 .backdrop { overflow: hidden; }
 
 :root.has-panorama .backdrop {
@@ -851,24 +911,30 @@ input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; marg
   background-color: #15140f;
 }
 
-.backdrop::before {
-  content: '';
+.backdrop__layer {
   position: absolute;
-  inset: -4%;
+  top: 0;
+  left: 0;
+  width: 200%;
+  height: 100%;
+  background-repeat: repeat-x;
+  background-position: left center;
+  background-size: 50% 100%;
   opacity: 0;
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-position: 35% 50%;
   transition: opacity 320ms ease-out;
 }
 
-:root.has-panorama .backdrop::before {
+:root.has-panorama .backdrop__layer {
   opacity: 1;
-  background-image: var(--panorama-image);
+  background-image: var(--panorama-image, url('assets/panorama/backdrop.webp'));
   filter: blur(1px) brightness(0.95) saturate(1);
-  animation: panorama-drift 120s ease-in-out infinite alternate;
-  will-change: background-position;
+  animation: backdrop-translate 180s linear infinite;
+  will-change: transform;
 }
+
+/* The second copy fills the frame while the first slides out; both move together so the
+   pair stays seamless at every frame and the loop restart is invisible. */
+:root.has-panorama .backdrop__layer:nth-child(2) { left: 100%; }
 
 :root.has-panorama .backdrop::after {
   background:
@@ -876,9 +942,11 @@ input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; marg
     radial-gradient(ellipse at 50% 40%, rgb(0 0 0 / 0.12) 0%, rgb(0 0 0 / 0.62) 100%);
 }
 
-@keyframes panorama-drift {
-  from { background-position: 30% 50%; }
-  to { background-position: 70% 50%; }
+@keyframes backdrop-translate {
+  /* EDICT-0014 F2: one strip per loop, expressed as a transform. The -50% offset is on the first
+     keyframe so the strip that scrolls out is the copy the second layer continues from. */
+  from { transform: translateX(-50%); }
+  to { transform: translateX(0); }
 }
 
 /* --------------------------------------------------------------- avatars */
@@ -1028,18 +1096,30 @@ input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .icon-tile__name {
   font-size: 12px;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  text-align: center;
+  line-height: 1.25;
   text-shadow: 1px 1px 0 #2b2b2b;
 }
+/* EDICT-0014 F2: paging sentinel — a zero-height flex target that spans the grid width. */
+.icon-sentinel {
+  grid-column: 1 / -1;
+  height: 1px;
+  pointer-events: none;
+}
 .icon-hint { font-size: 13px; color: var(--mc-text-muted); }
+.icon-suggest {
+  padding: var(--space-1) var(--space-2);
+  background: rgb(0 0 0 / 0.06);
+  border: 2px solid var(--mc-lo);
+  color: var(--mc-text);
+}
 .icon-upload { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
 .icon-upload__actions { display: grid; gap: var(--space-1); justify-items: start; }
 
 @media (max-width: 640px) {
-  :root.has-panorama .backdrop::before {
-    background-size: cover;
+  :root.has-panorama .backdrop__layer {
     filter: blur(1.5px) brightness(0.92) saturate(1);
   }
   .world-picker__avatar { display: none; }
@@ -1047,9 +1127,9 @@ input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root.has-panorama .backdrop::before {
+  :root.has-panorama .backdrop__layer {
     animation: none;
-    background-position: 35% 50%;
+    transform: none;
   }
 }
 

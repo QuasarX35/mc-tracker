@@ -12,7 +12,7 @@
 <body>
 <a class="skip-link" href="#main">Skip to main content</a>
 
-<div class="backdrop" aria-hidden="true"></div>
+<div class="backdrop" aria-hidden="true"><div class="backdrop__layer"></div><div class="backdrop__layer"></div></div>
 
 <div class="screen">
   <header class="masthead">
@@ -70,6 +70,7 @@
         <div class="builds__detail" id="build-detail">
           <div class="empty" id="detail-empty" hidden>
             <p class="empty__text">Pick a build on the left, or plan a new one.</p>
+            <button class="mc-btn" id="detail-empty-action" type="button">Plan a build</button>
           </div>
           <div class="detail" id="detail-body" hidden>
             <div class="section-head">
@@ -147,7 +148,10 @@
                 </div>
                 <div id="material-body"></div>
               </div>
-              <p class="empty__text" id="material-empty" hidden>No materials listed for this build yet.</p>
+              <div class="empty empty--inline" id="material-empty" hidden>
+                <p class="empty__text">No materials listed for this build yet.</p>
+                <button class="mc-btn mc-btn--sm" id="btn-empty-pick-material" type="button">Choose an item</button>
+              </div>
 
               <form class="add" id="add-material-form" autocomplete="off">
                 <p class="add__title">Add a material</p>
@@ -168,6 +172,7 @@
                   <input class="mc-input" id="mat-collected" type="number" min="0" step="1" value="0">
                 </div>
                 <button class="mc-btn mc-btn--sm" type="submit">Add</button>
+                <button class="mc-btn mc-btn--sm" type="button" id="bulk-paste">Paste list…</button>
                 <p class="form-error add__error" id="mat-error" role="alert" hidden></p>
               </form>
             </div>
@@ -210,7 +215,10 @@
         </div>
         <div id="world-material-body"></div>
       </div>
-      <p class="empty__text" id="world-material-empty" hidden>Nothing matches this filter.</p>
+      <div class="empty empty--inline" id="world-material-empty" hidden>
+        <p class="empty__text">Nothing matches this filter.</p>
+        <button class="mc-btn mc-btn--sm" id="btn-empty-reset-filter" type="button">Clear filter</button>
+      </div>
       <p class="totals" id="mat-totals"></p>
     </section>
 
@@ -224,6 +232,7 @@
       <div class="worlds" id="world-cards"></div>
       <div class="empty" id="world-empty" hidden>
         <p class="empty__text">No worlds yet. Create one, or load the sample so you can look around first.</p>
+        <button class="mc-btn" id="btn-empty-create-world" type="button">Create a world</button>
         <button class="mc-btn" id="btn-sample" type="button">Load sample worlds</button>
       </div>
     </section>
@@ -260,7 +269,7 @@
     <div class="field">
       <span class="field__label" id="world-icon-label">World icon</span>
       <div class="icon-field" role="group" aria-labelledby="world-icon-label">
-        <span class="icon-field__preview" id="world-icon" aria-hidden="true"></span>
+        <span class="icon-field__preview" id="world-icon" data-tip="World icon" aria-hidden="true"></span>
         <button class="mc-btn mc-btn--sm" type="button" id="world-icon-change">Choose…</button>
         <button class="mc-btn mc-btn--sm" type="button" id="world-icon-remove">Remove</button>
       </div>
@@ -301,7 +310,7 @@
     <div class="field">
       <span class="field__label" id="build-icon-label">Build icon</span>
       <div class="icon-field" role="group" aria-labelledby="build-icon-label">
-        <span class="icon-field__preview" id="build-dlg-icon" aria-hidden="true"></span>
+        <span class="icon-field__preview" id="build-dlg-icon" data-tip="Build icon" aria-hidden="true"></span>
         <button class="mc-btn mc-btn--sm" type="button" id="build-dlg-icon-change">Choose…</button>
         <button class="mc-btn mc-btn--sm" type="button" id="build-dlg-icon-remove">Remove</button>
       </div>
@@ -319,6 +328,7 @@
     <h2 class="mc-dialog__title" id="icon-dialog-title">Choose an icon</h2>
     <label class="field__label" for="icon-search">Search items</label>
     <input class="mc-input" id="icon-search" type="search" placeholder="Search Minecraft items" autocomplete="off">
+    <p class="icon-hint icon-suggest" id="icon-suggest-note" hidden></p>
     <div class="icon-grid" id="icon-grid" role="listbox" aria-label="Minecraft item icons"></div>
     <p class="icon-hint" id="icon-count-hint" hidden></p>
     <p class="icon-hint">Icons are the game's own high-resolution item renders, extracted from your installed copy. Items without one fall back to a letter.</p>
@@ -335,6 +345,21 @@
     <div class="mc-dialog__actions">
       <button class="mc-btn" value="cancel" type="submit" formnovalidate id="icon-cancel">Cancel</button>
       <button class="mc-btn mc-btn--primary" value="use" type="submit" id="icon-use">Use icon</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="mc-dialog mc-dialog--wide" id="bulk-dialog">
+  <form method="dialog" id="bulk-form">
+    <h2 class="mc-dialog__title">Paste a materials list</h2>
+    <label class="field__label" for="bulk-input">One item per line</label>
+    <textarea class="mc-input mc-input--area" id="bulk-input" rows="5" placeholder="64 stone bricks&#10;- 32 glass&#10;20x oak log" spellcheck="false"></textarea>
+    <p class="icon-hint">Accepted: 64 stone bricks, - 32 glass, +1 oak log, 20x oak log.</p>
+    <div class="bulk-review" id="bulk-review" role="group" aria-label="Matched materials"></div>
+    <p class="form-error" id="bulk-error" role="alert" hidden></p>
+    <div class="mc-dialog__actions">
+      <button class="mc-btn" value="cancel" type="submit" formnovalidate id="bulk-cancel">Cancel</button>
+      <button class="mc-btn mc-btn--primary" value="add" type="submit" id="bulk-add">Add matched</button>
     </div>
   </form>
 </dialog>

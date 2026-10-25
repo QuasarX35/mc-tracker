@@ -72,6 +72,16 @@ Mojang asset, but it is still third-party art with a licence claim: EDICT-0013 r
 listing and the file hash in a sealed raw source, ships a licence file beside the TTF, and
 documents the 107-codepoint map so the Pixelify fallback is a deliberate choice rather than a bug.
 
+EDICT-0014 puts the menu strip through the same accounting. The extractor resolves six panorama
+inputs (the jar's `panorama_*.png` are 1×1 decoys, so the asset store is read through the asset
+index), stitches the four side faces with a wrap crossfade into a 2,560×640 strip, and records the
+top/bottom caps without stitching them. The manifest names every input with its hash and the
+generator records bake 2.0, blur ceiling, crossfade, `faces: 6`, `sides: 4`, `loop_seconds: 180`
+and `seamless: true`; the WebP itself is 55,096 B with sha256 `331253bd…bf1a5` and stays
+git-ignored. The catalogue gains a small shape contract in the same pass: `MC_ICON_SET` remains an
+array of slug strings while `MC_ICON_NAMES` and `MC_ICON_STACKS` are slug-keyed objects, so a
+consumer cannot assume one shape for all three.
+
 ## Why this is better than the alternatives
 
 | Approach | Problem |
@@ -109,12 +119,22 @@ documents the 107-codepoint map so the Pixelify fallback is a deliberate choice 
 - **High resolution depends on a third-party exporter.** The 256 px path needs IconExporter's
   export on the owner's machine; the repository cannot reproduce it. The fallback keeps the app
   honest, and the manifest labels which mode produced the pixels ([[Minecraft Build Tracker]]).
+- **An animated strip makes tiling a correctness property.** The 180 s loop joins the last side
+  face to the first with a crossfade, so a seam bug is visible every cycle rather than hidden at
+  a pan endpoint; the manifest's `faces`/`sides`/`seamless` fields are what the acceptance check
+  asserts. The top/bottom caps are recorded but cannot be stitched into a horizontal strip — a
+  "360° scenery" claim is still the four side faces, not six.
+- **The catalogue shape is mixed by design.** `MC_ICON_SET` is an array of slug strings, while
+  `MC_ICON_NAMES` and `MC_ICON_STACKS` are slug-keyed objects; each shape is convenient for its
+  consumer, but the contract must be read rather than guessed.
 - **The same pattern generalises** to fonts, sounds and other licensed assets — extract locally,
   commit instructions, degrade gracefully.
 
 ## Relations
 
 - Applies to [[Minecraft Build Tracker]] and [[In-game GUI design]].
+- Extended by EDICT-0014 to the menu strip (six resolved inputs, four stitched sides, seamless
+  180 s loop) and to a documented mixed catalogue shape.
 - Depends on the storage decisions in [[Local-first tracking]] only insofar as the app must run
   without network.
 - Recorded from [[LLM Wiki pattern]]'s practice of filing decisions back into the wiki.

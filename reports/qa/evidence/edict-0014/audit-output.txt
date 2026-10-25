@@ -1,0 +1,149 @@
+PASS contrast/mc-text-on-mc-panel � 6.17:1 (min 4.5, text; labels and body copy on the GUI panel)
+PASS contrast/mc-text-muted-on-mc-panel � 5.19:1 (min 4.5, text; secondary copy (lede, meta, notes) on the panel)
+PASS contrast/mc-text-on-mc-panel-dim � 5.08:1 (min 4.5, text; table header cells)
+PASS contrast/mc-text-on-dark-on-mc-row � 5.41:1 (min 4.5, text; list rows and material rows)
+PASS contrast/mc-text-on-dark-on-mc-row-alt � 6.29:1 (min 4.5, text; alternating rows)
+PASS contrast/mc-text-on-dark-on-mc-tip-bg � 20.40:1 (min 4.5, text; tooltips and toasts)
+PASS contrast/mc-white-on-mc-field � 21.00:1 (min 4.5, text; text typed into a field)
+PASS contrast/mc-gold-on-mc-bar-bg � 8.73:1 (min 4.5, text; planned chip)
+PASS contrast/mc-aqua-on-mc-bar-bg � 13.60:1 (min 4.5, text; building chip)
+PASS contrast/mc-green-on-mc-bar-bg � 12.56:1 (min 4.5, text; done chip)
+PASS contrast/mc-white-on-mc-lo-deep � 11.90:1 (min 3.0, boundary; panel edge against the dirt backdrop)
+PASS html/lang � document language declared
+PASS html/title � page title present
+PASS html/viewport � responsive viewport declared
+PASS a11y/single-h1 � exactly one h1
+PASS a11y/main-landmark � main landmark with focus target
+PASS a11y/skip-link � skip link is the first control
+PASS a11y/tablist � 3 section tabs / 3 panels / 0 picker tabs (D7 removed the pair)
+PASS a11y/picker-tabs-retired � the redundant Item/Image picker tabs are deleted, not hidden (D7)
+PASS a11y/tab-controls � each tab points at its panel
+PASS a11y/live-region � status line and toast are announced
+PASS a11y/progressbar � progress bars expose their role
+PASS a11y/no-inline-handlers � no inline handlers (CSP-friendly, events bound in app.js)
+PASS html/button-types � <button> elements without type: 0
+PASS html/offline � no remote URLs anywhere in the app
+PASS html/local-font � the bundled Minecraft face is declared locally (no CDN)
+PASS html/font-stack � --font-pixel puts Minecraft first with the Pixelify fallback for the glyph gap (D1)
+PASS html/font-licence � the font ships with its licence note (F6)
+PASS html/pixelated � pixel art scales nearest-neighbour
+PASS html/square � no rounded corners (Minecraft GUI is square)
+PASS html/reduced-motion � motion can be disabled
+PASS html/focus-visible � keyboard focus is visible
+PASS html/control-build-rename � #build-rename exists under its frozen name
+PASS html/control-build-name-save � #build-name-save exists under its frozen name
+PASS html/control-build-name-cancel � #build-name-cancel exists under its frozen name
+PASS html/control-copy-coords � #copy-coords exists under its frozen name
+PASS html/control-notes-text � #notes-text exists under its frozen name
+PASS html/control-notes-edit � #notes-edit exists under its frozen name
+PASS html/control-notes-save � #notes-save exists under its frozen name
+PASS html/control-notes-cancel � #notes-cancel exists under its frozen name
+PASS html/control-mat-choice � #mat-choice exists under its frozen name
+PASS html/control-mat-choice-slot � #mat-choice-slot exists under its frozen name
+PASS html/control-mat-choice-name � #mat-choice-name exists under its frozen name
+PASS html/control-mat-item � #mat-item exists under its frozen name
+PASS html/control-mat-error � #mat-error exists under its frozen name
+PASS html/control-icon-upload � #icon-upload exists under its frozen name
+PASS html/control-icon-count-hint � #icon-count-hint exists under its frozen name
+PASS html/control-icon-dialog-title � #icon-dialog-title exists under its frozen name
+PASS html/mat-item-hidden � #mat-item stays in the DOM as the hidden value input (D8)
+PASS html/mat-error-alert � the add-material error is announced inline (role=alert)
+PASS html/no-datalist � the #item-options datalist is retired (D8)
+PASS html/notes-view-text � the notes view renders a text paragraph, not a textarea (D4)
+PASS html/notes-empty-default � the empty notes state is the muted 'No notes yet.'
+PASS html/steppers � each material row renders the six-button stepper cluster from the stack table (D5)
+PASS html/spinners-hidden � native number spinners are hidden by CSS only (AC5b)
+PASS html/needed-number � the Needed input stays type=number (AC5b)
+PASS html/step-clamp � needed clamps at 1 through one model path (D5)
+PASS html/copy-coords-behaviour � the copy button's toast is wired
+PASS html/base-select � the dropdown theme is gated behind @supports(appearance: base-select) (D9)
+PASS html/picker-panel-theme � ::picker(select) takes the themed panel face (background=#6f6f6f, border=2px solid #000, font=var(--font-pixel))
+PASS html/picker-icon-hidden � the native picker arrow is hidden inside the themed select
+PASS html/mobile � two responsive breakpoints shipped
+PASS icons/count � 1368 icons declared (EDICT-0013 floor 1363)
+PASS icons/manifest � manifest.count === MC_ICON_SET.length === icons.length
+PASS icons/renders-accounting � 1609 renders - 1368 icons = 241 collapsed variants
+PASS icons/curated-first � the curated 53 stay declared and first in ordering
+PASS icons/source-version � source game version recorded
+PASS icons/high-resolution � icons are 256px renders (EDICT-0011 needs >=128)
+PASS icons/render-mode � the high-resolution inventory-render mode is recorded
+PASS icons/renderer � render provenance names the exporter (IconExporter 1.3.1 for Minecraft 1.21.4)
+PASS icons/lighting-correction � 3D icon brightness is restored for the IconExporter 1.3.1 dark-lighting bug (PR #41)
+PASS icons/lighting-enum � every icon declares lighting from the frozen enum block|flat|3d-other
+PASS icons/lighting-summary � lighting summary covers the catalog: {'block': 407, 'flat': 620, '3d-other': 341}
+PASS icons/lighting-split � 3D props take 3d-other, full cubes block, flat sprites untouched; hopper is flat in 1.21.4 (disclosed)
+PASS icons/stack-table � MC_ICON_STACKS covers every icon and the frozen stack samples match
+PASS icons/stack-groups � the stack groups partition the catalog
+PASS icons/names-complete � one display name per icon, agreeing with the manifest
+PASS icons/source-pattern � every icon carries image, exporter source and a sha256 digest
+PASS icons/local-install � provenance points at the local client install
+PASS icons/export-source � provenance names the local IconExporter export folder
+PASS icons/mojang � rights holder named
+PASS icons/no-redistribution � notice states the assets are not redistributed
+PASS icons/fallback � missing icons degrade to lettered slots
+PASS icons/gitignored � vanilla PNGs are not committed
+PASS icons/smooth-rendering � 256px item renders are displayed smoothly downscaled, not nearest-neighbour
+PASS icons/textures-pixelated � tiled block textures keep their nearest-neighbour pixel contract
+PASS icons/generated � 1368 PNGs for 1368 slugs
+PASS icons/high-resolution-pngs � every generated icon is a 256x256 PNG
+PASS identity/html-world-avatar � #world-avatar exists in the page
+PASS identity/html-icon-dialog � #icon-dialog exists in the page
+PASS identity/html-icon-grid � #icon-grid exists in the page
+PASS identity/html-icon-file � #icon-file exists in the page
+PASS identity/html-detail-avatar � #detail-avatar exists in the page
+PASS identity/html-build-dlg-icon � #build-dlg-icon exists in the page
+PASS identity/html-icon-upload � #icon-upload exists in the page
+PASS identity/html-icon-count-hint � #icon-count-hint exists in the page
+PASS identity/html-icon-dialog-title � #icon-dialog-title exists in the page
+PASS identity/html-mat-choice � #mat-choice exists in the page
+PASS identity/html-copy-coords � #copy-coords exists in the page
+PASS identity/html-build-rename � #build-rename exists in the page
+PASS identity/app-avatarHtml � avatarHtml() implemented
+PASS identity/app-processImageFile � processImageFile() implemented
+PASS identity/app-renderIconPicker � renderIconPicker() implemented
+PASS identity/app-useIconDraft � useIconDraft() implemented
+PASS identity/app-probeBackdrop � probeBackdrop() implemented
+PASS identity/app-step-needed � the stepper arithmetic lives in the model
+PASS identity/app-no-icon-mode � the retired item/image switcher is deleted, not orphaned (D7)
+PASS identity/css-.avatar � .avatar styled
+PASS identity/css-.icon-grid � .icon-grid styled
+PASS identity/css-.icon-tile � .icon-tile styled
+PASS identity/css-.detail__avatar � .detail__avatar styled
+PASS identity/css-.notes__text � .notes__text styled
+PASS identity/css-.mat-steps � .mat-steps styled
+PASS identity/css-no-picker-tab � retired picker tab styles are gone (D7)
+PASS identity/panorama-layer � the two-copy layer only appears when a panorama is detected (EDICT-0014 D1)
+PASS identity/panorama-pan � the 180 s transform loop keyframes exist (supersedes EDICT-0010's 120 s pan)
+PASS identity/reduced-motion � motion can be disabled
+PASS identity/scrim � text scrim token exists
+PASS identity/gitignore-pixels � generated backdrop not committed
+PASS identity/panorama-manifest � backdrop manifest committed
+PASS identity/panorama-provenance � backdrop provenance names the rights holder
+PASS identity/extractor � backdrop extractor shipped
+PASS identity/readme-setup � setup documented
+PASS font/ttf-bytes � src/assets/fonts/Minecraft.ttf is the 14,488-byte DaFont file (sha256 matches the record)
+PASS font/licence-record � the licence record names bytes, size, embedding flag, DaFont claim, 107 codepoints and the euro sign
+PASS font/page-vs-cmap � the record distinguishes the page's 110 glyph claim from the 107 mapped codepoints (F6)
+PASS font/raw-seal � the write-once DaFont intake page is sealed in raw/manifest.json (F6)
+PASS font/raw-page � the sealed page names the author and the licence badge
+PASS font/pixelify-fallback � Pixelify Sans stays bundled as the fallback for the glyph gap
+PASS panorama/blur-baked � the six-face regeneration bakes blur_radius 2.0 (EDICT-0014 ceiling 2)
+PASS panorama/composition � six resolved inputs, four stitched sides, seamless 2560x640 strip, 180 s loop
+PASS panorama/css-blur � the CSS layer blurs 1px (D10 ceiling 1px)
+PASS panorama/css-blur-mobile � the narrow-screen layer blurs <=1.5px (found 1.5px)
+PASS panorama/generator � the generator's blur floor is removed (no hardcoded 4px minimum)
+PASS picker/probe-artifact � reports/qa/evidence/edict-0013/picker-probe.json exists (F4 precondition for AC9)
+PASS picker/probe-supports � the probe records that appearance:base-select is supported
+PASS picker/probe-chrome � the probe records the pinned Chrome 155 binary (F4)
+PASS picker/probe-values � the probe records the themed panel face, black border and Minecraft type
+PASS edict0014/sentinel � one grid sentinel (created lazily), IntersectionObserver paging, scroll hint, no 150-tile cap
+PASS edict0014/tooltip � single #mc-tooltip created on demand, bubbling pointerover/out delegation, no CSS pseudo tooltip
+PASS edict0014/empty-states � five shipped zero-state containers with their next-step controls; no toast-only path
+PASS edict0014/bulk � bulk dialog surfaces and the pure parser live in the model
+PASS edict0014/undo � undo action created with the notice, one offerUndo snapshot, six-second window wording
+PASS edict0014/recents � browser-local recent picks, capped and marked on tiles
+PASS edict0014/suggestion � model suggestion helper + display-only iconAuto + picker note/tile hooks
+PASS edict0014/step-labels � resolved step labels, stack size lookup and the stack-1 omission branch
+PASS edict0014/backdrop-two-copies � two-copy transform loop replaces the background-position pan
+
+147/147 cases passed

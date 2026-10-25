@@ -58,6 +58,16 @@
     return { icon: { kind: 'image', dataUrl: dataUrl } };
   }
 
+  /**
+   * EDICT-0014 §8: `iconAuto` records that an icon came from a suggestion. Absence means
+   * false, so only `true` is ever stored; clearing the icon clears the flag too.
+   */
+  function setIconAuto(target, auto) {
+    if (!target) return;
+    if (auto === true) target.iconAuto = true;
+    else delete target.iconAuto;
+  }
+
   function uid(prefix) {
     return prefix + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
   }
@@ -126,6 +136,229 @@
     return Math.floor(value);
   }
 
+  /* ---------------------------- item identity ---------------------------- */
+
+  /** "stone_bricks" -> "Stone Bricks"; the fallback display name for a catalogue slug. */
+  function titleizeItem(slug) {
+    return String(slug == null ? '' : slug).split('_').filter(Boolean).map(function (word) {
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    }).join(' ');
+  }
+
+  /** "Stone Bricks" -> "stone_bricks"; the one normalisation materials and slugs share. */
+  function itemSlug(item) {
+    return String(item == null ? '' : item)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+  }
+
+  function escapeRegExp(text) {
+    return String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /* --------------------------- icon suggestions --------------------------- */
+
+  /**
+   * EDICT-0014 §8: the frozen keyword table (`.tmp/plan/suggestion-table.md`, 104 rows).
+   * Each row is [keyword, slug, display name]. This list is DATA, not an algorithm:
+   * `suggestIcon` only scans it, longest whole-word keyword first.
+   */
+  var SUGGEST_KEYWORDS = [
+    ['iron', 'iron_block', 'Iron Block'], ['gold', 'gold_block', 'Gold Block'],
+    ['copper', 'copper_block', 'Copper Block'], ['diamond', 'diamond_block', 'Diamond Block'],
+    ['emerald', 'emerald_block', 'Emerald Block'], ['redstone', 'redstone_block', 'Redstone Block'],
+    ['quartz', 'quartz_block', 'Quartz Block'], ['netherite', 'netherite_block', 'Netherite Block'],
+    ['farm', 'wheat', 'Wheat'], ['crop', 'wheat', 'Wheat'], ['sugar', 'sugar_cane', 'Sugar Cane'],
+    ['pumpkin', 'pumpkin', 'Pumpkin'], ['melon', 'melon', 'Melon'], ['bamboo', 'bamboo', 'Bamboo'],
+    ['tree', 'oak_log', 'Oak Log'], ['wood', 'oak_log', 'Oak Log'], ['timber', 'oak_log', 'Oak Log'],
+    ['log cabin', 'oak_log', 'Oak Log'], ['storage', 'chest', 'Chest'], ['warehouse', 'chest', 'Chest'],
+    ['depot', 'chest', 'Chest'], ['silo', 'chest', 'Chest'], ['chest', 'chest', 'Chest'],
+    ['hall', 'oak_planks', 'Oak Planks'], ['house', 'oak_planks', 'Oak Planks'],
+    ['home', 'oak_planks', 'Oak Planks'], ['base', 'oak_planks', 'Oak Planks'],
+    ['cabin', 'oak_planks', 'Oak Planks'], ['hut', 'oak_planks', 'Oak Planks'],
+    ['tower', 'stone_bricks', 'Stone Bricks'], ['spire', 'stone_bricks', 'Stone Bricks'],
+    ['keep', 'stone_bricks', 'Stone Bricks'], ['wall', 'stone_bricks', 'Stone Bricks'],
+    ['rampart', 'stone_bricks', 'Stone Bricks'], ['fort', 'stone_bricks', 'Stone Bricks'],
+    ['castle', 'stone_bricks', 'Stone Bricks'], ['fortress', 'stone_bricks', 'Stone Bricks'],
+    ['bridge', 'stone_bricks', 'Stone Bricks'], ['aqueduct', 'stone_bricks', 'Stone Bricks'],
+    ['mine', 'stone', 'Stone'], ['shaft', 'stone', 'Stone'], ['quarry', 'stone', 'Stone'],
+    ['tunnel', 'stone', 'Stone'], ['nether', 'netherrack', 'Netherrack'],
+    ['portal', 'obsidian', 'Obsidian'], ['blaze', 'blaze_rod', 'Blaze Rod'],
+    ['wither', 'wither_skeleton_skull', 'Wither Skeleton Skull'],
+    ['end island', 'end_stone', 'End Stone'], ['ender', 'ender_pearl', 'Ender Pearl'],
+    ['shulker', 'shulker_box', 'Shulker Box'], ['bee', 'beehive', 'Beehive'],
+    ['honey', 'honey_bottle', 'Honey Bottle'], ['enchant', 'enchanting_table', 'Enchanting Table'],
+    ['library', 'bookshelf', 'Bookshelf'], ['books', 'bookshelf', 'Bookshelf'],
+    ['smith', 'anvil', 'Anvil'], ['forge', 'anvil', 'Anvil'], ['anvil', 'anvil', 'Anvil'],
+    ['brew', 'brewing_stand', 'Brewing Stand'], ['potion', 'brewing_stand', 'Brewing Stand'],
+    ['village', 'cobblestone', 'Cobblestone'], ['villager', 'cobblestone', 'Cobblestone'],
+    ['market', 'cobblestone', 'Cobblestone'], ['ship', 'oak_planks', 'Oak Planks'],
+    ['dock', 'oak_planks', 'Oak Planks'], ['pier', 'oak_planks', 'Oak Planks'],
+    ['harbour', 'oak_planks', 'Oak Planks'], ['boat', 'oak_boat', 'Oak Boat'],
+    ['road', 'cobblestone', 'Cobblestone'], ['path', 'cobblestone', 'Cobblestone'],
+    ['glass', 'glass', 'Glass'], ['greenhouse', 'glass', 'Glass'],
+    ['terracotta', 'terracotta', 'Terracotta'], ['clay', 'clay', 'Clay'],
+    ['wool', 'white_wool', 'White Wool'], ['sheep', 'white_wool', 'White Wool'],
+    ['barn', 'wheat', 'Wheat'], ['lantern', 'lantern', 'Lantern'], ['lamp', 'lantern', 'Lantern'],
+    ['lighting', 'torch', 'Torch'], ['torch', 'torch', 'Torch'], ['ladder', 'ladder', 'Ladder'],
+    ['obsidian', 'obsidian', 'Obsidian'], ['prismarine', 'prismarine', 'Prismarine'],
+    ['monument', 'prismarine', 'Prismarine'], ['guardian', 'prismarine', 'Prismarine'],
+    ['brick', 'bricks', 'Bricks'], ['sandstone', 'sandstone', 'Sandstone'],
+    ['desert', 'sandstone', 'Sandstone'], ['snow', 'snow_block', 'Snow Block'],
+    ['ice', 'ice', 'Ice'], ['aquarium', 'water_bucket', 'Water Bucket'],
+    ['rail', 'rail', 'Rail'], ['railway', 'rail', 'Rail'], ['minecart', 'minecart', 'Minecart'],
+    ['bed', 'white_bed', 'White Bed'], ['kitchen', 'furnace', 'Furnace'],
+    ['furnace', 'furnace', 'Furnace'], ['smelter', 'furnace', 'Furnace'],
+    ['kiln', 'furnace', 'Furnace'], ['spawn', 'torch', 'Torch'], ['grinder', 'torch', 'Torch'],
+    ['xp', 'experience_bottle', 'Experience Bottle'], ['trap', 'tripwire_hook', 'Tripwire Hook']
+  ];
+
+  function catalogNames(catalog) {
+    return (catalog && catalog.names) || {};
+  }
+
+  function catalogOrder(catalog) {
+    if (catalog && Array.isArray(catalog.order)) return catalog.order;
+    var names = catalogNames(catalog);
+    return Object.keys(names);
+  }
+
+  function catalogIndex(catalog, slug) {
+    var order = catalogOrder(catalog);
+    for (var i = 0; i < order.length; i += 1) if (order[i] === slug) return i;
+    return -1;
+  }
+
+  function catalogName(catalog, slug, fallback) {
+    var names = catalogNames(catalog);
+    if (Object.prototype.hasOwnProperty.call(names, slug)) return String(names[slug]);
+    return fallback || titleizeItem(slug);
+  }
+
+  /** Whole-word, case-insensitive keyword test; spaces in a keyword match any whitespace run. */
+  function keywordHit(text, keyword) {
+    if (!text) return false;
+    var words = String(keyword).split(/\s+/).map(escapeRegExp).join('\\s+');
+    return new RegExp('(^|[^a-z0-9_])' + words + '([^a-z0-9_]|$)', 'i').test(String(text));
+  }
+
+  /** The longest tabulated keyword present in `text` (ties keep table order). */
+  function longestKeyword(text) {
+    var best = null;
+    for (var i = 0; i < SUGGEST_KEYWORDS.length; i += 1) {
+      var row = SUGGEST_KEYWORDS[i];
+      if (!keywordHit(text, row[0])) continue;
+      if (!best || row[0].length > best[0].length) best = row;
+    }
+    return best;
+  }
+
+  function keywordSuggestion(row, where, catalog) {
+    return {
+      slug: row[1],
+      name: catalogName(catalog, row[1], row[2]),
+      reason: 'matched "' + row[0] + '" in the ' + where
+    };
+  }
+
+  /**
+   * EDICT-0014 §8 (frozen): the deterministic icon suggestion for a build.
+   * `catalog` is `{ names: {slug: displayName}, order: [slug...] }` (an array of slugs is
+   * also accepted). Pure and stable; the two-argument form returns null by contract.
+   * Order: longest whole-word keyword in the name, then the notes, then the world name;
+   * then the material with the largest `needed` (ties: catalogue order); then the world icon.
+   */
+  function suggestIcon(build, world, catalog) {
+    if (!build || !catalog) return null;
+    var hit = longestKeyword(build.name);
+    if (hit) return keywordSuggestion(hit, 'name', catalog);
+    hit = longestKeyword(build.notes);
+    if (hit) return keywordSuggestion(hit, 'notes', catalog);
+    hit = longestKeyword(world && world.name);
+    if (hit) return keywordSuggestion(hit, 'world name', catalog);
+
+    var best = null;
+    (build.materials || []).forEach(function (material) {
+      var slug = itemSlug(material && material.item);
+      var index = catalogIndex(catalog, slug);
+      if (index < 0) return;
+      var needed = toInt(material && material.needed);
+      if (!best || needed > best.needed || (needed === best.needed && index < best.index)) {
+        best = { slug: slug, needed: needed, index: index };
+      }
+    });
+    if (best) {
+      return {
+        slug: best.slug,
+        name: catalogName(catalog, best.slug),
+        reason: 'most of the materials are ' + catalogName(catalog, best.slug)
+      };
+    }
+
+    var icon = world && world.icon;
+    if (icon && icon.kind === 'item' && catalogIndex(catalog, icon.slug) >= 0) {
+      return {
+        slug: icon.slug,
+        name: catalogName(catalog, icon.slug),
+        reason: 'came from the world icon'
+      };
+    }
+    return null;
+  }
+
+  /* ------------------------------ bulk paste ------------------------------ */
+
+  var BULK_LINE = /^\s*([-+]?)\s*(\d+)?\s*(?:[x×]\s*)?(.+?)\s*$/;
+
+  /**
+   * EDICT-0014 §5: parse a pasted materials list into review rows.
+   * Accepts `64 stone bricks`, `- 32 glass`, `+1 oak log`, `20x oak log`; blank lines are
+   * skipped, quantities clamp to >= 1, names that are not in the catalogue stay as
+   * `state: 'unknown'` so the dialog can list them without adding them.
+   */
+  function parseBulk(text, catalog) {
+    var names = catalogNames(catalog);
+    var byKey = {};
+    catalogOrder(catalog).forEach(function (slug) {
+      byKey[itemSlug(slug)] = slug;
+      byKey[itemSlug(catalogName(catalog, slug))] = slug;
+    });
+    var rows = [];
+    String(text == null ? '' : text).split(/\r\n?|\n/).forEach(function (line) {
+      if (!line.trim()) return;
+      var match = BULK_LINE.exec(line);
+      var quantity = 1;
+      var label = line.trim();
+      if (match) {
+        quantity = match[2] ? Number(match[2]) : 1;
+        label = String(match[3] || '').trim();
+      }
+      if (!label) return;
+      var key = itemSlug(label);
+      var slug = byKey[key] || null;
+      /* EDICT-0014 §5: when no exact name/slug matches, accept a unique >= 3 character prefix
+         (so "oak log" still matches after a typo-free abbreviation like "oak lo"); an ambiguous
+         prefix stays unmatched on purpose, because guessing a material is worse than asking. */
+      if (!slug && key.length >= 3) {
+        var prefixed = catalogOrder(catalog).filter(function (candidate) {
+          return itemSlug(candidate).indexOf(key) === 0 ||
+            itemSlug(catalogName(catalog, candidate)).indexOf(key) === 0;
+        });
+        if (prefixed.length === 1) slug = prefixed[0];
+      }
+      rows.push({
+        raw: line.trim(),
+        qty: Math.max(1, toInt(quantity)),
+        name: slug ? catalogName(catalog, slug) : label,
+        slug: slug,
+        state: slug ? 'matched' : 'unknown'
+      });
+    });
+    return { rows: rows };
+  }
+
   function emptyState() {
     return { version: SCHEMA, activeWorldId: null, worlds: [] };
   }
@@ -169,6 +402,7 @@
       builds: []
     };
     if (normalizedIcon.icon) world.icon = normalizedIcon.icon;
+    if (input && input.iconAuto === true) world.iconAuto = true;
     next.worlds.push(world);
     if (!next.activeWorldId) next.activeWorldId = world.id;
     return { state: next, world: world };
@@ -190,8 +424,9 @@
       var normalizedWorldIcon = normalizeIcon(patch.icon);
       if (normalizedWorldIcon.error) return { error: normalizedWorldIcon.error, state: state };
       if (normalizedWorldIcon.icon) world.icon = normalizedWorldIcon.icon;
-      else delete world.icon;
+      else { delete world.icon; delete world.iconAuto; }
     }
+    if (patch.iconAuto !== undefined) setIconAuto(world, patch.iconAuto);
     return { state: next, world: world };
   }
 
@@ -226,10 +461,13 @@
       name: name,
       status: STATUSES.indexOf(input && input.status) >= 0 ? input.status : 'planned',
       coords: cleanText(input && input.coords, 32),
-      notes: cleanText(input && input.notes, 400),
-      materials: []
+      notes: cleanNotes(input && input.notes, 400),
+      materials: [],
+      /* EDICT-0014 §8: `icon` is always present on a build — null means "no stored icon, the
+         view may show a suggestion", which is how a suggestion stays a view decision. */
+      icon: normalizedBuildIcon.icon || null
     };
-    if (normalizedBuildIcon.icon) build.icon = normalizedBuildIcon.icon;
+    if (input && input.iconAuto === true) build.iconAuto = true;
     world.builds.push(build);
     return { state: next, build: build };
   }
@@ -250,30 +488,44 @@
       var normalizedBuildIconPatch = normalizeIcon(patch.icon);
       if (normalizedBuildIconPatch.error) return { error: normalizedBuildIconPatch.error, state: state };
       if (normalizedBuildIconPatch.icon) build.icon = normalizedBuildIconPatch.icon;
-      else delete build.icon;
+      else { delete build.icon; delete build.iconAuto; }
     }
+    if (patch.iconAuto !== undefined) setIconAuto(build, patch.iconAuto);
     return { state: next, build: build };
   }
 
-  function setWorldIcon(state, worldId, iconInput) {
+  function setWorldIcon(state, worldId, iconInput, auto) {
     var next = clone(state);
     var world = findWorld(next, worldId);
     if (!world) return { error: 'Unknown world.', state: state };
     var normalized = normalizeIcon(iconInput);
     if (normalized.error) return { error: normalized.error, state: state };
-    if (normalized.icon) world.icon = normalized.icon;
-    else delete world.icon;
+    if (normalized.icon) {
+      world.icon = normalized.icon;
+      if (auto !== undefined) setIconAuto(world, auto);
+    } else {
+      delete world.icon;
+      delete world.iconAuto;
+    }
     return { state: next, world: world };
   }
 
-  function setBuildIcon(state, worldId, buildId, iconInput) {
+  function setBuildIcon(state, worldId, buildId, iconInput, auto) {
     var next = clone(state);
     var build = findBuild(findWorld(next, worldId), buildId);
     if (!build) return { error: 'Unknown build.', state: state };
     var normalized = normalizeIcon(iconInput);
     if (normalized.error) return { error: normalized.error, state: state };
-    if (normalized.icon) build.icon = normalized.icon;
-    else delete build.icon;
+    if (normalized.icon) {
+      build.icon = normalized.icon;
+      /* EDICT-0014 §8: an explicit pick stores `iconAuto: false` (a manual choice must survive a
+         rename); applying the suggestion stores true. Only an omitted flag deletes the field. */
+      if (auto === true) build.iconAuto = true;
+      else if (auto === false) build.iconAuto = false;
+    } else {
+      delete build.icon;
+      delete build.iconAuto;
+    }
     return { state: next, build: build };
   }
 
@@ -468,11 +720,17 @@
     state.worlds.forEach(function (world) {
       if (!world.id || !world.name) errors.push('A world is missing id or name.');
       validateIcon(world.icon, 'world "' + world.name + '"', errors);
+      if (world.iconAuto !== undefined && typeof world.iconAuto !== 'boolean') {
+        errors.push('World ' + world.name + ' has a non-boolean iconAuto.');
+      }
       if (!Array.isArray(world.builds)) errors.push('World ' + world.name + ' has no builds array.');
       (world.builds || []).forEach(function (build) {
         if (!build.id || !build.name) errors.push('A build in ' + world.name + ' is missing id or name.');
         if (STATUSES.indexOf(build.status) < 0) errors.push('Build ' + build.name + ' has an unknown status.');
         validateIcon(build.icon, 'build "' + build.name + '"', errors);
+        if (build.iconAuto !== undefined && typeof build.iconAuto !== 'boolean') {
+          errors.push('Build ' + build.name + ' has a non-boolean iconAuto.');
+        }
         (build.materials || []).forEach(function (material) {
           if (!material.id || !material.item) errors.push('A material in ' + build.name + ' is missing id or item.');
           if (!(material.needed >= 1)) errors.push('Material ' + material.item + ' needs at least 1.');
@@ -616,6 +874,11 @@
     cleanNotes: cleanNotes,
     stepNeeded: stepNeeded,
     stackSizeFor: stackSizeFor,
+    titleizeItem: titleizeItem,
+    itemSlug: itemSlug,
+    SUGGEST_KEYWORDS: SUGGEST_KEYWORDS,
+    suggestIcon: suggestIcon,
+    parseBulk: parseBulk,
     normalizeIcon: normalizeIcon,
     setWorldIcon: setWorldIcon,
     setBuildIcon: setBuildIcon,

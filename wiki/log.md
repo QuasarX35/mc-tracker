@@ -228,3 +228,31 @@ The ten-item report changed the app's controls, its typeface, its icon set and i
   8 hashed files (app sources + font + panorama WebP + manifest); evidence
   `reports/qa/evidence/edict-0013/` (27 files, 22 distinct PNGs). Chrome cannot start in the DSH
   verifier sandbox, so 测试部 authored and analysed while the Lead executed — disclosed.
+
+## [2026-10-25] ingest | EDICT-0014 — friction pass: seamless scenery, paging, tooltips, empty states, bulk paste, undo, recents, suggestion
+
+- Scenery: six resolved panorama inputs, four side faces stitched with a wrap crossfade; bake
+  8 → **2.0**, strip **2,560×640** (55,096 B, sha256 `331253bd…bf1a5`); two `.backdrop__layer`
+  copies translated −50 % over **180 s** (`backdrop-translate`) replace the 120 s ping-pong;
+  reduced motion `none`; dirt fallback kept.
+- Picker: all **1,368** items reachable in 120-tile append batches (`#icon-sentinel`), no render
+  cap; count hint `showing N of 1368 — scroll for more`; names wrap in tiles/rows/chip; recent
+  picks lead; one top-layer `#mc-tooltip`; five empty states with working controls
+  (`#detail-empty-action`, `#btn-empty-create-world`, `#btn-empty-pick-material`,
+  `#btn-empty-reset-filter`, `#btn-first-build`).
+- Steppers: labels resolve to the stack size (`+64` / `+16`), stack-1 items get four buttons,
+  `data-step` keeps the shipped `+stack` literal while `data-mat-step` carries the resolved
+  amount. Bulk paste (`#bulk-paste` → `#bulk-dialog`) 4 matched + 3 unknown; undo restores a
+  deep-equal snapshot for 6 s; `suggestIcon` (38 frozen-fixture cases) display-only via
+  `iconAuto`; recents in `mc-build-tracker:recent`.
+- Updated [[Minecraft Build Tracker]], [[In-game GUI design]],
+  [[Atmosphere and identity without shipping assets]], [[Vanilla assets without redistribution]],
+  [[Testing a UI like a user]], [[Open questions]] (new entries: suggestion coverage, scroll-only
+  paging, bulk partial adds, single-level undo, e2e evidence folder); design-system `MASTER.md`
+  and `pages/tracker.md`; `README.md`.
+- Verification: **98** unit (22 model + 9 identity + 38 suggestion + 9 app-qa + 20 wiki), **85**
+  acceptance (17 + 8 + 7 + 11 + 14 + 7 + 13 + 8), **147/147** audit, **66/66** browser flows,
+  stamp `app-qa: verified — 2026-10-25T12:27:45.271Z` over 8 hashed files; evidence
+  `reports/qa/evidence/edict-0014/` (20 PNGs with distinct hashes + `probe.json` + README +
+  `panorama-tile-proof.png`). Chrome cannot start in the DSH verifier sandbox, so the Lead seat
+  ran every launch and 测试部 authored/analysed/judged — disclosed.

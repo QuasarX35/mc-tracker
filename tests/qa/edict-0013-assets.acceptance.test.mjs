@@ -169,18 +169,28 @@ test('AC-A2 the app font token puts Minecraft first and keeps the Pixelify fallb
 
 /* ----------------------------------------------------------------- panorama */
 
-test('AC-A3 the panorama manifest declares the frozen 2.5px backdrop blur', () => {
+test('AC-A3 the panorama manifest declares the six-input, four-side seamless strip', () => {
   const manifest = JSON.parse(read(path.join(PANORAMA, 'manifest.json')));
   const compose = manifest.compose;
   assert.ok(compose, 'manifest.compose is required');
-  assert.equal(compose.faces, 4, 'four faces');
+  // EDICT-0014 supersedes EDICT-0010/0013's four-face ping-pong strip (Lead correction, delta audit).
+  assert.equal(compose.faces, 6, 'six resolved inputs');
+  assert.equal(compose.sides, 4, 'four stitched sides');
+  assert.equal(compose.seamless, true, 'seamless wrap');
+  assert.equal(compose.loop_seconds, 180, 'one loop per 180 s');
   assert.equal(compose.width, 2560, 'the committed strip width');
   assert.equal(compose.height, 640, 'the committed strip height');
+  assert.equal(compose.width, 4 * compose.height, 'width === 4 * height');
   assert.equal(compose.brightness, 0.95, 'baked brightness stays');
   assert.equal(compose.saturation, 0.92, 'baked saturation stays');
-  // D10 / Lead correction: the generator blur drops from 8 to 3 or less (工部 shipped 2.5).
-  assert.equal(compose.blur_radius, 2.5, `blur radius ${compose.blur_radius}px must be the frozen 2.5px (was 8)`);
+  assert.ok(compose.blur_radius <= 2, `blur radius ${compose.blur_radius}px must be <= 2 (bake is 2.0)`);
   assert.ok(compose.blur_radius < 8, 'the pre-edict radius of 8 must not survive');
+  const inputs = manifest.inputs || [];
+  assert.equal(inputs.length, 6, 'six resolved inputs');
+  assert.equal(inputs.filter((input) => input.role === 'side').length, 4, 'four side faces');
+  for (const input of inputs) {
+    assert.match(input.sha256, /^[0-9a-f]{64}$/, `sha256 for ${input.name || input.role}`);
+  }
   assert.equal(manifest.output.file, 'backdrop.webp');
   assert.deepEqual(manifest.output.size, [2560, 640], 'output size matches the compose size');
   assert.match(normalize(manifest.install), /\.minecraft/, 'provenance points at the local install');
@@ -203,14 +213,18 @@ test('AC-A4 the committed backdrop is the WebP its manifest hashes', () => {
   assert.match(provenance, /NOT AN OFFICIAL MINECRAFT PRODUCT/, 'the official-product notice stays');
 });
 
-test('AC-A5 the panorama layer blurs at most 1px on desktop and 1.5px on mobile', () => {
-  const desktop = blocks(':root.has-panorama .backdrop::before', { mobile: false })
+test('AC-A5 the panorama layers blur at most 1px on desktop and 1.5px on mobile', () => {
+  const desktop = blocks(':root.has-panorama .backdrop__layer', { mobile: false })
     .map((rule) => blurPx(rule.declarations))
     .filter((value) => value != null);
-  assert.ok(desktop.length > 0, 'the panorama layer must declare a blur filter');
+  assert.ok(desktop.length > 0, 'each panorama layer must declare a blur filter');
   assert.ok(desktop.every((value) => value <= 1), `desktop blur must be <= 1px, found ${JSON.stringify(desktop)}`);
+  const before = blocks(':root.has-panorama .backdrop::before', { mobile: false })
+    .map((rule) => blurPx(rule.declarations))
+    .filter((value) => value != null);
+  assert.equal(before.length, 0, 'the blur moved off the ::before pseudo-element (EDICT-0014 D1)');
 
-  const mobile = blocks(':root.has-panorama .backdrop::before', { mobile: true })
+  const mobile = blocks(':root.has-panorama .backdrop__layer', { mobile: true })
     .map((rule) => blurPx(rule.declarations))
     .filter((value) => value != null);
   if (mobile.length) assert.ok(mobile.every((value) => value <= 1.5), `mobile blur <= 1.5px, found ${JSON.stringify(mobile)}`);

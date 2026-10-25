@@ -1,23 +1,39 @@
 {
-  "generated": "2026-10-25T09:14:42.092752+00:00",
+  "generated": "2026-10-25T11:43:24.333887+00:00",
   "source": {
     "kind": "panorama",
     "version": "1.21.4",
-    "assetIndex": "19"
+    "assetIndex": "19",
+    "faces": 6,
+    "sides": 4,
+    "caps": 2
   },
   "install": "C:\\Users\\KZ\\AppData\\Roaming\\.minecraft",
+  "faces": 6,
+  "sides": 4,
+  "seamless": true,
+  "loop_seconds": 180,
+  "width": 2560,
+  "height": 640,
+  "blur_radius": 2.0,
+  "brightness": 0.95,
+  "saturation": 0.92,
   "compose": {
-    "faces": 4,
+    "faces": 6,
+    "sides": 4,
+    "seamless": true,
     "crossfade_px": 64,
     "width": 2560,
     "height": 640,
-    "blur_radius": 2.5,
-    "pan_seconds": 120,
+    "blur_radius": 2.0,
+    "loop_seconds": 180,
     "brightness": 0.95,
     "saturation": 0.92
   },
   "inputs": [
     {
+      "role": "side",
+      "name": "11e7261085b99ec9c850a59ed95b6bfbb576c8cc",
       "source": "C:\\Users\\KZ\\AppData\\Roaming\\.minecraft\\assets\\objects\\11\\11e7261085b99ec9c850a59ed95b6bfbb576c8cc",
       "sha256": "69532144512414459238c0909d76b7cf99b5d3935e04c65772530a09656aa6b7",
       "size": [
@@ -26,6 +42,8 @@
       ]
     },
     {
+      "role": "side",
+      "name": "87a04c89609bad3c46e45420eba4ffddac4be836",
       "source": "C:\\Users\\KZ\\AppData\\Roaming\\.minecraft\\assets\\objects\\87\\87a04c89609bad3c46e45420eba4ffddac4be836",
       "sha256": "534c4b55ecfc7154b283863501a2aa41f026823036daac7d1efa0c20db75fab5",
       "size": [
@@ -34,6 +52,8 @@
       ]
     },
     {
+      "role": "side",
+      "name": "cf5c286cb670d4c0ea5fc03728252fe4003b3fbb",
       "source": "C:\\Users\\KZ\\AppData\\Roaming\\.minecraft\\assets\\objects\\cf\\cf5c286cb670d4c0ea5fc03728252fe4003b3fbb",
       "sha256": "f22c056de4a16b0c635e6a4d090e887237be145d42cd8d2ced9c93a85f754fe1",
       "size": [
@@ -42,8 +62,30 @@
       ]
     },
     {
+      "role": "side",
+      "name": "8294df934ee4a6373d973cdb5257df793641ba34",
       "source": "C:\\Users\\KZ\\AppData\\Roaming\\.minecraft\\assets\\objects\\82\\8294df934ee4a6373d973cdb5257df793641ba34",
       "sha256": "d79d49e7fb2095942bb154c694a2e5723952b5b7f4f5e4f668cb32b5f843c991",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "role": "top",
+      "name": "60a0380dca096ae055fc1d7d88eebfc33ae94d7b",
+      "source": "C:\\Users\\KZ\\AppData\\Roaming\\.minecraft\\assets\\objects\\60\\60a0380dca096ae055fc1d7d88eebfc33ae94d7b",
+      "sha256": "9f78f7648f314301f076c9eb77d2e472132b15b90a19ed0f00d53b85906ff705",
+      "size": [
+        1024,
+        1024
+      ]
+    },
+    {
+      "role": "bottom",
+      "name": "7d5d238627d3e4171979be59f8c73e8aad5479ae",
+      "source": "C:\\Users\\KZ\\AppData\\Roaming\\.minecraft\\assets\\objects\\7d\\7d5d238627d3e4171979be59f8c73e8aad5479ae",
+      "sha256": "7d8bf5af489d101a096d2d6f403ecb1d49ee27ee0895144ff635fb45b18c8ba7",
       "size": [
         1024,
         1024
@@ -52,11 +94,11 @@
   ],
   "output": {
     "file": "backdrop.webp",
-    "sha256": "249a1598a120a142aebe73d5a54c7fd612e1d11a82298a3dcfa5734063635978",
+    "sha256": "331253bd719c08f13ac0eec87088ba71387c2e1e2157438a5aaa1d60358bf1a5",
     "size": [
       2560,
       640
     ],
-    "bytes": 45664
+    "bytes": 55096
   }
 }

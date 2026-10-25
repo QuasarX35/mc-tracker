@@ -80,17 +80,23 @@ background/box-shadow/width; `prefers-reduced-motion` zeroes them.
 | **Slot** | 30×30, `#8b8b8b` face, 2px black border, inverted bevel (dark top-left, light bottom-right); holds a 22×22 icon from the game's own **256×256 inventory renders** (generated locally by `scripts/mc-icons.py`, git-ignored; 3D renders carry a documented brightness correction for an upstream IconExporter bug) displayed smoothly downscaled. A missing icon shows the item's initial — never a broken image. |
 | **Chip** | Dark `#1e1e1e` plate, 2px border in the status colour, white label. **Colour is never the only signal** — the word is always present. |
 | **XP bar** | 16px tall (12px in table rows), black border, `#1e1e1e` track, green fill with a lighter top band. Exposed as `role="progressbar"` with `aria-valuenow`. |
-| **Tooltip** | `#100010` plate with a `#5000ff` border, white text, 8px above the item slot; pure CSS on `:hover`/`:focus-visible`. |
+| **Tooltip** | One shared `#mc-tooltip` (`role="tooltip"`), not pseudo-elements: appended to the open `<dialog>` (else `body`), carries the source slot's `data-tip`, is fixed and clamped 8px inside the viewport, and flips below the slot when less than 44px of room remains above. Delegation uses bubbling `pointerover`/`pointerout` with an `event.relatedTarget` check plus `focusin`/`focusout`; Escape and dialog close hide it. `#100010` plate with a `#5000ff` border, white text. |
 | **Tab** | Folder tab: unselected `#6f6f6f`, selected is the panel face and merges into the panel (no bottom border, −2px overlap). |
 | **List row** | Dark row, 2px seam, tight bevel; hover lightens; selected is `#4a4a4a` with a 2px white inner outline (vanilla list selection). |
 | **Dialog** | Native `<dialog>`, panel face, black border, bevel, scrim `rgb(0 0 0 / 0.6)`, right-aligned Cancel/Confirm. |
 | **Avatar** | Square identity chip: 2px black border, inverted bevel, image `object-fit: cover` with smooth downscaling (`image-rendering: auto`). Sizes 28 / 32 / 40 / 48 px. Items use their 256×256 inventory render; uploads are 128×128 WebP/PNG data URLs; a missing render falls back to the subject's initial. |
-| **Icon picker** | One dialog, no tabs: search + a grid of `.icon-tile` buttons (slot + label, `role="option"`, lazy-loaded renders), a count hint (`showing 150 of 1368 — refine your search`), and a footer with **Upload image…** (`#icon-upload`, shared image dialog), Cancel and **Use icon**. Item mode commits on click; pick-item mode (add material) hides upload and Use, and a single click selects and closes. Curated/common icons sort first; render cap ~150 keeps the grid fast. Escape clears the search, then closes; focus returns to the invoker. |
+| **Icon picker** | One dialog, no tabs: search + a grid of `.icon-tile` buttons (slot + label, `role="option"`, lazy-loaded renders) with incremental paging, and a footer with **Upload image…** (`#icon-upload`, shared image dialog), Cancel and **Use icon**. Paging: first batch 120 tiles, `div#icon-sentinel[data-icon-sentinel]` (aria-hidden, last child of `#icon-grid`) appends 120 more per scroll hit — no slice cap, every one of the 1,368 slugs reachable; typing resets to the first batch and removes the sentinel; `#icon-count-hint` reads `showing 120 of 1368 — scroll for more` and `showing N of M for "query"` while narrowed. Names wrap 2–3 lines, no truncation. Recent picks (`data-icon-recent="true"`) lead the unfiltered first batch. Item mode commits on click; pick-item mode (add material) hides upload and Use, and a single click selects and closes. Curated/common icons sort first. Escape clears the search, then closes; focus returns to the invoker. |
+| **Wrapped item name** | Full names wrap to 2–3 lines in picker tiles, material rows and the chooser chip — `white-space: normal`, `overflow-wrap: break-word`, no `text-overflow: ellipsis`, no `-webkit-line-clamp`. Material rows keep `grid-auto-rows: auto` so a taller name grows the row; the assertion is `scrollWidth <= clientWidth + 1` on every name node at 1280 and 390. |
+| **Empty state** | One sentence naming the next action plus one control; never a control whose only response is an error toast. Five states: `#build-empty` (`#btn-first-build` asks the state which dialog to open), `#world-empty` (`#btn-empty-create-world` opens the world dialog), `#detail-empty` (`#detail-empty-action`: world dialog if no worlds, else build dialog), `#material-empty` (`#btn-empty-pick-material` focuses the chooser), `#world-material-empty` (`#btn-empty-reset-filter` clears search + filter). |
+| **Bulk-paste dialog** | `#bulk-dialog` with `textarea#bulk-input`, `.bulk-row[data-bulk-state="matched"|"unknown"]` review rows carrying `data-bulk-qty`, `#bulk-add` (**Add matched**), `#bulk-cancel` and `#bulk-error`. The matcher is frozen: case-insensitive exact display name → exact slug → unique prefix of at least 3 characters; ambiguous or missing stays unmatched and is not added; duplicates merge by slug; qty clamps ≥1. Blank lines ignored; multi-word names allowed; no edit distance. |
+| **Undo toast action** | The toast may carry a real `button#toast-action` labelled **Undo** for material, build or world deletion, visible for 6000 ms (other toasts keep 3200 ms). One deep-equal snapshot; any later commit clears it; clicking restores state, view and focus. Confirm copy says “You can undo for 6 seconds.”, never “cannot be undone”. |
+| **Suggested-icon marker** | Display-only: `#detail-avatar` carries `data-icon-auto="true"` and `title="<reason>"` while showing a suggestion for a build with no stored icon; the picker shows `p#icon-suggest-note` “Suggested from "<matched text>"” and marks the tile `data-icon-suggested="true"`. Choosing stores the icon and clears the marker; there is no apply control, and the world half of `iconAuto` is carried but inert. |
+| **Recent picks** | `mc-build-tracker:recent` — up to 8 slugs, browser-local, not exported; unknown slugs dropped on load. The unfiltered first picker batch leads with `data-icon-recent="true"` tiles; choosing records the slug at the front, de-duplicated. |
 | **Icon button** | Square panel button with a 2px black border and the standard bevel, 28–30 px, icon-only (`aria-label` mandatory). Used for the title-rename pencil (`#build-rename`, left of Delete) and coords copy (`#copy-coords`, right of the coords field; disabled when empty or whitespace). |
 | **Inline title / notes editor** | View mode is text; edit mode swaps in the existing input/textarea plus `✓` (save) and `✕` (cancel). Enter/Save commits through one model path, Escape cancels and restores the previous value, blank titles are refused, notes are trimmed, and focus returns to the invoking button. `Ctrl/Cmd+Enter` saves notes. |
-| **Micro stepper** | `button.mat-step`, 28 px tall, compact grid above and below the needed field: `+1 +10 +stack` over `-1 -10 -stack`. Every button carries `data-mat` and `data-stack` (`64|16|1`); the row must not overflow at 390×844. `+stack` uses the catalog stack size, default 64 for unknown. |
+| **Micro stepper** | `button.mat-step`, 28 px tall, compact grid above and below the needed field, with **resolved labels**: `+1 +10 +64` over `-1 -10 -64` (the stack number comes from `MC_ICON_STACKS`, default 64). Stack-1 items omit the two stack buttons entirely (four buttons, no disabled twins, no full-stack aria). Every button carries `data-mat` and `data-stack` (`64|16|1`); `data-step` keeps the shipped literals `+1|+10|+stack|-1|-10|-stack` (no rename), and `data-mat-step` carries the resolved amount. `needed` clamps at 1; the row must not overflow at 390×844. |
 | **Chooser chip** | Add-material control: a 30×30 `.slot` with the chosen item's render, the item name beside it, and a "Choose item" affordance (`#mat-choice`/`#mat-choice-slot`/`#mat-choice-name`). Opens the picker in pick-item mode; the hidden `#mat-item` feeds the form and `#mat-error` shows inline validation. |
-| **World backdrop** | Fallback: 16×16 dirt tiled at 2× (`image-rendering: pixelated`), brightness 0.88, radial vignette. **Panorama:** locally generated 2,560×640 strip — bake Gaussian radius **2.5 px** (`--blur`, guarded 0–3), brightness 0.95, saturation 0.92, 45,664 B WebP (sha256 `249a…5978`); revealed via `:root.has-panorama .backdrop::before`, `background-size: cover`, 120 s ping-pong pan between 30 % and 70 % of the horizontal overflow, `filter: blur(1px)` desktop / `blur(1.5px)` at ≤640 px, and a `--backdrop-scrim-alpha` (**0.2**) scrim plus vignette. Feature-detected at runtime; absence is a normal state. `prefers-reduced-motion` freezes the pan. |
+| **World backdrop** | Fallback: 16×16 dirt tiled at 2× (`image-rendering: pixelated`), brightness 0.88, radial vignette. **Panorama:** locally generated 2,560×640 strip — six resolved inputs `panorama_0…5` with the top/bottom caps recorded but not stitched, and the four side faces stitched with a wrap crossfade so the loop is seamless; bake Gaussian radius **2.0 px** (ceiling 2), brightness 0.95, saturation 0.92, 55,096 B WebP (sha256 `331253bd…bf1a5`); two `.backdrop__layer` copies of the strip translated −50 % over **180 s** linear infinite (`backdrop-translate`) under `:root.has-panorama`; per-layer `filter: blur(1px)` desktop / `blur(1.5px)` at ≤640 px; `--backdrop-scrim-alpha` (**0.2**) scrim plus vignette. Feature-detected at runtime; absence is a normal state. `prefers-reduced-motion` freezes the pan. |
 
 ---
 
@@ -116,16 +122,29 @@ game pixels (icons, panorama, uploads stay local/git-ignored) · nearest-neighbo
 ## Pre-delivery checklist
 
 - [ ] `node --check src/app.js` and `node --check src/tracker/model.js` clean
-- [ ] `node tests/unit/tracker-model.test.mjs` + `tracker-icons.test.mjs` green (60/60 across the unit files)
-- [ ] `node tests/qa/tracker.acceptance.test.mjs` + the independent acceptance files green (71/71)
-- [ ] `python tests/qa/mc_ui_audit.py` → **138/138**, exit 0
-- [ ] `node scripts/app-qa.mjs run` → 49/49 browser flows and a fresh stamp covering the app
-      sources plus `Minecraft.ttf`, `backdrop.webp` and the panorama `manifest.json`
+- [ ] Unit files green — **98/98** (model 22, identity 9, suggestion 38, app-qa 9, wiki 20)
+- [ ] Acceptance files green — **85/85** (tracker 17, identity 8, resolution 7, assets 11,
+      edict-0014 14, app-qa 7, wiki 13, wiki-sync 8)
+- [ ] `python tests/qa/mc_ui_audit.py` → **147/147**, exit 0
+- [ ] `node scripts/app-qa.mjs run` → **66/66** browser flows and a fresh stamp covering the
+      8 app sources (app files plus `Minecraft.ttf`, `backdrop.webp`, panorama `manifest.json`)
 - [ ] Face is Minecraft with the Pixelify fallback; `Minecraft-LICENCE.md` present; glyph gaps
       (arrows, dashes, ellipsis, `×`, `·`, `≥`, `≤`) documented and covered by the fallback
 - [ ] Item catalog is 1,368 addressable base items from 1,609 renders (241 collapsed variants),
-      curated 53 first; `MC_ICON_NAMES` is an object keyed by slug; the manifest carries
-      name/stack/sha256/lighting; the five `flat_pixel_mismatches` are disclosed
+      curated 53 first; `MC_ICON_SET` is an array of slugs while `MC_ICON_NAMES` and
+      `MC_ICON_STACKS` are slug-keyed objects; the manifest carries name/stack/sha256/lighting;
+      the five `flat_pixel_mismatches` are disclosed
+- [ ] Picker pages in 120-tile batches through `#icon-sentinel`, no cap, every slug reachable;
+      `#icon-count-hint` uses the frozen `showing N of 1368 — scroll for more` wording; typing
+      resets to the first batch
+- [ ] Steppers show resolved amounts (`+1 +10 +64`), keep the shipped `+stack`/`-stack` literals
+      in `data-step` with resolved `data-mat-step`, and stack-1 rows omit the two stack buttons
+- [ ] Tooltip is the single `#mc-tooltip` in the top layer; no `.slot[data-tip]::after` rule
+      remains; bubbling `pointerover`/`pointerout` + `relatedTarget`, clamped, flips below,
+      hides on Escape and dialog close
+- [ ] Backdrop: six inputs, four stitched sides with a wrap crossfade, 2,560×640, 180 s seamless
+      translate loop over two `.backdrop__layer` copies, bake blur 2.0, per-layer CSS `blur(1px)`
+      (1.5 px at ≤640 px), 0.2 scrim, 55,096 B, sha256 starting `331253bd`
 - [ ] Themed select probe: `CSS.supports('appearance', 'base-select')` true on the pinned
       Chromium and the `::picker(select)` computed panel/border/font match the frozen values
 - [ ] Headless Chrome screenshots at 1280 px and at 390 px: no overflow, no missing icons,

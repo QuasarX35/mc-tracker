@@ -29,7 +29,12 @@ is the sum. It opens by double-clicking `src/index.html` — no build step, no s
 - **Builds** — name, status (Planned / Building / Done), coordinates, notes, and an XP-style
   progress bar driven by the material list.
 - **Materials** — per build, an item name plus `needed` and `got`, editable inline while
-  playing; identical items merge and sum.
+  playing; identical items merge and sum. The six step buttons resolve to the item's stack size
+  (`+1 / +10 / +64`), and stack-1 items get four buttons with the pair omitted.
+- **Interaction pass (EDICT-0014)** — the icon picker pages all 1,368 items in 120-tile batches
+  and leads with recent picks; a deterministic suggestion can propose an icon with a stated
+  reason; a shared tooltip follows hovered slots inside dialogs; empty screens offer the next
+  action; bulk paste parses a material list; deletions offer Undo for 6 s.
 - **Shopping list** — every item in the world summed across builds, outstanding first, with
   which builds need it, search, filter, and copy-to-text.
 - **Backup** — JSON export/import, validated before it replaces anything.
@@ -111,13 +116,45 @@ existing `#build-name` input with Save/Cancel — Enter saves, Escape restores, 
 refused and focus returns. Coordinates gained an icon-only copy button (`#copy-coords`, disabled
 when empty or whitespace); notes display as escaped text (`#notes-text`) and only become a
 textarea (`#build-notes`) while editing, with `Ctrl`/`Cmd`+`Enter` to save. Each material row has
-six `button.mat-step` buttons (+1/+10/+stack above, -1/-10/-stack below) that clamp at 1 and use
-the catalog's stack size. The icon picker is one dialog (search, grid, footer upload) instead of
-Item/Image tabs; adding a material opens the same picker in pick-item mode (`#mat-choice`).
+up to six `button.mat-step` buttons — `+1/+10/+64` above, `-1/-10/-64` below — whose labels
+resolve to the item's stack size, while stack-1 items omit the two stack buttons entirely and
+show four; `data-step` keeps the shipped `+stack` literal and `data-mat-step` carries the
+resolved amount. The icon picker is one dialog (search, grid, footer upload) instead of
+Item/Image tabs; it pages 120 tiles at a time until all 1,368 are reachable, resets to the first
+batch on a search change, leads with recent picks, and can mark a suggested icon with
+`#icon-suggest-note`. Adding a material opens the same picker in pick-item mode (`#mat-choice`).
 Dropdowns stay native `<select>`s and are themed through `@supports (appearance: base-select)`
 and `::picker(select)` — panel `rgb(111, 111, 111)`, 2 px black border, Minecraft face — so the
 themed popup exists only on Chromium 155+; other browsers keep the OS popup ([[In-game GUI
 design]]).
+
+## The interaction pass (EDICT-0014)
+
+EDICT-0014 kept the 2011 chrome and replaced the browser defaults underneath it. The picker is
+now an append-only list: 120 tiles first, a sentinel appends the next 120 as it scrolls, and the
+count hint reads `showing N of 1368 — scroll for more` (narrowed to `showing N of M for "query"`
+while searching) — no hard cap, every slug reachable. Item names wrap instead of ellipsing in
+tiles, material rows and the chooser chip, so `chiseled_polished_blackstone` is readable at
+390 px.
+
+A single `#mc-tooltip` surface in the open `<dialog>` (or the body outside one) replaces the
+pseudo-element tooltips that were clipped by `overflow`; it is positioned fixed, clamped to the
+viewport and flips below when the slot is near the top. Empty screens are real states: five
+containers with working actions (create a world, plan the first build, go to materials, add a
+material, clear the filter) rather than a toast telling the user what failed.
+
+Bulk paste turns a pasted list into material rows: parse quantity+name, show matched and unknown
+review rows (`64 stone bricks`, `- 32 glass`, `20x oak log` all parse), then add the matched set
+in one commit. Deletion offers **Undo** in the toast for six seconds and restores a deep-equal
+snapshot; a later commit invalidates it. The last eight chosen items lead the unfiltered picker
+via `mc-build-tracker:recent` in `localStorage`.
+
+The suggestion is deterministic and local: `M.suggestIcon(build, world, catalog)` ranks keywords
+from a frozen table over the build name, then notes and the world name, then the most-needed
+material, then the world icon, and returns `{slug, name, reason}` or `null`. It never rewrites a
+stored icon, the avatar shows it display-only (`data-icon-auto`), and choosing an icon sets
+`iconAuto` false. The catalogue shape is deliberately mixed: `MC_ICON_SET` is an array of slug
+strings while `MC_ICON_NAMES` and `MC_ICON_STACKS` are slug-keyed objects.
 
 ## Identity
 
@@ -131,21 +168,25 @@ backups remain self-contained at the cost of browser storage. See
 ## Atmosphere
 
 The dirt texture is the fallback. When the locally generated panorama exists, the app shows the
-real title-screen scenery — four stitched cube faces, a baked Gaussian radius of **2.5** (was 8),
-120 s ping-pong pan, CSS `blur(1px)` (`1.5px` at ≤640 px) behind a **0.2** scrim — and freezes it
-under `prefers-reduced-motion`. EDICT-0013 sharpened the treatment at the emperor's direction:
-the strip is 2,560×640, 45,664 B (was 15,280 B), and the same 1,280×900 capture strip measures
-edge-variance 1,379.9 against 1,132.6 before. The extractor resolves the client's asset index
-because the jar's panorama files are 1×1 decoys (raw source:
+real title-screen scenery: six resolved panorama inputs, of which the four side faces are
+stitched with a wrap crossfade (the top/bottom caps are recorded but not stitched), baked at a
+Gaussian radius of **2.0** and composed into a 2,560×640 strip (55,096 B, sha256
+`331253bd…bf1a5`). The app renders two copies of the strip and translates them −50 % over
+**180 s** for a seamless one-direction loop, under CSS `blur(1px)` (`1.5px` at ≤640 px) and a
+**0.2** scrim; `prefers-reduced-motion` sets the animation to none. EDICT-0013 sharpened the
+treatment (bake 2.5, 45,664 B, edge-variance 1,379.9 against 1,132.6 before); EDICT-0014 made
+the loop seamless and set the geometry. The extractor resolves the client's asset index because
+the jar's panorama files are 1×1 decoys (raw source:
 [`2026-10-25-minecraft-panorama-provenance`](../../raw/sources/2026-10-25-minecraft-panorama-provenance.md)).
 A missing or blocked backdrop silently keeps the dirt texture; nothing errors.
 
 ## Verification
 
-**60/60** unit cases (22 model, 9 identity, 9 app-qa, 10 wiki-core, 10 wiki-sync), **71/71**
+**98/98** unit cases (22 model, 9 identity, 38 suggestion, 9 app-qa, 20 wiki), **85/85**
 independent acceptance cases (17 core + 8 identity/backdrop + 7 high-resolution icons + 11
-EDICT-0013 catalog/font/dropdown/stack/backdrop + 13 wiki + 8 wiki-sync + 7 app-qa), a **138-case**
-contrast/structure/identity/icon/interaction audit, and a **49-case browser UI suite** that drives
+EDICT-0013 catalog/font/dropdown/stack/backdrop + 14 EDICT-0014 paging/tooltip/empty/stepper/
+paste/undo/recents + 13 wiki + 8 wiki-sync + 7 app-qa), a **147-case**
+contrast/structure/identity/icon/interaction audit, and a **66-case browser UI suite** that drives
 real Chrome through every flow, failure path, accessibility expectation, responsive breakpoint,
 the visual contract, and the identity/backdrop/catalog interactions. A passing UI run stamps the
 hashes of the five app sources plus the font, panorama WebP and panorama manifest (8 files) in
@@ -155,10 +196,12 @@ The QA gate failed EDICT-0010's first submission for a seed that silently droppe
 contract is verified by an independent 测试部 suite (manifest + PNG dimensions/hashes + CSS
 rendering policy); EDICT-0012 adds the brightness reference (vanilla 0.99/0.65/0.40 face ratios);
 EDICT-0013 adds the frozen DOM contract, the 1,368-icon catalog, the font licence/coverage, the
-themed-select probe and the backdrop numbers, with browser execution by the Lead seat (the
-verifier's sandbox cannot launch Chrome) and judgement by 测试部
-(`app-qa: verified — 2026-10-25T10:02:35.160Z, 49 UI cases`; evidence
-`reports/qa/evidence/edict-0013/`).
+themed-select probe and the backdrop numbers; EDICT-0014 adds the paging-to-last-tile,
+top-layer-tooltip, five-empty-state, bulk-paste, undo-expiry and recent-pick cases plus the
+seamless-backdrop probe, with browser execution by the Lead seat (the verifier's sandbox cannot
+launch Chrome) and judgement by 测试部
+(`app-qa: verified — 2026-10-25T12:27:45.271Z, 66 UI cases`; evidence
+`reports/qa/evidence/edict-0014/`).
 
 ## Tensions
 
@@ -176,9 +219,23 @@ verifier's sandbox cannot launch Chrome) and judgement by 测试部
 - **Themed dropdowns are Chromium-only.** `appearance: base-select` + `::picker(select)` gives
   the themed popup on Chrome 155; other browsers keep the OS popup, and the design contract
   accepts that split rather than rewriting `<select>` in JavaScript ([[In-game GUI design]]).
-- **Backdrop taste has a direction but not a measurement.** EDICT-0013 set bake 2.5, CSS 1 px and
-  scrim 0.2 at the emperor's direction; the physical-display comparison with the real title
-  screen remains open ([[Atmosphere and identity without shipping assets]]).
+- **Backdrop taste has a direction but not a measurement.** EDICT-0013 set the sharper bake and
+  EDICT-0014 the seamless geometry (six inputs, four stitched sides, 2,560×640, bake 2.0,
+  two-copy 180 s loop); the physical-display comparison with the real title screen remains open
+  ([[Atmosphere and identity without shipping assets]]).
+- **The suggestion is a heuristic, not a model.** `suggestIcon` ranks a frozen keyword table over
+  the build name, notes, world name and material list and explains its pick; it can be wrong and
+  it never overwrites a stored icon. The fixture table is the contract, so coverage beyond the 23
+  frozen builds is unproven ([[Open questions]]).
+- **Undo is a six-second snapshot.** One level, invalidated by any later commit; the toast carries
+  the action (and replaces whatever text it had), so two deletions in a row offer only the last
+  ([[In-game GUI design]]).
+- **Paging is scroll-only discovery.** All 1,368 items are reachable, but there is no virtualised
+  jump-to-letter and the count hint is the only progress signal; the suggestion and recents are
+  the compensations ([[Open questions]]).
+- **The catalogue has three shapes.** `MC_ICON_SET` is an array of slugs, `MC_ICON_NAMES` and
+  `MC_ICON_STACKS` are slug-keyed objects; consumers that assume one shape for all three break
+  ([[Vanilla assets without redistribution]]).
 - **High resolution vs. pixel purity.** The old system claimed "item icons only at integer
   scale"; 256 px renders shown at 22 px cannot honour that, so item icons are smoothly
   downscaled while tiled textures stay nearest-neighbour. The gain is authentic 3D item models
