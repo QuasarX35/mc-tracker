@@ -83,3 +83,18 @@ edict updates the wiki.
   [[Local-first tracking]] (icons are generated locally, absence is survivable).
 - [[LLM Wiki]] overview now names the asset policy alongside the product and storage notes.
 - 53 icons; 4 sealed raw sources; index regenerated.
+
+## [2026-10-25] edit | mechanical wiki upkeep: the edict-sync rule (EDICT-0008)
+
+Resolved the open question about enforcing ingest mechanically, and proved it on this
+repository rather than on fixtures.
+
+- New `lint` rule `edict-sync`: every edict whose latest `S6` record is after the baseline in
+  `docs/governance/wiki-sync.json` must be cited by an `ingest`/`edit` log entry dated on or
+  after completion. Prefix-mentions and `query`/`lint` entries do not count.
+- New `node src/wiki/cli.mjs sync` prints `OK`/`MISS` per completion.
+- Proof: with this edict's ledger records appended but no wiki entry yet, `lint` failed with
+  `edict-sync ... EDICT-0008 reached S6 at ledger seq 89 but no wiki log entry`; after this
+  entry, both `lint` and `sync` pass.
+- Updated [[Wiki schema]] (mechanical enforcement section), [[LLM Wiki]] (the rule is no longer
+  a promise) and [[Open questions]] (item resolved, with the remaining quality gap stated).

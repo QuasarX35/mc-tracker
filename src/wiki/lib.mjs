@@ -323,6 +323,130 @@ export function logEntries(text) {
   return entries;
 }
 
+
+/* ------------------------- governance sync (EDICT-0008) ------------------ */
+/* The wiki is a required output of every edict (AGENTS.md §6.5). This check
+   reads the governance ledger, finds every edict that reached S6 after the
+   rule's baseline, and requires a wiki log entry (verb ingest|edit, dated
+   on/after completion) that cites the edict id. */
+
+export function governancePaths(root = '.') {
+  return {
+    ledger: path.join(root, 'docs', 'governance', 'ledger.jsonl'),
+    config: path.join(root, 'docs', 'governance', 'wiki-sync.json'),
+    log: path.join(root, 'wiki', 'log.md'),
+  };
+}
+
+export function readLedger(root = '.') {
+  const file = governancePaths(root).ledger;
+  if (!fs.existsSync(file)) return { records: [], error: null, missing: true };
+  const records = [];
+  for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    try {
+      records.push(JSON.parse(line));
+    } catch {
+      return { records: [], error: `malformed ledger line: ${line.trim().slice(0, 60)}`, missing: false };
+    }
+  }
+  return { records, error: null, missing: false };
+}
+
+/** Latest completion (state S6, verdict DONE or QA_PASS) per edict. */
+export function edictCompletions(records) {
+  const completed = new Map();
+  for (const record of records) {
+    if (!record || !record.edict) continue;
+    if (record.to !== 'S6') continue;
+    if (!['DONE', 'QA_PASS'].includes(record.verdict)) continue;
+    const previous = completed.get(record.edict);
+    if (!previous || Number(record.seq) > Number(previous.seq)) {
+      completed.set(record.edict, {
+        edict: record.edict,
+        seq: Number(record.seq),
+        ts: record.ts,
+        office: record.office,
+      });
+    }
+  }
+  return [...completed.values()].sort((a, b) => a.seq - b.seq);
+}
+
+/** Parse log.md into entries with their date, verb, subject and body lines. */
+export function logBlocks(text) {
+  const blocks = [];
+  let current = null;
+  for (const line of String(text).split(/\r?\n/)) {
+    const match = /^## \[(\d{4}-\d{2}-\d{2})\] (ingest|query|lint|edit) \| (.+)$/.exec(line);
+    if (match) {
+      if (current) blocks.push(current);
+      current = { date: match[1], verb: match[2], subject: match[3], lines: [] };
+    } else if (current) {
+      current.lines.push(line);
+    }
+  }
+  if (current) blocks.push(current);
+  return blocks;
+}
+
+export function blockText(block) {
+  return [block.subject, ...block.lines].join('\n');
+}
+
+/**
+ * Returns { ok, skipped, from, pending, checked, reason }.
+ * `skipped` is true when the repository has no governance ledger at all, so a
+ * standalone wiki keeps working outside this repo.
+ */
+export function checkEdictSync(root = '.') {
+  const paths = governancePaths(root);
+  if (!fs.existsSync(paths.ledger)) {
+    return { ok: true, skipped: true, from: 0, pending: [], checked: [], reason: 'no governance ledger in this repository' };
+  }
+  let config = { enforced_from_seq: 0 };
+  if (fs.existsSync(paths.config)) {
+    try {
+      config = JSON.parse(fs.readFileSync(paths.config, 'utf8'));
+    } catch {
+      return { ok: false, skipped: false, from: 0, pending: [], checked: [], reason: 'docs/governance/wiki-sync.json is not valid JSON' };
+    }
+  }
+  const { records, error } = readLedger(root);
+  if (error) return { ok: false, skipped: false, from: 0, pending: [], checked: [], reason: error };
+
+  const from = Number(config.enforced_from_seq || 0);
+  const logFile = paths.log;
+  const blocks = fs.existsSync(logFile) ? logBlocks(fs.readFileSync(logFile, 'utf8')) : [];
+  const checked = [];
+  const pending = [];
+
+  for (const completion of edictCompletions(records)) {
+    if (completion.seq <= from) continue;
+    const day = String(completion.ts || '').slice(0, 10);
+    const hit = blocks.find(
+      (block) => (block.verb === 'ingest' || block.verb === 'edit')
+        && block.date >= day
+        && blockText(block).includes(completion.edict),
+    );
+    checked.push({
+      edict: completion.edict,
+      seq: completion.seq,
+      logEntry: hit ? `${hit.date} ${hit.verb} | ${hit.subject}` : null,
+    });
+    if (!hit) pending.push(completion);
+  }
+
+  return {
+    ok: pending.length === 0,
+    skipped: false,
+    from,
+    pending,
+    checked,
+    reason: pending.length ? 'completed edicts with no wiki log entry' : null,
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /* lint                                                                 */
 /* ------------------------------------------------------------------ */
@@ -414,6 +538,22 @@ export function lint(root = '.') {
   }
 
   findings.push(...verifyRaw(root).findings);
+
+  // EDICT-0008: an edict that reached S6 without a wiki log entry fails lint.
+  const sync = checkEdictSync(root);
+  if (!sync.skipped) {
+    if (!sync.ok && !sync.pending.length && sync.reason) {
+      findings.push(finding('error', 'edict-sync', 'docs/governance/ledger.jsonl', sync.reason));
+    }
+    for (const entry of sync.pending) {
+      findings.push(finding(
+        'error',
+        'edict-sync',
+        'wiki/log.md',
+        `${entry.edict} reached S6 at ledger seq ${entry.seq} but no wiki log entry on/after ${String(entry.ts).slice(0, 10)} cites it — ingest it (AGENTS.md §6.5)`,
+      ));
+    }
+  }
   const errors = findings.filter((f) => f.severity === 'error').length;
   const warnings = findings.filter((f) => f.severity === 'warning').length;
   return { findings, errors, warnings, pages };

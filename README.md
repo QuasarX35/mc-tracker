@@ -64,6 +64,10 @@ node --check src/app.js && node --check src/tracker/model.js
 node tests/unit/tracker-model.test.mjs          # 15 model cases
 node tests/qa/tracker.acceptance.test.mjs       # 16 acceptance + static contract cases
 python tests/qa/mc_ui_audit.py                  # 41 contrast/structure/pixel/icon cases
+# wiki + governance (the wiki is a required output of every edict)
+node src/wiki/cli.mjs lint                      # incl. the edict-sync rule
+node src/wiki/cli.mjs sync                      # which completed edicts have been ingested
+node src/wiki/cli.mjs index --check             # catalogue freshness
 ```
 
 Current status: **15/15**, **16/16**, **30/30**, and screenshots verified at 1280 px and
@@ -75,4 +79,5 @@ Current status: **15/15**, **16/16**, **30/30**, and screenshots verified at 128
 - Icons are **Minecraft's own textures** (53 of them), extracted from your installed game at 16×16 with isometric block composition; items without a standalone vanilla texture (chest, doors, fences) get a lettered slot rather than a wrong icon.
 - Text notes only — no screenshots or blueprint uploads on builds (yet).
 - Import replaces the current data set, and only after validation; a bad file changes nothing.
+
 

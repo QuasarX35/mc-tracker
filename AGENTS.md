@@ -165,8 +165,11 @@ Minimum sequence:
 5. `node src/wiki/cli.mjs index --write` and append a
    `## [YYYY-MM-DD] ingest|edit | <subject>` entry to `wiki/log.md` naming the pages touched.
 6. `node src/wiki/cli.mjs raw --seal` for any new raw source, then
-   `node src/wiki/cli.mjs lint` until clean — the lint pass is the check that the ingest
-   actually happened rather than being claimed.
+   `node src/wiki/cli.mjs lint` until clean. Since EDICT-0008 the ingest is *machine-checked*:
+   `lint`'s `edict-sync` rule fails when an edict that reached `S6` in
+   `docs/governance/ledger.jsonl` (after the `enforced_from_seq` baseline in
+   `docs/governance/wiki-sync.json`) has no `ingest`/`edit` log entry dated on or after
+   completion that cites the edict id. `node src/wiki/cli.mjs sync` prints the mapping.
 
 ## 7. Tooling
 
@@ -181,7 +184,8 @@ exit non-zero on findings, so they compose with `&&`.
 | `node src/wiki/cli.mjs search "<query>"` | Naive ranked search over page titles, summaries and bodies. |
 | `node src/wiki/cli.mjs raw --seal` | Record SHA-256 of every raw source in `raw/manifest.json`. |
 | `node src/wiki/cli.mjs stats` | Counts by type, links, orphans. |
-| `node tests/unit/wiki-core.test.mjs && node tests/qa/wiki.acceptance.test.mjs` | Unit + independent acceptance suites. **Do not use `node --test`**: it spawns child processes with piped stdio, which the sandbox denies (`spawn EPERM`). Run each test file directly, in one process. |
+| `node src/wiki/cli.mjs sync` | Every completed edict (ledger `S6` after the baseline) must be cited by an `ingest`/`edit` log entry dated on/after completion. Also runs inside `lint` as rule `edict-sync`. |
+| `node tests/unit/wiki-core.test.mjs && node tests/unit/wiki-sync.test.mjs && node tests/qa/wiki.acceptance.test.mjs && node tests/qa/wiki-sync.acceptance.test.mjs` | Unit + independent acceptance suites for the wiki **and** the edict-sync rule. **Do not use `node --test`**: it spawns child processes with piped stdio, which the sandbox denies (`spawn EPERM`). Run each test file directly, in one process. |
 
 `index.md` is generated. Hand-editing it is a defect: the next regeneration overwrites the
 edit and `--check` will fail in the meantime.

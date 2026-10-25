@@ -77,7 +77,9 @@ A plan passes only if all of the following are true; each failure is a named fin
 - `R9` Wiki upkeep (EDICT-0006) — does the plan name the wiki pages this edict will create or
   update, and the raw sources it will seal? A plan that says "no wiki impact" must justify that
   in one line. This is checked again at `S5Q`: an edict with no corresponding `wiki/log.md`
-  entry cannot pass verification.
+    entry cannot pass verification. Since EDICT-0008 that check is mechanical: the
+  `edict-sync` lint rule compares completions in `ledger.jsonl` against dated `ingest`/`edit`
+  entries in `wiki/log.md` and fails the lint pass when one is missing.
 
 ## QA Gate Criteria (测试部)
 

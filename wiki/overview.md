@@ -41,7 +41,8 @@ textures, extracted locally and never committed
 
 Standing rule since EDICT-0006: **every piece of work updates this wiki** before it is
 reported — pages, index, log, raw seal, lint. Work that is not ingested is work that will be
-re-derived.
+re-derived. Since EDICT-0008 this is not a promise: `lint`'s `edict-sync` rule fails when a
+completed edict has no citing log entry ([[Wiki schema]]).
 
 ## The three layers
 

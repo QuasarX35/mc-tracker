@@ -16,6 +16,7 @@ const USAGE = `llm-wiki CLI
   node src/wiki/cli.mjs search "<query>"  ranked search over wiki pages
   node src/wiki/cli.mjs raw --seal        seal raw sources into raw/manifest.json
   node src/wiki/cli.mjs raw               verify raw sources against the manifest
+  node src/wiki/cli.mjs sync              edict completion vs wiki log ingestion
   node src/wiki/cli.mjs stats             page/link/source counts
 
 Exit codes: 0 clean · 1 findings · 2 usage error`;
@@ -103,6 +104,30 @@ export function run(argv, { root = process.cwd(), log = () => {} } = {}) {
     }
     for (const f of findings) say(`ERROR [${f.rule}] ${f.file}: ${f.message}`);
     return { code: 1, output: out.join('\n') };
+  }
+
+
+  if (command === 'sync') {
+    const result = lib.checkEdictSync(root);
+    if (result.skipped) {
+      say(`sync: skipped — ${result.reason}`);
+      return { code: 0, output: out.join('\n') };
+    }
+    if (!result.ok && !result.checked.length) {
+      say(`sync: ${result.reason}`);
+      return { code: 1, output: out.join('\n') };
+    }
+    if (!result.checked.length) {
+      say('sync: no edicts completed since the enforcement baseline');
+      return { code: 0, output: out.join('\n') };
+    }
+    for (const entry of result.checked) {
+      say(`  ${entry.logEntry ? 'OK   ' : 'MISS '} ${entry.edict}  seq ${entry.seq}  -> ${entry.logEntry || 'no log entry'}`);
+    }
+    const missing = result.pending.length;
+    say('');
+    say(`sync: ${result.checked.length - missing}/${result.checked.length} completed edicts ingested${missing ? ` — ${missing} missing` : ''}`);
+    return { code: missing ? 1 : 0, output: out.join('\n') };
   }
 
   if (command === 'stats') {

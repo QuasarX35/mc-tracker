@@ -26,6 +26,20 @@ workflows to follow when ingesting, answering or linting ([[LLM Wiki pattern]]).
   governance mapping (who writes what) so a fresh agent inherits both conventions and
   authority.
 
+## Mechanical enforcement (EDICT-0008)
+
+A rule that lives only in prose and a gate can be skipped by an agent that ignores both. The
+schema now has a machine-checked clause: `lint` runs the `edict-sync` rule against
+`docs/governance/ledger.jsonl`, finds every edict that completed at `S6` after the baseline in
+`docs/governance/wiki-sync.json`, and requires an `ingest` or `edit` entry in `wiki/log.md`
+dated on or after that completion and citing the edict id. `node src/wiki/cli.mjs sync`
+prints `OK`/`MISS` per completion.
+
+Design choices worth keeping: date-aware (a pre-completion mention cannot satisfy it),
+verb-aware (a `query` or `lint` entry that discusses an edict is not an ingest), baseline
+explicit and raise-only, and fail-closed on a malformed ledger or config while a repository
+with no ledger at all is skipped so the wiki still works standalone.
+
 ## Relations
 
 - Load-bearing for [[Compiled knowledge]]: a consistent page shape is what makes compilation

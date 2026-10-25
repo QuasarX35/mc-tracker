@@ -1,0 +1,6 @@
+{
+  "enforced_from_seq": 78,
+  "enforced_from_edict": "EDICT-0008",
+  "rule": "lint → edict-sync",
+  "note": "EDICT-0008 introduced mechanical drift detection. An edict whose latest completion record sits at ledger seq > 78 must be cited by a wiki log entry (verb ingest or edit) dated on or after that completion. Edicts 0001-0007 are grandfathered because their log entries predate this rule. Raise this baseline only with an amendment; lowering it is never valid."
+}

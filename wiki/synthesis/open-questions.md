@@ -24,10 +24,12 @@ question that a future source or a future session could close.
 
 ## Undecided in this instance
 
-- **Is "always update the wiki" enforceable, or merely promised?** EDICT-0006 makes it a
-  constitutional rule, a review-gate item (`R9`) and a schema workflow — all prompt-level. No
-  runtime check fails when a session reports without ingesting. Candidate mechanism: a lint rule
-  that compares the newest ledger entry's edict id with the newest log entry's subject.
+- ~~**Is "always update the wiki" enforceable, or merely promised?**~~ **Resolved by
+  EDICT-0008.** The `edict-sync` lint rule now reads the governance ledger, takes every edict
+  that reached `S6` after the enforcement baseline, and requires an `ingest`/`edit` log entry
+  dated on or after completion that cites the edict id. `node src/wiki/cli.mjs sync` explains
+  the mapping. Remaining gap: a session could still write a token entry that cites the edict
+  without doing real work — lint proves presence, not quality ([[Wiki schema]]).
 - **Tracker: sync or no sync.** [[Local-first tracking]] refuses accounts and servers; two
   players must exchange JSON. Whether that stays acceptable depends on real use.
 - **Tracker: icon coverage.** 18 item icons with a lettered fallback; expanding to a full block
