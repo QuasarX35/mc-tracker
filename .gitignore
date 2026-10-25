@@ -6,7 +6,9 @@ node_modules/
 # editor / OS noise
 .DS_Store
 Thumbs.db
-# Obsidian: track vault config, ignore per-machine UI state\n**/.obsidian/workspace*.json\n**/.obsidian/cache
+# Obsidian: track vault config, ignore per-machine UI state
+**/.obsidian/workspace*.json
+**/.obsidian/cache
 .vscode/
 .idea/
 
