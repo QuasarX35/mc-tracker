@@ -359,6 +359,188 @@
     return { rows: rows };
   }
 
+  /* --------------------------- build ordering ----------------------------- */
+
+  /**
+   * EDICT-0015 §2: the build list is sorted by status rank building → planned → done, and
+   * stays in registry order inside a rank. `STATUSES` keeps the taxonomy order used by the
+   * status buttons; this table is the display order the contract freezes.
+   */
+  var STATUS_RANK = { building: 0, planned: 1, done: 2 };
+
+  function statusRank(status) {
+    return Object.prototype.hasOwnProperty.call(STATUS_RANK, status) ? STATUS_RANK[status] : 1;
+  }
+
+  /** A sorted copy: the registry (`world.builds`) is never mutated by rendering. */
+  function sortBuilds(builds) {
+    return (builds || []).map(function (build, index) {
+      return { build: build, index: index };
+    }).sort(function (left, right) {
+      var byStatus = statusRank(left.build.status) - statusRank(right.build.status);
+      return byStatus !== 0 ? byStatus : left.index - right.index;
+    }).map(function (entry) {
+      return entry.build;
+    });
+  }
+
+  /* --------------------------- custom materials --------------------------- */
+
+  /* Frozen strings (EDICT-0015 §4, tests/qa/edict-0015-fixtures/README.md). */
+  var CUSTOM_ITEM_ERRORS = {
+    name: 'Custom material needs a name.',
+    duplicate: 'Name already used by another material.',
+    stack: 'Stack size must be between 1 and 999.',
+    icon: 'Icon must be a catalogue item or an uploaded image.'
+  };
+
+  function catalogueSlugs() {
+    return root && Array.isArray(root.MC_ICON_SET) ? root.MC_ICON_SET : [];
+  }
+
+  function catalogueDisplayName(slug) {
+    var names = root && root.MC_ICON_NAMES;
+    if (names && typeof names === 'object' && !Array.isArray(names) && typeof names[slug] === 'string') {
+      return names[slug];
+    }
+    return titleizeItem(slug);
+  }
+
+  /** The frozen icon rule: `null`, a catalogue item slug, or an uploaded data URL. */
+  function customIconError(icon) {
+    if (icon === null || icon === undefined) return null;
+    if (typeof icon !== 'object' || ICON_KINDS.indexOf(icon.kind) < 0) return CUSTOM_ITEM_ERRORS.icon;
+    if (icon.kind === 'item') {
+      if (typeof icon.slug !== 'string' || !ICON_SLUG_RE.test(icon.slug)) return CUSTOM_ITEM_ERRORS.icon;
+      return null;
+    }
+    if (typeof icon.dataUrl !== 'string' || !ICON_DATA_URL_RE.test(icon.dataUrl)) return CUSTOM_ITEM_ERRORS.icon;
+    if (icon.dataUrl.length > ICON_DATA_URL_MAX) return CUSTOM_ITEM_ERRORS.icon;
+    return null;
+  }
+
+  function registryList(list) {
+    return Array.isArray(list) ? list : [];
+  }
+
+  /** Case-insensitive registry lookup by display name; first match wins. */
+  function registryEntry(list, name) {
+    var wanted = itemSlug(name);
+    if (!wanted) return null;
+    var items = registryList(list);
+    for (var i = 0; i < items.length; i += 1) {
+      if (items[i] && itemSlug(items[i].name) === wanted) return items[i];
+    }
+    return null;
+  }
+
+  /**
+   * Nearest-first resolution (EDICT-0015 §4): build registry → world registry → account
+   * registry → built-in catalogue → null.
+   */
+  function customItem(state, world, build, name) {
+    return registryEntry(build && build.customItems, name)
+      || registryEntry(world && world.customItems, name)
+      || registryEntry(state && state.customItems, name);
+  }
+
+  function resolveItem(state, world, build, name) {
+    var text = cleanText(name, 60);
+    if (!text) return null;
+    var scopes = [['build', build], ['world', world], ['account', state]];
+    for (var i = 0; i < scopes.length; i += 1) {
+      var owner = scopes[i][1];
+      var entry = registryEntry(owner && owner.customItems, text);
+      if (entry) {
+        return {
+          name: entry.name,
+          stack: entry.stack,
+          icon: entry.icon || null,
+          custom: true,
+          scope: scopes[i][0]
+        };
+      }
+    }
+    var slug = itemSlug(text);
+    if (slug && catalogueSlugs().indexOf(slug) >= 0) {
+      return {
+        name: catalogueDisplayName(slug),
+        stack: stackSizeFor(slug),
+        icon: { kind: 'item', slug: slug },
+        custom: false,
+        scope: null
+      };
+    }
+    return null;
+  }
+
+  /**
+   * EDICT-0015 §4: validate a spec and append it to one registry. Never mutates the
+   * argument state — the caller commits the returned clone.
+   */
+  function createCustomItem(state, world, build, target, spec) {
+    var rawName = String((spec && spec.name) == null ? '' : spec.name).trim();
+    var name = cleanText(rawName, 60);
+    if (!name || rawName.length > 60) return { error: CUSTOM_ITEM_ERRORS.name };
+    var stackValue = spec && spec.stack === undefined ? DEFAULT_STACK : Number(spec && spec.stack);
+    if (!isFinite(stackValue) || stackValue !== Math.floor(stackValue) || stackValue < 1 || stackValue > 999) {
+      return { error: CUSTOM_ITEM_ERRORS.stack };
+    }
+    var iconError = customIconError(spec && spec.icon);
+    if (iconError) return { error: iconError };
+    var icon = (spec && spec.icon) || null;
+    if (icon && icon.kind === 'item' && catalogueSlugs().length && catalogueSlugs().indexOf(icon.slug) < 0) {
+      return { error: CUSTOM_ITEM_ERRORS.icon };
+    }
+    var next = clone(state);
+    var owner = null;
+    if (target === 'build') {
+      var ownWorld = findWorld(next, world && world.id);
+      owner = findBuild(ownWorld, build && build.id);
+    } else if (target === 'world') {
+      owner = findWorld(next, world && world.id);
+    } else if (target === 'account') {
+      owner = next;
+    }
+    if (!owner) return { error: 'Custom material cannot be saved here.' };
+    if (!Array.isArray(owner.customItems)) owner.customItems = [];
+    if (registryEntry(owner.customItems, name)) return { error: CUSTOM_ITEM_ERRORS.duplicate };
+    var entry = { id: uid('custom'), name: name, stack: Math.floor(stackValue), icon: icon };
+    owner.customItems.push(entry);
+    return { state: next, entry: entry };
+  }
+
+  function validateCustomRegistry(list, label, errors) {
+    if (list === undefined || list === null) return;
+    if (!Array.isArray(list)) {
+      errors.push(label + ' must be an array.');
+      return;
+    }
+    var seen = {};
+    list.forEach(function (entry) {
+      if (!entry || typeof entry !== 'object') {
+        errors.push(CUSTOM_ITEM_ERRORS.name);
+        return;
+      }
+      var rawName = String(entry.name == null ? '' : entry.name).trim();
+      var name = cleanText(rawName, 60);
+      if (!name || rawName.length > 60) {
+        errors.push(CUSTOM_ITEM_ERRORS.name);
+        return;
+      }
+      var key = itemSlug(name);
+      if (seen[key]) errors.push(CUSTOM_ITEM_ERRORS.duplicate);
+      seen[key] = true;
+      var stack = Number(entry.stack);
+      if (!isFinite(stack) || stack !== Math.floor(stack) || stack < 1 || stack > 999) {
+        errors.push(CUSTOM_ITEM_ERRORS.stack);
+      }
+      var iconError = customIconError(entry.icon);
+      if (iconError) errors.push(iconError);
+      if (!entry.id) errors.push('A custom material is missing its id.');
+    });
+  }
+
   function emptyState() {
     return { version: SCHEMA, activeWorldId: null, worlds: [] };
   }
@@ -723,6 +905,7 @@
       if (world.iconAuto !== undefined && typeof world.iconAuto !== 'boolean') {
         errors.push('World ' + world.name + ' has a non-boolean iconAuto.');
       }
+      validateCustomRegistry(world.customItems, 'World "' + world.name + '" custom items', errors);
       if (!Array.isArray(world.builds)) errors.push('World ' + world.name + ' has no builds array.');
       (world.builds || []).forEach(function (build) {
         if (!build.id || !build.name) errors.push('A build in ' + world.name + ' is missing id or name.');
@@ -731,6 +914,7 @@
         if (build.iconAuto !== undefined && typeof build.iconAuto !== 'boolean') {
           errors.push('Build ' + build.name + ' has a non-boolean iconAuto.');
         }
+        validateCustomRegistry(build.customItems, 'Build "' + build.name + '" custom items', errors);
         (build.materials || []).forEach(function (material) {
           if (!material.id || !material.item) errors.push('A material in ' + build.name + ' is missing id or item.');
           if (!(material.needed >= 1)) errors.push('Material ' + material.item + ' needs at least 1.');
@@ -738,6 +922,7 @@
         });
       });
     });
+    validateCustomRegistry(state.customItems, 'Account custom items', errors);
     return errors;
   }
 
@@ -907,7 +1092,13 @@
     importJSON: importJSON,
     memoryStorage: memoryStorage,
     load: load,
-    save: save
+    save: save,
+    statusRank: statusRank,
+    sortBuilds: sortBuilds,
+    CUSTOM_ITEM_ERRORS: CUSTOM_ITEM_ERRORS,
+    customItem: customItem,
+    resolveItem: resolveItem,
+    createCustomItem: createCustomItem
   };
 
   root.TrackerModel = api;

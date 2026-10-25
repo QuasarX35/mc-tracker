@@ -45,7 +45,13 @@ the second interaction set: paging until the last of 1,368 tiles is reachable (1
 five empty-state controls, resolved `+64` labels and four-button stack-1 rows, bulk paste
 (4 matched + 3 unknown), Undo restoring a deep-equal snapshot within six seconds, recent picks
 first, the frozen suggestion fixtures, and the seamless two-copy backdrop probe (transform
-sampled 1 s apart, frames differ, reduced motion none). The suite is 66 cases in total.
+sampled 1 s apart, frames differ, reduced motion none). The suite
+is 80 cases in total. EDICT-0015 added the measurement set: status ordering and selection, header
+stats derived from `M.worldSummary` (demo 36%, `1,452 of 2,252`), pairwise label↔control rects at
+1280×900 and 390×844, the injected 4-build/6-material height fixture (900 / 1,423), custom-item
+creation/resolver/round-trip, the add-form stepper reveal, the import dialog with `change` never
+firing plus a real `dataTransfer` drop, and the paused-under-reduce scenery with `#backdrop-pause`
+opt-in and persistence.
 
 ## The "always" half: a stamp, not a reminder
 
@@ -77,7 +83,9 @@ green; a modified source file turns it red again and names the file.
 - **Browser hands are not the verifier's.** In EDICT-0013 the verifier's sandbox could not start
   Chrome (`FATAL:mojo platform_channel.cc:112 ... Access is denied. (0x5)`); the Lead seat ran
   every browser launch under `danger-full-access`, while 测试部 authored the frozen cases,
-  analysed the artefacts and judged. EDICT-0014 repeated the split for all 66 cases. Independence
+  analysed the artefacts and judged. EDICT-0014 repeated the split for all 66 cases, and
+  EDICT-0015 again for 80 — including the run withdrawn when the Lead's containment measurement
+  found the panel defect the suite had missed. Independence
   moved from "same agent runs and grades" to "author and grader are separate from the hands"; the
   stamp remains the execution trace.
 - **A native popup is not a page.** Chrome's `<select>` popup is an OS-level window that
@@ -85,10 +93,19 @@ green; a modified source file turns it red again and names the file.
   `CSS.supports` + computed `::picker(select)` styles plus the `:open` observation and a
   screenshot of the closed control, not on a picture of the open menu. That is a weaker artefact
   than a screenshot, and it is labelled as such.
-- **Animation is sampled, not observed.** The seamless loop is verified by two `transform` samples
-  one second apart, a frame difference and the reduced-motion branch — not by watching 180 s of
-  rotation. A slow drift or a seam that only shows at the wrap could pass the sample check and
-  still look wrong to a person.
+- **Animation is sampled, not observed.** The panorama loop is verified by two `transform` samples
+  one second apart, a frame difference and the reduced-motion branch — not by watching the 120 s
+  drift. A slow drift or a seam that only shows at the wrap could pass the sample check and still
+  look wrong to a person.
+- **Coverage is not containment.** EDICT-0015's run 11 passed 79/79 while `.materials` had been
+  re-nested out of the detail panel; the Lead's rect measurement caught it. Case 80 now asserts
+  panel containment and non-overlap, and its own first run failed on a bare IIFE in the CDP
+  wrapper returning `undefined` — a test defect, fixed with `return`, not an app change. A green
+  suite can miss a structural regression no case was written to see.
+- **Measurement-based acceptance is narrower and sharper.** Rect arithmetic at 1280×900 and
+  390×844 catches drift that screenshots miss, but it binds the claim to an injected fixture and
+  two viewports; a long builds list or another width is outside it, and the mobile height figure
+  moved 1,419 → 1,423 purely with the re-nest.
 - **Evidence can leak across edicts.** A few EDICT-0014 screenshots still land in
   `reports/qa/evidence/edict-0013/`; the Lead restored those artefacts byte-for-byte, but the
   suite should take an output-directory argument so one run's evidence is reproducible in one
@@ -111,3 +128,8 @@ green; a modified source file turns it red again and names the file.
 - EDICT-0014 pushed it to 66 flows, added the frozen suggestion fixtures as an oracle, and kept
   the Lead-as-browser-hands split; the stamp stayed green at
   `2026-10-25T12:27:45.271Z` with 66 UI cases.
+- EDICT-0015 pushed it to 80 flows with measurement-based cases (ordering, derived stats,
+  two-viewport rects, an injected height fixture, custom items, the chooser-free import path and
+  the paused-under-reduce scenery); its first green was withdrawn after a containment defect was
+  measured, and the re-issued stamp is `2026-10-25T14:39:07.404Z` with 80 UI cases
+  ([[Status-ranked build ordering]], [[Material registry]]).

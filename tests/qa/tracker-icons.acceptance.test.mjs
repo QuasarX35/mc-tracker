@@ -87,12 +87,15 @@ test('AC-I5 the visual contract covers avatars, the picker and the panorama laye
   }
   assert.ok(!CSS.includes('.picker-tab'), 'the retired picker tab styles must be gone (D7)');
   assert.match(CSS, /:root\.has-panorama \.backdrop__layer/);
-  assert.match(CSS, /\.backdrop__layer:nth-child\(2\)/);
-  assert.match(CSS, /@keyframes backdrop-translate/);
-  assert.match(CSS, /backdrop-translate 180s/);
+  assert.ok(!CSS.includes('.backdrop__layer:nth-child(2)'), 'the second painted copy is retired (EDICT-0015 §1)');
+  assert.match(CSS, /@keyframes backdrop-drift/);
+  assert.match(CSS, /backdrop-drift 120s/);
+  assert.ok(!/backdrop-translate/.test(CSS), 'the 180 s two-copy keyframe is retired');
   assert.match(CSS, /--panorama-image/);
   assert.match(CSS, /--backdrop-scrim-alpha/);
-  assert.match(CSS, /prefers-reduced-motion: reduce\)[\s\S]{0,200}animation: none/, 'reduced motion must stop the pan');
+  assert.match(CSS, /animation-play-state:\s*paused/, 'reduce defaults the layer to paused (R7)');
+  assert.match(CSS, /motion-paused/, 'the pause toggle is styleable');
+  assert.ok(!/\.backdrop__layer[^}]*animation:\s*none/.test(CSS), 'the layer is never stopped with animation:none (R7)');
   assert.ok(!/border-radius/.test(CSS), 'square GUI contract still holds');
 });
 

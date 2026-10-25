@@ -256,3 +256,39 @@ The ten-item report changed the app's controls, its typeface, its icon set and i
   `reports/qa/evidence/edict-0014/` (20 PNGs with distinct hashes + `probe.json` + README +
   `panorama-tile-proof.png`). Chrome cannot start in the DSH verifier sandbox, so the Lead seat
   ran every launch and 测试部 authored/analysed/judged — disclosed.
+
+## [2026-10-25] ingest | EDICT-0015 — layout pass: rotation fix, status ordering, header stats, custom materials, chooser-free import
+
+- Scenery: diagnosed the still-static background (this machine reports
+  `prefers-reduced-motion: reduce`, and the strip was drawn at 50 % × 100 % instead of its 4:1
+  aspect). Replaced the two-copy 180 s loop with **one** `.backdrop__layer` 800vh wide over
+  `background-size: 400vh auto`, translated −50 % over **120 s**; `#backdrop-pause` is the WCAG
+  control, `mc-build-tracker:motion` persists the choice, reduce defaults to paused with the frame
+  painted and never `animation: none`; the global reduce reset excludes the layer. Strip stays
+  2,560×640, 55,096 B, sha256 `331253bd…bf1a5`.
+- Layout: build list ranks **Building → Planned → Done**, stable within a rank by registry order,
+  never by completion ratio; `#world-summary` retired in favour of `#world-meta` identity,
+  derived `#world-progress` (`"X% gathered"`), `#world-remaining` with thousands separators and
+  `#world-bar` (10 px) > `#world-fill` (6 px) with ARIA 0/100/now, hidden with no world or a
+  zero-total `needed`; compact density meets **900 px desktop / 1,423 px mobile** (threshold
+  1,500) on the injected 4-build/6-material fixture, with pairwise label↔control alignment at
+  1280×900 and 390×844.
+- Materials: custom items at build/world/account scope, id `custom:<slug>`, nearest scope wins,
+  name 1–60, stack 1–999, icon catalogue-or-upload, immutable
+  `M.createCustomItem(state, world, build, target, spec)` → `{ state, entry } | { error }`,
+  four frozen errors, `custom` badge, name-on-input/icon-on-save, `SCHEMA = 1` so v1 backups
+  import with empty registries; the add form gains a three-step strip (`+1/+10/+stack`, hidden
+  until an item is chosen); the import dialog uses `accept=".json"` (the extension-token fix),
+  drop, paste, a backup list and inline errors.
+- Updated [[Minecraft Build Tracker]], [[In-game GUI design]], [[Local-first tracking]],
+  [[Atmosphere and identity without shipping assets]], [[Testing a UI like a user]],
+  [[Open questions]] and the standing synthesis; created [[Material registry]] and
+  [[Status-ranked build ordering]]; design-system `MASTER.md`; `README.md`; referenced the two
+  `docs/backlog/` research files.
+- Verification: **109** unit, **96** acceptance, **187/187** audit, **80/80** browser flows,
+  stamp `app-qa: verified — 2026-10-25T14:39:07.404Z` over 8 hashed files; evidence
+  `reports/qa/evidence/edict-0015/` (30 artefacts + README + `probe.json`). Disclosed: the Lead
+  seat was the browser hands (Chrome cannot start in the DSH verifier sandbox); the first green
+  was withdrawn after the Lead's containment measurement found `.materials` outside the detail
+  panel; R7 inverted EDICT-0014's reduce rule (reduce now excludes the scenery rather than
+  freezing it); the e2e suite still has no output-directory argument.

@@ -40,7 +40,10 @@ game's own 256 px inventory renders — and its title-screen backdrop are the ga
 exported/extracted locally and never committed ([[Vanilla assets without redistribution]]); the
 interface face is the game's own bitmap font, bundled with its licence ([[In-game GUI design]]).
 Worlds and builds take item icons or uploaded pictures as their faces
-([[Atmosphere and identity without shipping assets]]).
+([[Atmosphere and identity without shipping assets]]). The EDICT-0015 layout pass adds measured
+alignment at two viewports, a status-ranked build list with derived top-bar stats, and custom
+item registries scoped to a build, world or account
+([[Status-ranked build ordering]], [[Material registry]]).
 
 Standing rule since EDICT-0006: **every piece of work updates this wiki** before it is
 reported — pages, index, log, raw seal, lint. Work that is not ingested is work that will be

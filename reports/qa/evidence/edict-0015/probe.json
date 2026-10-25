@@ -1,0 +1,112 @@
+{
+  "suite": "edict-0015-evidence",
+  "generated_at": "2026-10-25T14:39:27.783Z",
+  "chrome": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/155.0.0.0 Safari/537.36",
+  "steps": [
+    "A builds order ok",
+    "A header stats ok",
+    "B row steps ok",
+    "C alignment ok",
+    "D picker in material mode ok",
+    "D custom created ok",
+    "D custom tile ok",
+    "E import accept ok",
+    "E import restore ok",
+    "F rotation ok",
+    "F reduced motion ok",
+    "F pause control ok",
+    "F pause toggled ok",
+    "G mobile builds ok",
+    "H budget 1280x900 ok",
+    "H budget 390x844 ok"
+  ],
+  "evidence": [
+    {
+      "name": "01-builds-1280x900.png",
+      "bytes": 196684,
+      "sha256": "78ed564d02e1b692b17cf43acc4414fb20c407b9f731ea788faf2fa2dab4a125"
+    },
+    {
+      "name": "03-header-stats-clip.png",
+      "bytes": 7129,
+      "sha256": "e3af3e0c625aa6ab95b9ea49caf8d4826782221bcd468656a700d56f46c17eb9"
+    },
+    {
+      "name": "05-row-stack1-clip.png",
+      "bytes": 2408,
+      "sha256": "13b115e442cd6a0dd10c397d918e6f85abc93eb536a7a244375f5a4b45a81593"
+    },
+    {
+      "name": "05-row-stack16-clip.png",
+      "bytes": 1952,
+      "sha256": "b0fb185df27153e62bf0db21af7ddc464d5abd29c76d7f365a7e9b302c0da893"
+    },
+    {
+      "name": "04-add-form-clip.png",
+      "bytes": 3910,
+      "sha256": "438ba5699a12c07963de8e68f3aeec85f5cd5274454aa26d0642c8a2a1b0fe8b"
+    },
+    {
+      "name": "06-custom-dialog.png",
+      "bytes": 166527,
+      "sha256": "a1b424b9a954fcfb608429ee5d7980535e712140214ce6e7f79d54e6ae0f367b"
+    },
+    {
+      "name": "07-custom-tile-clip.png",
+      "bytes": 14616,
+      "sha256": "449077cbfd025a38e7506eb6fd7dcd2a79a3705f8bfa9b2545da840315ac98c0"
+    },
+    {
+      "name": "08-import-dialog.png",
+      "bytes": 112406,
+      "sha256": "026c14d9dd3d85d0755fa9088254d0583478a1a27650ffe4eaa2e8173e31e158"
+    },
+    {
+      "name": "09-backdrop-t0.png",
+      "bytes": 244649,
+      "sha256": "be2b224dea2202753bf33be342afe6ae171ca6a5c1241be450c540ce7dd83e3f"
+    },
+    {
+      "name": "09-backdrop-t1.png",
+      "bytes": 243531,
+      "sha256": "ac6ca219cb4c31bdf3951331fa85993009aaadc52eaf6646d30250b41ed92694"
+    },
+    {
+      "name": "09-backdrop-t2.png",
+      "bytes": 242804,
+      "sha256": "a67c958805f8df81df06c8fb46066be6b0d2a882a123e4f11063bc1d79482ea0"
+    },
+    {
+      "name": "10-backdrop-reduced-motion.png",
+      "bytes": 244621,
+      "sha256": "aed8abbf5c3853d2f959ace2ce222db8f2f4bce621393e1af6e9bb06f1f460a6"
+    },
+    {
+      "name": "02-builds-390x844.png",
+      "bytes": 49725,
+      "sha256": "6391d75165a1954f92eeb9b6851a7caeecea7c0b31fb59cda0e538c9691de652"
+    },
+    {
+      "name": "13m-materials-390x844.png",
+      "bytes": 52240,
+      "sha256": "f88c1485a29ad3c2b4ab3e0c5c68429661191c9678eafd903e2c799169f0cada"
+    },
+    {
+      "name": "13m-worlds-390x844.png",
+      "bytes": 59716,
+      "sha256": "b3824d19d1bcd7d36531fe737bd99c87f7930b4c5431d9ebcc37b5da1b17788c"
+    },
+    {
+      "name": "11-budget-1280x900.png",
+      "bytes": 60581,
+      "sha256": "e1924a95044501c5b641d2b17537cca4de09a5cdb9298b24dc9adb9bc402dd3b"
+    },
+    {
+      "name": "11-budget-390x844.png",
+      "bytes": 36830,
+      "sha256": "d2985c2f35c951a61759a2963951fb537bd9f3a307542f88256024334230f245"
+    }
+  ],
+  "duplicates": [],
+  "unexpected_duplicates": []
+}

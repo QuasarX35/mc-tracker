@@ -1,0 +1,132 @@
+{
+  "version": 1,
+  "activeWorldId": "world-budget-fixture",
+  "worlds": [
+    {
+      "id": "world-budget-fixture",
+      "name": "Budget SMP",
+      "edition": "java",
+      "version": "1.21.4",
+      "notes": "Height-budget fixture, injected by the S5 browser case.",
+      "createdAt": "2026-10-25T00:00:00.000Z",
+      "icon": {
+        "kind": "item",
+        "slug": "grass_block"
+      },
+      "builds": [
+        {
+          "id": "build-budget-shell",
+          "name": "Tower Shell",
+          "status": "building",
+          "coords": "",
+          "notes": "",
+          "icon": {
+            "kind": "item",
+            "slug": "stone_bricks"
+          },
+          "materials": [
+            {
+              "id": "mat-budget-shell-1",
+              "item": "Stone Bricks",
+              "needed": 384,
+              "collected": 200
+            },
+            {
+              "id": "mat-budget-shell-2",
+              "item": "Iron Ingot",
+              "needed": 64,
+              "collected": 0
+            },
+            {
+              "id": "mat-budget-shell-3",
+              "item": "Glass",
+              "needed": 96,
+              "collected": 96
+            },
+            {
+              "id": "mat-budget-shell-4",
+              "item": "Oak Planks",
+              "needed": 128,
+              "collected": 64
+            },
+            {
+              "id": "mat-budget-shell-5",
+              "item": "Egg",
+              "needed": 16,
+              "collected": 0
+            },
+            {
+              "id": "mat-budget-shell-6",
+              "item": "Water Bucket",
+              "needed": 1,
+              "collected": 0
+            }
+          ]
+        },
+        {
+          "id": "build-budget-foundation",
+          "name": "Foundation",
+          "status": "planned",
+          "coords": "",
+          "notes": "",
+          "icon": {
+            "kind": "item",
+            "slug": "cobblestone"
+          },
+          "materials": [
+            {
+              "id": "mat-budget-foundation-1",
+              "item": "Cobblestone",
+              "needed": 512,
+              "collected": 128
+            },
+            {
+              "id": "mat-budget-foundation-2",
+              "item": "Dirt",
+              "needed": 256,
+              "collected": 0
+            }
+          ]
+        },
+        {
+          "id": "build-budget-roof",
+          "name": "Roof Frame",
+          "status": "planned",
+          "coords": "",
+          "notes": "",
+          "icon": {
+            "kind": "item",
+            "slug": "spruce_planks"
+          },
+          "materials": [
+            {
+              "id": "mat-budget-roof-1",
+              "item": "Spruce Planks",
+              "needed": 96,
+              "collected": 0
+            }
+          ]
+        },
+        {
+          "id": "build-budget-hut",
+          "name": "Done Hut",
+          "status": "done",
+          "coords": "",
+          "notes": "",
+          "icon": {
+            "kind": "item",
+            "slug": "oak_log"
+          },
+          "materials": [
+            {
+              "id": "mat-budget-hut-1",
+              "item": "Oak Log",
+              "needed": 32,
+              "collected": 32
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

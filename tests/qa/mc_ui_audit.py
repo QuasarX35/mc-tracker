@@ -466,15 +466,22 @@ def audit_identity() -> None:
     check(
         "identity/panorama-layer",
         ":root.has-panorama .backdrop__layer" in CSS
+        and ".backdrop__layer:nth-child(2)" not in CSS
         and ":root.has-panorama .backdrop::before" not in CSS,
-        "the two-copy layer only appears when a panorama is detected (EDICT-0014 D1)",
+        "one painted layer appears when a panorama is detected (EDICT-0015 §1 supersedes the two copies)",
     )
     check(
         "identity/panorama-pan",
-        "@keyframes backdrop-translate" in CSS and "backdrop-translate 180s" in CSS,
-        "the 180 s transform loop keyframes exist (supersedes EDICT-0010's 120 s pan)",
+        "@keyframes backdrop-drift" in CSS
+        and "backdrop-drift 120s" in CSS
+        and "backdrop-translate" not in CSS,
+        "the 120 s one-layer drift keyframe supersedes the 180 s two-copy translate (EDICT-0015 §1)",
     )
-    check("identity/reduced-motion", "animation: none" in CSS, "motion can be disabled")
+    check(
+        "identity/reduced-motion",
+        "animation-play-state: paused" in CSS and "motion-paused" in CSS,
+        "reduce and the pause control pause the layer without removing its animation (R7)",
+    )
     check("identity/scrim", "--backdrop-scrim-alpha" in CSS, "text scrim token exists")
     check("identity/gitignore-pixels", "src/assets/panorama/*.webp" in html_files["gitignore"], "generated backdrop not committed")
     panorama = ROOT / "src" / "assets" / "panorama"
@@ -570,8 +577,8 @@ def audit_edict0013() -> None:
     )
     check(
         "panorama/css-blur-mobile",
-        mobile_blur is not None and float(mobile_blur.group(1)) <= 1.5,
-        f"the narrow-screen layer blurs <=1.5px (found {mobile_blur.group(1) if mobile_blur else '?'}px)",
+        mobile_blur is None or float(mobile_blur.group(1)) <= 1.5,
+        f"the narrow-screen layer blurs <=1.5px or inherits the 1px desktop rule (found {mobile_blur.group(1) if mobile_blur else 'none — inherits 1px'})",
     )
     generator = (ROOT / "scripts" / "mc-backdrop.py").read_text(encoding="utf-8")
     check(
@@ -690,12 +697,140 @@ def audit_edict0014() -> None:
         "resolved step labels, stack size lookup and the stack-1 omission branch",
     )
     check(
-        "edict0014/backdrop-two-copies",
+        "edict0014/backdrop-transform-loop",
         CSS.count("has-panorama .backdrop") >= 1
         and "translateX" in CSS
         and "panorama-drift" not in CSS,
-        "two-copy transform loop replaces the background-position pan",
+        "a transform loop replaces the background-position pan (amended by EDICT-0015 §1: one layer)",
     )
+
+
+def audit_edict0015() -> None:
+    """EDICT-0015 statics: rotation, ordering, world stats, custom items, steppers, import, backlog."""
+    for element in (
+        "world-progress", "world-remaining", "world-bar", "world-fill",
+        "mat-steps", "backdrop-pause",
+        "import-dialog", "import-file", "import-drop", "import-text", "import-restore", "import-cancel", "import-error",
+        "custom-dialog", "custom-name", "custom-stack", "custom-scope", "custom-icon-pick", "custom-icon-upload",
+        "custom-icon-file", "custom-icon-preview", "custom-error", "custom-save", "custom-cancel", "btn-new-custom",
+    ):
+        check(f"edict0015/id-{element}", f'id="{element}"' in HTML, f"#{element} exists under its frozen name")
+    check(
+        "edict0015/world-summary-retired",
+        'id="world-summary"' not in HTML
+        and "summary-totals" not in HTML
+        and "world-summary" not in APP,
+        "the retired #world-summary block and its ids are gone from markup and code (AC2)",
+    )
+    import_input = re.search(r"<input[^>]*id=\"file-import\"[^>]*>", HTML)
+    check(
+        "edict0015/import-accept",
+        import_input is not None and re.search(r'accept="\.json"', import_input.group(0)) is not None,
+        "the import input accepts the extension token only, no MIME first (AC8 / item 7)",
+    )
+    check(
+        "edict0015/one-layer",
+        len(re.findall(r'class="[^"]*backdrop__layer', HTML)) == 1,
+        "the markup paints one backdrop layer (EDICT-0015 §1)",
+    )
+    check(
+        "edict0015/layer-geometry",
+        all(
+            re.search(pattern, CSS)
+            for pattern in (
+                r"width:\s*800vh",
+                r"background-size:\s*400vh auto",
+                r"background-repeat:\s*repeat-x",
+                r"backdrop-drift\s+120s\s+linear\s+infinite",
+                r"will-change:\s*transform",
+            )
+        ),
+        "the layer is 8 viewport-heights wide with a 4:1 strip, repeating, one 120 s linear loop",
+    )
+    check(
+        "edict0015/motion",
+        "mc-build-tracker:motion" in APP
+        and "motion-paused" in APP
+        and "backdrop-pause" in APP
+        and "Pause scenery" in APP
+        and "Play scenery" in APP
+        and "aria-pressed" in APP,
+        "the pause control stores its choice and exposes aria-pressed (AC11)",
+    )
+    check(
+        "edict0015/reduce-excludes-layer",
+        re.search(r"animation-duration:\s*0ms\s*!important", CSS) is None
+        or re.search(r":not\(\.backdrop__layer\)", CSS) is not None
+        or re.search(r':not\(\[class\*="backdrop__layer"\]\)', CSS) is not None
+        or re.search(r"\.backdrop__layer[^{]*\{[^}]*animation-duration:\s*120s\s*!important", CSS) is not None,
+        "the global 0 ms reset is neutralised for the rotating layer (F16: excluded, or overridden explicitly)",
+    )
+    check(
+        "edict0015/stats",
+        "world-progress" in APP and "world-remaining" in APP and "world-bar" in APP and "world-fill" in APP
+        and "worldSummary" in APP,
+        "the header stats are painted from the model summary (AC2)",
+    )
+    check(
+        "edict0015/ordering",
+        "statusRank" in MODEL and "sortBuilds" in APP,
+        "the build list is sorted through the model's rank helper (AC1)",
+    )
+    check(
+        "edict0015/custom-model",
+        "resolveItem" in MODEL
+        and "customItem" in MODEL
+        and "createCustomItem" in MODEL
+        and "customItems" in MODEL
+        and "Custom material needs a name." in MODEL
+        and "Stack size must be between 1 and 999." in MODEL,
+        "the custom-material registries, resolver and frozen error strings live in the model (AC4)",
+    )
+    check(
+        "edict0015/custom-ui",
+        "btn-new-custom" in APP and "picker--material" in APP and "custom-dialog" in APP and "custom-scope" in APP,
+        "the material picker offers the New custom material dialog (AC5)",
+    )
+    check(
+        "edict0015/import-ui",
+        "import-dialog" in APP and "import-text" in APP and "import-restore" in APP and "import-drop" in APP
+        and "is-over" in CSS,
+        "the chooser-free restore path (paste, drop) is wired (AC8)",
+    )
+    check(
+        "edict0015/add-steps",
+        "mat-steps" in HTML and 'data-mat-field="needed"' in HTML,
+        "the add-form stepper container drives Needed (AC6)",
+    )
+    backlog = ROOT / "docs" / "backlog"
+    ux = backlog / "ux.md"
+    if ux.is_file():
+        text = ux.read_text(encoding="utf-8")
+        rows = [
+            line for line in text.splitlines()
+            if line.strip().startswith("|") and not set(line.replace("|", "").strip()) <= set("-: ")
+        ]
+        check(
+            "edict0015/ux-backlog",
+            "Observation" in text and "Proposal" in text and "Priority" in text and len(rows) >= 9,
+            "the living UX backlog keeps the frozen columns and at least eight entries (AC9)",
+        )
+    research = backlog / "mass-input-research.md"
+    if research.is_file():
+        text = research.read_text(encoding="utf-8")
+        check(
+            "edict0015/mass-input",
+            len(re.findall(r"https?://", text)) >= 6,
+            "the mass-input research names at least six sources with URLs (AC10)",
+        )
+    index = backlog / "_index.md"
+    if index.is_file():
+        text = index.read_text(encoding="utf-8")
+        check(
+            "edict0015/backlog-index",
+            "ux.md" in text and "mass-input-research.md" in text,
+            "the backlog index links both files (AC10)",
+        )
 
 
 def main() -> int:
@@ -705,6 +840,7 @@ def main() -> int:
     audit_identity()
     audit_edict0013()
     audit_edict0014()
+    audit_edict0015()
     for case, ok, detail in results:
         print(f"{'PASS' if ok else 'FAIL'} {case} — {detail}")
     failed = [case for case, ok, _ in results if not ok]

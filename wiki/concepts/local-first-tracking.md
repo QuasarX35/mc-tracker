@@ -32,7 +32,7 @@ runtime — the page is a folder of files that works from `file://`.
 | Storage quota exceeded | Write fails | `save()` returns an error, UI shows a toast, never throws |
 | Two tabs editing | Last write wins | Not mitigated — documented limitation |
 | Machine dies | Data gone unless exported | Export is manual and user-remembered, not scheduled |
-| Import a wrong file | Would overwrite real data | Import validates the schema and refuses anything malformed **before** replacing state |
+| Import a wrong file | Would overwrite real data | Import validates the schema and refuses anything malformed **before** replacing state; the EDICT-0015 dialog adds file/drop/paste paths and inline errors, while a restore summary is still deferred |
 
 ## Tensions
 
@@ -46,6 +46,13 @@ runtime — the page is a folder of files that works from `file://`.
   half-built ([[Minecraft Build Tracker]]).
 - **Testability is good though:** because persistence is an injected storage adapter, failures
   such as quota exhaustion are unit-testable without a browser.
+- **Custom registries are create-only and travel with backups.** Editing, deletion and per-build
+  stack overrides are unowned follow-ups, and an exported file carries whichever custom items the
+  exporter wrote — the recipient cannot tell a shared vocabulary from someone's private labels
+  ([[Material registry]]).
+- **Import still replaces, not merges.** The dialog makes a backup cheap to submit from a paste
+  box, but there is no restore summary or size guard yet; the only protection remains validation
+  before replacement.
 
 ## Running it
 
@@ -68,6 +75,23 @@ different in kind — they are the game's assets, generated on the owner's machi
 without that step runs fine with lettered slots: absence is a documented state, not a
 broken image.
 
+## Custom registries are additive
+
+EDICT-0015 added custom items at build, world and account scope, stored in the same JSON document
+and resolved nearest-first over the generated catalogue ([[Material registry]]). Three properties
+matter for a local-first tool:
+
+- **No schema bump.** Storage stays `SCHEMA = 1`; the registries are optional arrays, so an older
+  build ignores them and a v1 backup imports with empty registries. Nothing migrates.
+- **Nearest scope wins.** A build-level entry shadows a world-level one, which shadows the account
+  registry, which shadows the catalogue — a deliberate reuse of a name, not an error.
+- **Everything counts against one quota.** Custom icons may be data URLs, like avatars, so a large
+  account registry competes with the rest of the state for `localStorage`; a failing write still
+  surfaces the existing save error rather than throwing.
+
+The "no server" promise is unchanged: custom items are local data, not shared vocabulary, and two
+players exchanging JSON also exchange whichever scopes the exporter wrote.
+
 ## Uploaded identity images
 
 An uploaded avatar is decoded, centre-cropped to 128×128, encoded WebP (PNG fallback) and stored
@@ -81,3 +105,5 @@ backup cannot smuggle a huge blob past validation.
 
 - Chosen for the [[Minecraft Build Tracker]].
 - Influences what [[In-game GUI design]] must ship locally (fonts, textures) to stay offline.
+- Extended by EDICT-0015 with additive custom-item registries and a chooser-free import path
+  ([[Material registry]], [[Testing a UI like a user]]).

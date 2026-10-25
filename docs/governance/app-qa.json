@@ -1,17 +1,17 @@
 {
-  "verified_at": "2026-10-25T12:27:45.271Z",
-  "artifact_hash": "29b7aec9d5a14f66819f32f37fec431747834eabe4cd3a33ffe3b3931d3ec930",
+  "verified_at": "2026-10-25T14:39:07.404Z",
+  "artifact_hash": "c36dee7943e435013b3072f13239a4f0ccf85da1ebadecb3656ed023b1cfee31",
   "files": {
-    "src/index.html": "887da49fbf2b6b2f16df481d10d6b7fd80b2f5c53e87102a0a7ebaef2d2b3f3f",
-    "src/styles.css": "f45558df2562b5e19d6b7e9727483320b752f76b43ddfaae4be251b3512d2b3d",
-    "src/app.js": "125ef87ee79b71f59e2b46ea1fcce030a1ed0a23b393e3ccf2ec47433dbedbb3",
-    "src/tracker/model.js": "19221df13e6cb47861110fadfb9eb8064ada1fd479e5f57a40bf57502d570c5d",
+    "src/index.html": "cd790db92dc65276327d86688ab17dd59e7bcc753cb4a109603b90f09f584b72",
+    "src/styles.css": "491bbb78b8e607147a106a4bf7fbb82d53cda83abe58475f0ec189c24f916978",
+    "src/app.js": "b103ac48fab1e40c94426db9ef689751e9114cce9100ac177b642adf224e08e3",
+    "src/tracker/model.js": "947ee47804cf0156705a7dc86fa88dada0edc0ef5688f02cc89822d188811191",
     "src/assets/icons/icons.js": "b9e534668f51e960758c5e7a3a5e5b2d3ed1c73a9fb75e24413e73b019594221",
     "src/assets/fonts/Minecraft.ttf": "bd47314d301e50ff4d109bff28dfcf637cb7eb13945480259878b848875acc65",
     "src/assets/panorama/backdrop.webp": "331253bd719c08f13ac0eec87088ba71387c2e1e2157438a5aaa1d60358bf1a5",
     "src/assets/panorama/manifest.json": "0566b9f0542b11fbf1c4355d0cb54a4d32b1aebaa9ca2dfc4a4bcf59947b8415"
   },
   "suite": "tests/qa/ui.e2e.test.mjs",
-  "cases": 66,
+  "cases": 80,
   "note": "Written only by `node scripts/app-qa.mjs run` after the UI suite exits 0. Do not hand-edit: a stamp that does not match the sources fails lint (rule app-qa-stamp)."
 }

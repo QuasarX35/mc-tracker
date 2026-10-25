@@ -74,13 +74,17 @@ test('AC1: panorama manifest declares the six-input, four-side seamless strip', 
 
 test('AC1: backdrop animates with transform, not background-position', () => {
   assert.ok(!/panorama-drift/.test(cssNoComments), 'the old panorama-drift keyframes are gone');
-  const keyframes = [...cssNoComments.matchAll(/@keyframes\s+([\w-]+)\s*\{([\s\S]*?)\}\s*(?=\n|@|\.|\s*$)/g)];
-  const loops = keyframes.filter(([, , body]) => /translateX\(\s*-?50%?\s*\)/.test(body) || /translateX\(\s*-50%\s*\)/.test(body));
-  assert.ok(loops.length >= 1, 'a translateX(-50%) loop keyframe exists');
-  assert.ok(/animation:\s*[^;]*translate|animation-name:\s*[\w-]+/i.test(cssNoComments), 'an animation is declared');
+  // EDICT-0015 §1: one layer, one 120 s drift keyframe (nested braces, so not a flat regex).
+  const drift = /@keyframes\s+backdrop-drift\s*\{([\s\S]*?)\n\}/.exec(cssNoComments);
+  assert.ok(drift, 'the backdrop-drift keyframe exists');
+  assert.match(drift[1], /translateX\(\s*-50%\s*\)/, 'the loop starts one strip out');
+  assert.match(drift[1], /translateX\(\s*0\s*\)/, 'the loop lands on the wrap point');
+  assert.ok(/animation:\s*backdrop-drift\s+120s\s+linear\s+infinite/.test(cssNoComments), 'a 120 s transform animation is declared');
+  assert.ok(!/animation[^;]*background-position/i.test(cssNoComments), 'the pan is not a background-position animation');
   const reduced = /@media\s*\(prefers-reduced-motion:\s*reduce\)([\s\S]*?)\n\}/.exec(cssNoComments);
   assert.ok(reduced, 'prefers-reduced-motion block exists');
-  assert.ok(/animation:\s*none/.test(reduced[1]), 'reduced motion disables the animation');
+  assert.ok(/animation-play-state:\s*paused/.test(cssNoComments), 'reduce pauses the layer (EDICT-0015 R7)');
+  assert.ok(!/\.backdrop__layer[^}]*animation:\s*none/.test(cssNoComments), 'the layer is never stopped with animation:none (R7)');
   assert.ok(/\.backdrop/.test(cssNoComments) && /dirt/.test(cssNoComments), 'dirt fallback styling survives');
 });
 
@@ -103,8 +107,10 @@ test('AC3: names wrap — no ellipsis clamps on the three name nodes', () => {
     assert.ok(rule, `${selector} rule exists`);
     assert.ok(!/text-overflow:\s*ellipsis/.test(rule[1]), `${selector} does not truncate`);
     assert.ok(!/overflow:\s*hidden/.test(rule[1]), `${selector} does not clip`);
+    assert.ok(!/-webkit-line-clamp/.test(rule[1]), `${selector} is not line-clamped`);
   }
-  assert.ok(!/-webkit-line-clamp/.test(cssNoComments), 'no line clamp anywhere');
+  // EDICT-0015 §7 compact density clamps the notes *view text* to two lines by design
+  // (`.notes__text`), so the freeze is scoped to the three name nodes above, not the whole sheet.
   assert.ok(/overflow-wrap:\s*break-word|word-break:\s*break-word/.test(cssNoComments), 'names may wrap');
 });
 

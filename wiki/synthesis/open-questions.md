@@ -79,17 +79,23 @@ question that a future source or a future session could close.
   reviewer should treat suite quality as the thing to audit. EDICT-0013 moved the split again: the
   verifier's sandbox could not launch Chrome, so the Lead seat was the browser hands, 测试部
   authored the frozen cases and judged, and the stamp is the execution trace; EDICT-0014 repeated
-  the arrangement for 66 cases, with the suggestion fixtures as an independent oracle
-  ([[Testing a UI like a user]]).
+  the arrangement for 66 cases, with the suggestion fixtures as an independent oracle. EDICT-0015
+  repeated it for 80 cases and then withdrew the first PASS when the Lead's containment
+  measurement found a defect the suite had missed — the most direct evidence yet that the stamp
+  proves execution, not coverage ([[Testing a UI like a user]]).
 - **Avatar storage economics.** 128×128 WebP at ≤120 000 chars keeps single images tiny, but the
   point where several uploads start hurting `localStorage` and backup size is untested
   ([[Atmosphere and identity without shipping assets]]).
-- ~~**Menu atmosphere is taste.**~~ **Resolved by EDICT-0013 and EDICT-0014.** The emperor's
-  direction settled it: less blur, more readable backdrop. Bake radius 8 → 2.5 and CSS 2 → 1 px
-  (1.5 px at ≤640 px), scrim 0.12 → 0.2, edge-variance 1,132.6 → 1,379.9 on the same 1,280×900
-  strip (EDICT-0013); EDICT-0014 made the rotation seamless — six resolved inputs, four stitched
-  sides, 2,560×640, bake 2.0, two copies over 180 s, 55,096 B. The remaining question is the
-  side-by-side comparison below, not the direction ([[In-game GUI design]]).
+- ~~**Menu atmosphere is taste.**~~ **Resolved by EDICT-0013, EDICT-0014 and EDICT-0015.** The
+  emperor's direction settled it: less blur, more readable backdrop. Bake radius 8 → 2.5 and CSS
+  2 → 1 px (1.5 px at ≤640 px), scrim 0.12 → 0.2, edge-variance 1,132.6 → 1,379.9 on the same
+  1,280×900 strip (EDICT-0013); EDICT-0014 made the rotation seamless — six resolved inputs, four
+  stitched sides, 2,560×640, bake 2.0, 55,096 B. EDICT-0015 then diagnosed why "still not
+  rotating" persisted — this machine reports `prefers-reduced-motion: reduce`, and the strip was
+  drawn at 50 % × 100 % instead of its 4:1 aspect — and replaced the two copies with one 800vh
+  layer drifting over 120 s, a pause control and a default-paused state under reduce. The
+  remaining question is the side-by-side comparison below, not the direction
+  ([[In-game GUI design]]).
 - **Tracker: backdrop side-by-side comparison.** Nobody has yet watched the treatment beside the
   real title screen on a physical display. The numbers bound the change and show the image is
   sharper and the loop seamless; they cannot judge whether it feels right
@@ -103,6 +109,20 @@ question that a future source or a future session could close.
   a time, but there is no letter jump or virtual list; an obscure item depends on search, recents
   or the suggestion. Whether that is enough for real use is unmeasured
   ([[In-game GUI design]]).
+- **Tracker: custom items are create-only.** `M.createCustomItem` returns `{ state, entry }` or
+  `{ error }`; there is no edit or delete API, no per-build stack override, and no migration for
+  free-text materials. The account-level list is a quota liability, and a backup carries whichever
+  scopes the exporter wrote, so a recipient cannot tell shared vocabulary from private labels
+  ([[Material registry]], [[Local-first tracking]]).
+- **Tracker: undo is one level and import has no restore summary.** Round 3 deferred per-row undo
+  and a post-import summary/size guard; the dialog makes validation errors visible before
+  replacement, but an accidental import still relies on the user having a backup
+  ([[Local-first tracking]]).
+- **Tracker: dialog keyboard contract and pause-control accessibility are unowned.**
+  `#backdrop-pause` passes the obvious checks, but focus trapping, Escape order across stacked
+  dialogs and a screen-reader announcement for the paused state are not frozen. The e2e evidence
+  folder also still needs an output-directory argument
+  ([[Testing a UI like a user]]).
 - **Tracker: bulk paste adds only the matched set.** Unknown lines are shown unmatched and are
   not added; the matcher is exact name/slug then a unique ≥3-character prefix, no edit distance.
   A user pasting a misspelled list gets a partial add, and the review rows are the only recovery
@@ -112,8 +132,9 @@ question that a future source or a future session could close.
   "undo" is untested ([[In-game GUI design]]).
 - **Testing: e2e evidence can land in the previous edict's folder.** A few EDICT-0014
   screenshots were written under `reports/qa/evidence/edict-0013/`; the Lead restored those
-  artefacts, but the suite should take an output-directory argument so a run's evidence is
-  reproducible in one place ([[Testing a UI like a user]]).
+  artefacts, and EDICT-0015's 30-artefact crate is internally consistent, but the suite still has
+  no output-directory argument, so a run's evidence is not guaranteed to be reproducible in one
+  place ([[Testing a UI like a user]]).
 - **Physical device + real OS motion preference.** Both mobile layout and reduced-motion are
   emulated in headless Chrome, not observed on hardware ([[Testing a UI like a user]]).
 - **Corpus domain.** The wiki now covers its own pattern plus one product. A third domain
@@ -128,6 +149,17 @@ question that a future source or a future session could close.
 - **Query→page promotion threshold.** When is an answer worth filing? "More than chat" is not
   a criterion. Candidate rule: file if it contains a comparison, a decision, or a connection
   not present on any existing page ([[Ingest, query and lint]]).
+
+## Decided vs deferred after round 3
+
+EDICT-0015 decided the ten round-3 items (ordering, header stats, alignment, custom materials,
+add-form steppers, compact height, import, background). The UX backlog keeps the residue explicit
+instead of silently dropping it: rows 9–15 of `docs/backlog/ux.md` hold custom editing/deletion,
+the pause-control accessibility review, an import restore summary/size guard, the dialog keyboard
+contract, an e2e evidence output folder, per-row undo and an empty-state review.
+`docs/backlog/mass-input-research.md` adds twelve ranked mass-input proposals; only bulk paste is
+adopted, and the rest stay research ([[Material registry]], [[Status-ranked build ordering]],
+[[Testing a UI like a user]]).
 
 ## Next sources worth looking for
 

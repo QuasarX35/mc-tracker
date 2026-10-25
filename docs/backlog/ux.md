@@ -1,0 +1,23 @@
+# UX backlog
+
+Living log of product friction observed while using the tracker. One row per observation,
+newest at the bottom. Status is `open`, `scheduled (EDICT-00xx)` or `done (EDICT-00xx)`.
+Rows from the round-3 report feed EDICT-0015; rows marked open are not yet owned by an edict.
+
+| # | Date | Area | Observation | Proposal | Priority | Status |
+|---|------|------|-------------|----------|----------|--------|
+| 1 | 2026-10-25 | Build list | Builds render in registry order, so Done builds can sit above Building ones. | Sort by rank `building → planned → done`, stable inside a rank by registry order; keep the selection. | P1 | scheduled (EDICT-0015) |
+| 2 | 2026-10-25 | World header | The world card repeats totals already implied by the header and pushes the build list down. | Remove the card; show `53% gathered` and `1,452 of 2,252 items still to collect` in the top bar with one thin bar. | P1 | scheduled (EDICT-0015) |
+| 3 | 2026-10-25 | Layout | Labels, controls and table columns drift across rows; the top bar and dialog label columns are not on one line. | One measured alignment spec checked with `getBoundingClientRect` (±1 px) at 1280×900 and 390×844. | P1 | scheduled (EDICT-0015) |
+| 4 | 2026-10-25 | Materials | A material outside the icon catalogue cannot be added at all, so names are typed as free text with no icon or stack. | Custom items with name, stack 1–999 and icon, scoped to build, world or account, resolved build → world → account → catalogue. | P1 | scheduled (EDICT-0015) |
+| 5 | 2026-10-25 | Add material | Adding “20 stone bricks” needs typing a number; the row steppers only exist after the material is added. | `+1` / `+10` / `+<stack>` after the Needed field, stack button revealed once an item is chosen. | P1 | scheduled (EDICT-0015) |
+| 6 | 2026-10-25 | Layout | The page scrolls even at 1280×900 with the demo fixture selected. | Height budget: builds view fits 1280×900 with no page scroll; at 390×844 only the material lists scroll. | P1 | scheduled (EDICT-0015) |
+| 7 | 2026-10-25 | Import | Chrome's file chooser shows no `.json` files: `accept` starts with a MIME token, and this machine has no `ContentType` registered for `.json` / `application/json`. | `accept=".json"` plus an import dialog with drop and paste paths that work without the chooser. | P1 | scheduled (EDICT-0015) |
+| 8 | 2026-10-25 | Background | On a `prefers-reduced-motion: reduce` machine the backdrop is static; the layer is also drawn at 50%×100%, squashing the 4:1 strip. | One 4:1 layer, 120 s linear pan, always on, with a WCAG 2.2.2 pause control; scope the global reduced-motion rule away from the layer. | P1 | scheduled (EDICT-0015) |
+| 9 | 2026-10-25 | Custom items | The custom-item model is create-only this round: editing, deletion, per-build stack overrides and moving free-text materials are unowned. | A follow-up pass for custom-item management; keep free-text material names addressable until then. | P2 | open |
+| 10 | 2026-10-25 | Motion | The new pause control adds a persistent per-browser preference and a mechanism nobody has tested with keyboard or screen-reader users. | Verify focus order, `aria-pressed` announcements and how the preference is reset; add cases. | P2 | open |
+| 11 | 2026-10-25 | Import safety | Restore replaces the whole document with no summary or merge step, and the paste path makes large backups cheap to submit. | Show a restore summary and a size guard before committing the import. | P2 | open |
+| 12 | 2026-10-25 | Keyboard | New dialogs, steppers and paging add tab stops; Escape/Enter semantics are specified for the picker but not for the import, custom and bulk-paste dialogs. | Freeze one keyboard contract for every dialog and cover it with cases. | P2 | open |
+| 13 | 2026-10-25 | Test harness | The browser suite still writes a few screenshots into `reports/qa/evidence/edict-0013/`, overwriting the EDICT-0013 record; the Lead restored those files by hand. | Give the suite an output-directory argument and a clean-run guard. | P3 | open |
+| 14 | 2026-10-25 | Material rows | Deleting a material row is recoverable only through the 6 s toast Undo; there is no per-row affordance and the toast is easy to miss. | Add a per-row undo, or make the global undo scope explicit at the delete control. | P2 | open |
+| 15 | 2026-10-25 | Empty states | The five zero states now carry actions (EDICT-0014), but none has been reviewed with a first-time user: copy, destination, and whether the filter reset reads as a reset. | Walk the five states with a fresh profile and keep one copy/destination per state. | P3 | open |

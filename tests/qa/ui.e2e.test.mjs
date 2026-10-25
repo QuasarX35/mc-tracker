@@ -25,7 +25,7 @@ import path from 'node:path';
 import { launch, fileUrl, sleep } from './ui/harness.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..', '..');
-const EVIDENCE = path.join(ROOT, 'reports', 'qa', 'evidence', 'edict-0013');
+const EVIDENCE = path.join(ROOT, 'reports', 'qa', 'evidence', 'edict-0015');
 const CSS_PATH = path.join(ROOT, 'src', 'styles.css');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-qa-'));
 let app;
@@ -669,7 +669,7 @@ test('25 the visual contract keeps the panel, the font and the icon scale', asyn
 
 /* ---------------------------------------------------------------- backdrop */
 
-test('26 the panorama loops by transform and respects reduced motion (D1)', async () => {
+test('26 the panorama is one 4:1 strip that loops from a single layer (AC11)', async () => {
   await reset();
   await page().emulateReducedMotion(false);
   await page().waitFor('window.__backdrop !== undefined');
@@ -678,47 +678,88 @@ test('26 the panorama loops by transform and respects reduced motion (D1)', asyn
     await page().evaluate('return document.documentElement.classList.contains("has-panorama");'),
     true
   );
-  // Contract §1/D1: the layer keeps `.backdrop` and exactly two div copies, each painting the
-  // strip, and the loop is a transform — never `background-position` and never a ping-pong.
+  // contract §1: one layer, geometry against the viewport, one translateX loop, 120 s.
   const layer = await page().evaluate(`
-    const backdrop = document.querySelector('.backdrop');
-    const children = Array.from(backdrop.children).filter((node) => node.nodeType === 1);
+    const nodes = Array.from(document.querySelectorAll('.backdrop > .backdrop__layer'));
+    const style = nodes[0] ? getComputedStyle(nodes[0]) : null;
     return {
-      count: children.length,
-      images: children.map((node) => getComputedStyle(node).backgroundImage),
-      animations: children.map((node) => getComputedStyle(node).animationName),
+      count: nodes.length,
+      extras: Array.from(document.querySelector('.backdrop').children)
+        .filter((n) => n.nodeType === 1 && !n.classList.contains('backdrop__layer')).length,
+      width: style && parseFloat(style.width),
+      height: style && style.height,
+      backgroundSize: style && style.backgroundSize,
+      backgroundRepeat: style && style.backgroundRepeat,
+      animationName: style && style.animationName,
+      animationDuration: style && style.animationDuration,
+      animationTiming: style && style.animationTimingFunction,
+      animationIteration: style && style.animationIterationCount,
+      viewport: innerHeight,
     };
   `);
-  assert.equal(layer.count, 2, 'exactly two backdrop copies');
-  for (const image of layer.images) assert.match(image, /backdrop\.webp/, 'both copies paint the generated strip');
-  assert.ok(layer.animations.some((name) => name && name !== 'none'), 'the loop is applied to the layer');
+  assert.equal(layer.count, 1, 'exactly one backdrop layer (the two former copies are retired)');
+  assert.equal(layer.extras, 0, '.backdrop holds no extra painted copies');
+  assert.ok(Math.abs(layer.width - 8 * layer.viewport) <= 1, `layer width is 8 x innerHeight (${layer.width} vs ${8 * layer.viewport})`);
+  assert.equal(layer.height, layer.viewport + 'px', 'layer height is the viewport height');
+  assert.ok(
+    new RegExp(`^${Math.round(4 * layer.viewport)}(\\.\\d+)?px auto$`).test(layer.backgroundSize),
+    `background-size is 4 x innerHeight px auto (found ${layer.backgroundSize})`
+  );
+  assert.equal(layer.backgroundRepeat, 'repeat-x', 'the strip repeats horizontally');
+  assert.equal(layer.animationName, 'backdrop-drift', 'the single drift keyframe runs');
+  assert.equal(layer.animationDuration, '120s', 'the loop is 120 s');
+  assert.equal(layer.animationTiming, 'linear', 'the loop is linear');
+  assert.equal(layer.animationIteration, 'infinite', 'the loop never stops');
   const sample = () =>
-    page().evaluate(`
-      const nodes = Array.from(document.querySelectorAll('.backdrop, .backdrop *'));
-      const moving = nodes.find((node) => getComputedStyle(node).animationName !== 'none');
-      return moving ? getComputedStyle(moving).transform : null;
-    `);
+    page().evaluate(`return getComputedStyle(document.querySelector('.backdrop > .backdrop__layer')).transform;`);
   const first = await sample();
   await sleep(1200);
   const second = await sample();
-  assert.ok(first && second, 'a moving backdrop layer is discoverable');
-  assert.notEqual(first, second, 'the strip has translated after ~1 s of the 180 s loop');
-  const animation = await page().evaluate(`
-    const nodes = Array.from(document.querySelectorAll('.backdrop, .backdrop *'));
-    const moving = nodes.find((node) => getComputedStyle(node).animationName !== 'none');
-    const style = getComputedStyle(moving);
-    return { name: style.animationName, duration: parseFloat(style.animationDuration) };
-  `);
-  assert.ok(animation.duration >= 100, `the loop duration is long (found ${animation.duration}s)`);
+  assert.notEqual(first, second, 'the strip has translated after ~1 s of the 120 s loop');
+  // R7: reduce-motion defaults the layer to paused with the frame painted — never `animation: none`.
   await page().emulateReducedMotion(true);
   await page().reload();
   await page().waitFor('document.querySelector("#world-select") !== null');
-  const still = await page().evaluate(`
-    const nodes = Array.from(document.querySelectorAll('.backdrop, .backdrop *'));
-    return nodes.map((node) => getComputedStyle(node).animationName).filter((name) => name !== 'none');
+  const paused = await page().evaluate(`
+    const style = getComputedStyle(document.querySelector('.backdrop > .backdrop__layer'));
+    const button = document.querySelector('#backdrop-pause');
+    return {
+      name: style.animationName,
+      duration: style.animationDuration,
+      playState: style.animationPlayState,
+      transform: style.transform,
+      pressed: button && button.getAttribute('aria-pressed'),
+      size: button ? [Math.round(button.getBoundingClientRect().width), Math.round(button.getBoundingClientRect().height)] : null,
+      beforeNewWorld: !!button && !!document.querySelector('#btn-new-world')
+        && (button.compareDocumentPosition(document.querySelector('#btn-new-world')) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+    };
   `);
-  assert.deepEqual(still, [], 'reduced motion stops every backdrop copy');
+  assert.equal(paused.name, 'backdrop-drift', 'the animation is declared under reduce (R7)');
+  assert.equal(paused.duration, '120s', 'the duration survives reduce (R7)');
+  assert.equal(paused.playState, 'paused', 'the layer defaults to paused under reduce');
+  assert.deepEqual(paused.size, [28, 28], 'the pause control is 28 x 28');
+  assert.equal(paused.beforeNewWorld, true, 'the pause control sits before New World');
+  assert.equal(paused.pressed, 'true', 'the pause control reports the paused state');
+  await sleep(900);
+  assert.equal(await sample(), paused.transform, 'a paused layer paints a frozen frame');
+  await page().click('#backdrop-pause');
+  await page().waitFor('getComputedStyle(document.querySelector(".backdrop > .backdrop__layer")).animationPlayState === "running"');
+  assert.equal(await page().evaluate('return document.querySelector("#backdrop-pause").getAttribute("aria-pressed")'), 'false');
+  assert.equal(await page().evaluate('return localStorage.getItem("mc-build-tracker:motion")'), 'play');
+  await page().reload();
+  await page().waitFor('document.querySelector("#world-select") !== null');
+  assert.equal(
+    await page().evaluate('return getComputedStyle(document.querySelector(".backdrop > .backdrop__layer")).animationPlayState'),
+    'running',
+    'an explicit play choice survives a reload under reduce (R7)'
+  );
   await page().emulateReducedMotion(false);
+  // Missing asset: the dirt fallback is unchanged.
+  await page().blockUrls(['*backdrop.webp*']);
+  await reset();
+  await page().waitFor('window.__backdrop !== undefined');
+  assert.equal(await page().evaluate('return window.__backdrop;'), 'dirt', 'a missing strip falls back to dirt');
+  await page().unblockUrls();
 });
 
 test('27 a missing texture falls back to its first letter', async () => {
@@ -1155,38 +1196,30 @@ test('47 the themed select path is active in this Chrome (D9)', async () => {
 
 /* ------------------------------------------------------------------- D10 */
 
-test('48 the backdrop is less blurred, loops 2560x640 and stops under reduced motion (D1/D10)', async () => {
+test('48 the strip keeps its 2560x640 geometry, one layer and the paused-under-reduce rule (AC11/R7)', async () => {
   await reset();
   await page().emulateReducedMotion(false);
   await page().waitFor('window.__backdrop !== undefined');
-  const layers = await page().evaluate(`
-    return Array.from(document.querySelectorAll('.backdrop > .backdrop__layer')).map((node) => {
-      const style = getComputedStyle(node);
-      return {
-        filter: style.filter,
-        backgroundImage: style.backgroundImage,
-        animationName: style.animationName,
-        animationDuration: style.animationDuration,
-      };
-    });
+  const layer = await page().evaluate(`
+    const nodes = Array.from(document.querySelectorAll('.backdrop > .backdrop__layer'));
+    const style = nodes[0] ? getComputedStyle(nodes[0]) : null;
+    return {
+      count: nodes.length,
+      filter: style && style.filter,
+      backgroundImage: style && style.backgroundImage,
+      animationName: style && style.animationName,
+      animationDuration: style && style.animationDuration,
+      pseudo: getComputedStyle(document.querySelector('.backdrop'), '::before').filter,
+    };
   `);
-  assert.equal(layers.length, 2, 'the loop is two copies of the strip (D1)');
-  const pseudo = await page().evaluate(`
-    return getComputedStyle(document.querySelector('.backdrop'), '::before').filter;
-  `);
-  assert.equal(pseudo, 'none', 'the blur moved off the pseudo-element onto the layers');
-  for (const layer of layers) {
-    const match = /blur\(([\d.]+)px\)/.exec(layer.filter);
-    assert.ok(match, `each layer carries a blur (${layer.filter})`);
-    assert.ok(Number(match[1]) <= 1, `each layer blurs at most 1px (found ${match[1]}px)`);
-    assert.match(layer.backgroundImage, /backdrop\.webp/);
-    assert.notEqual(layer.animationName, 'none', 'the strip animates');
-    assert.match(layer.animationDuration, /180s/, 'the loop runs 180 s (D1 supersedes EDICT-0010 120 s)');
-  }
-  const t0 = await page().evaluate(`return getComputedStyle(document.querySelector('.backdrop > .backdrop__layer')).transform;`);
-  await sleep(1200);
-  const t1 = await page().evaluate(`return getComputedStyle(document.querySelector('.backdrop > .backdrop__layer')).transform;`);
-  assert.notEqual(t0, t1, 'the transform advances over time');
+  assert.equal(layer.count, 1, 'one layer paints the strip');
+  assert.equal(layer.pseudo, 'none', 'the blur lives on the layer, not on a pseudo-element');
+  const blur = /blur\(([\d.]+)px\)/.exec(layer.filter || '');
+  assert.ok(blur, 'the layer carries a blur (' + layer.filter + ')');
+  assert.ok(Number(blur[1]) <= 1, 'the blur is at most 1px (found ' + blur[1] + 'px)');
+  assert.match(layer.backgroundImage, /backdrop\.webp/);
+  assert.equal(layer.animationName, 'backdrop-drift');
+  assert.equal(layer.animationDuration, '120s');
   const size = await page().evaluate(`
     return new Promise((resolve) => {
       const image = new Image();
@@ -1195,11 +1228,22 @@ test('48 the backdrop is less blurred, loops 2560x640 and stops under reduced mo
       image.src = 'assets/panorama/backdrop.webp';
     });
   `);
-  assert.deepEqual(size, { width: 2560, height: 640 }, 'the regenerated backdrop keeps its strip geometry');
+  assert.deepEqual(size, { width: 2560, height: 640 }, 'the baked backdrop keeps its strip geometry');
   assert.equal(size.width, 4 * size.height, 'the strip keeps its 4:1 arithmetic');
   await page().emulateReducedMotion(true);
-  await page().waitFor('getComputedStyle(document.querySelector(".backdrop > .backdrop__layer")).animationName === "none"');
+  await page().reload();
+  await page().waitFor('document.querySelector("#world-select") !== null');
+  await page().waitFor('getComputedStyle(document.querySelector(".backdrop > .backdrop__layer")).animationPlayState === "paused"');
+  const paused = await page().evaluate(`
+    const style = getComputedStyle(document.querySelector('.backdrop > .backdrop__layer'));
+    return { name: style.animationName, duration: style.animationDuration, playState: style.animationPlayState };
+  `);
+  assert.equal(paused.name, 'backdrop-drift', 'the animation is declared under reduce (never animation: none)');
+  assert.equal(paused.duration, '120s', 'the duration survives reduce');
+  assert.equal(paused.playState, 'paused', 'reduce defaults the strip to paused');
   await shot('48-backdrop-narrow-blur');
+  // Emulated media is sticky across reloads; restore it so later cases start in the play state.
+  await page().emulateReducedMotion(false);
 });
 
 test('49 the whole run stayed free of console errors', async () => {
@@ -1745,6 +1789,630 @@ test('65 the suggestion is pure, deterministic and null with two arguments (D8)'
 });
 
 /* ------------------------------------------------------------- suite tail */
+
+/* ------------------------------------------------- EDICT-0015 (S5 cases) */
+
+async function buildNames() {
+  return page().evaluate(`
+    return Array.from(document.querySelectorAll('#build-list .build-entry__name')).map((node) => node.textContent.trim());
+  `);
+}
+
+async function injectState(state) {
+  await page().goto(fileUrl('src/index.html?tab=builds'));
+  await page().evaluate(
+    'localStorage.setItem("mc-build-tracker:v1", ' + JSON.stringify(JSON.stringify(state)) + '); return true;'
+  );
+  // A second goto() to the identical URL can be served from the already-complete document and
+  // race the reload, so the injected state must be read by a genuinely fresh navigation.
+  const stamp = Date.now();
+  await page().goto(fileUrl('src/index.html?tab=builds&fixture=' + stamp));
+  await page().waitFor('document.querySelector("#world-select") !== null && window.TrackerModel !== undefined');
+}
+
+const FIXTURES_0015 = path.join(ROOT, 'tests', 'qa', 'edict-0015-fixtures');
+
+function fixture(name) {
+  return path.join(FIXTURES_0015, name);
+}
+
+test('67 builds sort building, planned, done and keep registry order inside a rank (AC1)', async () => {
+  const state = JSON.parse(fs.readFileSync(fixture('route-shuffle.v1.json'), 'utf8'));
+  const expected = JSON.parse(fs.readFileSync(fixture('route-shuffle.expected-order.json'), 'utf8')).order;
+  await injectState(state);
+  assert.deepEqual(await buildNames(), expected, 'the shuffled registry renders in rank order, stable inside a rank');
+  const current = await page().evaluate(`return document.querySelector('#build-list [aria-current="true"] .build-entry__name').textContent.trim();`);
+  assert.ok(current.length > 0, 'a build stays selected through the re-sort');
+  await page().evaluate(`
+    const entry = Array.from(document.querySelectorAll('#build-list .build-entry')).find((node) =>
+      node.querySelector('.build-entry__name').textContent.trim() === 'Weekend Cottage');
+    entry.click();
+    return true;
+  `);
+  await page().waitFor(`document.querySelector('#detail-heading').textContent.trim() === 'Weekend Cottage'`);
+  await page().click('#status-group [data-status="done"]');
+  const changed = JSON.parse(fs.readFileSync(fixture('route-status-change.expected-order.json'), 'utf8')).order;
+  await page().waitFor(`Array.from(document.querySelectorAll('#build-list .build-entry__name')).map((n) => n.textContent.trim()).join('|') === ${JSON.stringify(changed.join('|'))}`);
+  assert.deepEqual(await buildNames(), changed, 'a status change re-sorts the list immediately');
+});
+
+test('68 the world header derives its stats and the retired summary block is gone (AC2)', async () => {
+  await reset();
+  const summary = await page().evaluate(`
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v1'));
+    const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
+    return window.TrackerModel.worldSummary(world);
+  `);
+  const fmt = (value) => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  assert.equal(await page().text('#world-progress'), summary.pct + '% gathered', 'the percentage is the derived value');
+  assert.equal(
+    await page().text('#world-remaining'),
+    fmt(summary.remaining) + ' of ' + fmt(summary.needed) + ' items still to collect',
+    'the remaining line uses thousands separators and the same arithmetic'
+  );
+  assert.equal(await page().exists('#world-summary'), false, 'the old summary block is retired');
+  assert.equal(await page().exists('#summary-totals'), false, 'its ids are retired');
+  // §3 S5 corrections: (a) the bar is border-box with 2px hard borders while the fill lives in the
+  // content box, so the ratio must divide by clientWidth (209.625 - 4 = 205.625 → 36.0%), never the
+  // border box (which reads 35%); (b) run 4 showed the fill animates from 0 on load, so a single
+  // read can catch it mid-transition — wait until two consecutive reads agree, the same pattern
+  // stableRowCount() uses for rows, then compare.
+  const settleFill = async () => {
+    let previous = null;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      const value = await page().evaluate(`
+        const bar = document.querySelector('#world-bar');
+        const fill = document.querySelector('#world-fill');
+        return { fillWidth: fill.getBoundingClientRect().width, clientWidth: bar.clientWidth };
+      `);
+      if (previous && Math.abs(previous.fillWidth - value.fillWidth) < 0.5) return value;
+      previous = value;
+      await sleep(60);
+    }
+    throw new Error('the world bar fill never settled');
+  };
+  const geometry = await settleFill();
+  const bar = await page().evaluate(`
+    const bar = document.querySelector('#world-bar');
+    const fill = document.querySelector('#world-fill');
+    return {
+      role: bar.getAttribute('role'), min: bar.getAttribute('aria-valuemin'), max: bar.getAttribute('aria-valuemax'),
+      now: bar.getAttribute('aria-valuenow'), barHeight: Math.round(bar.getBoundingClientRect().height),
+      fillHeight: Math.round(fill.getBoundingClientRect().height),
+      ratio: Math.round((${JSON.stringify(geometry.fillWidth)} / ${JSON.stringify(geometry.clientWidth)}) * 100),
+    };
+  `);
+  assert.equal(bar.role, 'progressbar', 'the bar exposes progressbar semantics');
+  assert.equal(bar.min, '0');
+  assert.equal(bar.max, '100');
+  assert.equal(bar.now, String(summary.pct), 'aria-valuenow is the derived percentage');
+  // Contract §3 (S2 correction): the bar is 10px border-box with 2px hard borders, so the inner
+  // fill paints 6px — identical to the progress block, never a 10px fill.
+  assert.equal(bar.barHeight, 10, 'the thin XP bar is 10px tall');
+  assert.equal(bar.fillHeight, 6, 'the inner fill paints inside the 2px hard borders (10 - 2x2)');
+  assert.ok(Math.abs(bar.ratio - summary.pct) <= 1, 'the fill paints the same percentage');
+  const meta = await page().text('#world-meta');
+  assert.equal(meta.indexOf('%'), -1, 'the identity line no longer repeats the percentage');
+  assert.equal(meta.indexOf('still to collect'), -1, 'the identity line no longer repeats the remaining count');
+  await shot('67-world-header-stats');
+});
+
+test('69 zero worlds and zero materials show honest states, not NaN (AC2/AC5)', async () => {
+  await reset({ demo: false });
+  assert.equal(await page().text('#world-meta'), 'No world selected');
+  for (const id of ['#world-progress', '#world-remaining', '#world-bar']) {
+    assert.equal(await page().hidden(id), true, id + ' is hidden with no world');
+  }
+  assert.equal(/NaN/.test(await page().text('body')), false, 'no NaN leaks into the page');
+  await page().click('#btn-new-world');
+  await page().waitFor('document.querySelector("#world-dialog") !== null && document.querySelector("#world-dialog").open');
+  await page().fill('#world-name', 'Empty Probe');
+  await page().click('#world-form button[type="submit"]:not([formnovalidate])');
+  await page().waitFor('!document.querySelector("#world-dialog").open');
+  assert.equal(await page().hidden('#world-progress'), true, 'a world with no builds keeps the stats row hidden');
+  assert.equal((await page().text('body')).indexOf('0 of 0'), -1, 'an empty world never claims "0 of 0"');
+});
+
+test('70 labels, controls, table headers and the top bar share their measured lines (AC3)', async () => {
+  await reset();
+  const measure = async (width, height, name) => {
+    await page().setViewport(width, height);
+    await sleep(250);
+    const data = await page().evaluate(`
+      const box = (node) => { const r = node.getBoundingClientRect(); return { left: r.left, top: r.top, width: r.width, height: r.height }; };
+      const labelled = [];
+      [['mat-choice', '#mat-choice'], ['mat-needed', '#mat-needed'], ['mat-collected', '#mat-collected']].forEach((pair) => {
+        const label = document.querySelector('label[for="' + pair[0] + '"]');
+        const control = document.querySelector(pair[1]);
+        if (label && control) labelled.push({ id: pair[0], label: box(label), control: box(control) });
+      });
+      const controls = ['#mat-choice', '#mat-needed', '#mat-collected'].map((selector) => box(document.querySelector(selector)));
+      const topbar = ['#world-select', '#btn-new-world', '#backdrop-pause', '#btn-import', '#btn-export']
+        .filter((selector) => document.querySelector(selector))
+        .map((selector) => box(document.querySelector(selector)));
+      const detailTable = document.querySelector('.mtable:not(.mtable--wide)');
+      const head = Array.from(detailTable.querySelectorAll('.mtable__head > *')).map(box);
+      const firstRow = detailTable.querySelector('.mat-row');
+      // The step cluster is a second grid row spanning every column, not a column: it is excluded
+      // before the per-column comparison (Lead S5 ruling; the header keeps its zero-height spacer).
+      const row = Array.from(firstRow.children)
+        .filter((node) => !node.classList.contains('mat-steps'))
+        .map(box);
+      return { labelled, controls, topbar, head, row, itemLabel: !!document.querySelector('label[for="mat-choice"]'),
+        worldLabel: (() => { const label = document.querySelector('label[for="world-select"]'); return label
+          ? { visible: !!(label.offsetParent || label.getClientRects().length), text: label.textContent.trim() } : null; })(),
+        innerWidth, scrollWidth: document.documentElement.scrollWidth };
+    `);
+    for (const pair of data.labelled) {
+      assert.ok(Math.abs(pair.label.left - pair.control.left) <= 1, pair.id + ': label left owns the control left');
+    }
+    assert.equal(data.labelled.length, 3, 'all three add-form labels are found (Item points at #mat-choice)');
+    assert.equal(data.itemLabel, true, 'the Item label carries for="mat-choice" (contract §7 bullet 1)');
+    assert.ok(data.worldLabel && data.worldLabel.visible, 'the World label is a real, visible label[for="world-select"]');
+    assert.match(data.worldLabel.text, /World/, 'the World label still names the select');
+    const spread = (values) => Math.max(...values) - Math.min(...values);
+    assert.ok(spread(data.controls.map((c) => c.top)) <= 1, 'the add-form controls share one top');
+    assert.ok(spread(data.controls.map((c) => c.height)) <= 1, 'the add-form controls share one height');
+    // Contract §7 bullet 5 is per-row (Lead S5 ruling): at ≤640 the top bar wraps by design, so
+    // group the five controls into visual rows (a row is a set whose vertical intervals overlap)
+    // and assert the centre spread inside each row. At 1280×900 this resolves to one row, which is
+    // exactly the strict single-line assertion; at 390×844 it resolves to the wrapped rows.
+    const rows = [];
+    data.topbar.slice().sort((a, b) => a.top - b.top).forEach((control) => {
+      const row = rows.find((candidate) => control.top < candidate.bottom - 0.5 && control.top + control.height > candidate.top + 0.5);
+      if (row) {
+        row.members.push(control);
+        row.top = Math.min(row.top, control.top);
+        row.bottom = Math.max(row.bottom, control.top + control.height);
+      } else {
+        rows.push({ top: control.top, bottom: control.top + control.height, members: [control] });
+      }
+    });
+    assert.equal(rows.length, data.innerWidth <= 640 ? 2 : 1,
+      'the top-bar controls form one row at 1280 and wrap into two rows at 390 (rows found: ' + rows.length + ')');
+    rows.forEach((rowGroup, index) => {
+      assert.ok(spread(rowGroup.members.map((c) => c.top + c.height / 2)) <= 2,
+        'top-bar row ' + (index + 1) + ' shares a centre line');
+    });
+    const compareColumns = (head, row, tableName, actionColumn) => {
+      // Only the VISIBLE table can be compared: the hidden view's rows measure 0×0 at (0,0), and
+      // the step cluster is filtered out before this point (it is a spanning grid row, not a column).
+      assert.ok(head.length > 1 && head.length === row.length,
+        tableName + ': the header and the first row have the same column count (header ' + head.length + ', row ' + row.length + ')');
+      for (let index = 0; index < head.length; index += 1) {
+        assert.ok(Math.abs(head[index].left - row[index].left) <= 1,
+          tableName + ' column ' + (index + 1) + ': header left equals row-cell left');
+        if (!(actionColumn && index === head.length - 1)) {
+          assert.ok(Math.abs(head[index].width - row[index].width) <= 1,
+            tableName + ' column ' + (index + 1) + ': header width equals row-cell width');
+        }
+      }
+    };
+    if (data.innerWidth > 640) {
+      // The frozen AC3 column check runs only at the wide viewport: at 390 the first row wraps and
+      // a single-index left/width comparison cannot pass (Lead ruling, §3.8). The detail table's
+      // trailing remove-button column is inset by design, so its width is not compared.
+      compareColumns(data.head, data.row, 'detail table', true);
+      await page().click('#tab-materials');
+      await sleep(200);
+      const wide = await page().evaluate(`
+        const box = (node) => { const r = node.getBoundingClientRect(); return { left: r.left, width: r.width }; };
+        const table = document.querySelector('.mtable--wide');
+        return { head: Array.from(table.querySelectorAll('.mtable__head > *')).map(box),
+          row: Array.from(table.querySelector('.mat-row').children).map(box) };
+      `);
+      compareColumns(wide.head, wide.row, 'shopping list table', true);
+      await page().click('#tab-builds');
+      await sleep(100);
+    }
+    assert.ok(data.scrollWidth <= data.innerWidth + 1, 'no horizontal overflow at ' + width + 'x' + height);
+    await shot(name);
+  };
+  await measure(1280, 900, '68-alignment-1280');
+  await measure(390, 844, '69-alignment-390');
+});
+
+test('71 the height budget holds on the frozen fixture at both viewports (AC7)', async () => {
+  const state = JSON.parse(fs.readFileSync(fixture('budget-state.json'), 'utf8'));
+  await injectState(state);
+  await page().setViewport(1280, 900);
+  await sleep(300);
+  const desktop = await page().evaluate(`
+    return { height: document.documentElement.scrollHeight, scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth };
+  `);
+  assert.ok(desktop.height <= 900, 'the budget fixture fits 1280x900 (found ' + desktop.height + 'px)');
+  assert.equal(desktop.scrollWidth, desktop.clientWidth, 'no horizontal overflow at 1280x900');
+  await shot('70-height-1280');
+  await page().setViewport(390, 844);
+  await sleep(300);
+  const mobile = await page().evaluate(`
+    return { height: document.documentElement.scrollHeight, scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth };
+  `);
+  // Contract §7 S5 amendment (Lead ruling, 2026-10-25): the single-column stack cannot reach 920 px
+  // without hiding a section the founder asked to keep; the measured 1,436 px fixes the ceiling at
+  // 1,500 px. Vertical scrolling at 390 is expected; horizontal overflow stays strict.
+  assert.ok(mobile.height <= 1500, 'the budget fixture fits 390x844 (found ' + mobile.height + 'px, ceiling 1500 per §7 S5 amendment)');
+  assert.equal(mobile.scrollWidth, mobile.clientWidth, 'no horizontal overflow at 390x844');
+  await shot('71-height-390');
+});
+
+test('72 the add form gets +1/+10/+stack from the resolver, never below 1 (AC6)', async () => {
+  await reset();
+  const initial = await page().evaluate(`
+    const container = document.querySelector('#mat-steps');
+    if (!container) return null;
+    const needed = document.querySelector('#mat-needed');
+    return {
+      after: !!(needed && needed.nextElementSibling && needed.nextElementSibling.id === 'mat-steps'),
+      steps: Array.from(container.querySelectorAll('.mat-step')).map((button) => ({
+        step: button.getAttribute('data-step'), field: button.getAttribute('data-mat-field'),
+        hidden: button.hidden, text: button.textContent.trim(),
+      })),
+      gotSteps: document.querySelectorAll('#mat-collected ~ .mat-steps, #mat-collected + .mat-steps').length,
+    };
+  `);
+  assert.ok(initial, '#mat-steps exists');
+  assert.equal(initial.after, true, '#mat-steps follows #mat-needed in the form');
+  assert.deepEqual(initial.steps.map((item) => item.step), ['1', '10', 'stack'], 'data-step stays unsigned');
+  assert.ok(initial.steps.every((item) => item.field === 'needed'), 'every form stepper targets Needed');
+  assert.equal(initial.steps[2].hidden, true, 'the stack stepper stays hidden until an item is chosen');
+  assert.equal(initial.gotSteps, 0, 'Got carries no stepper');
+  await page().click('#mat-choice');
+  await page().waitFor('document.querySelector("#icon-dialog").open');
+  await page().fill('#icon-search', 'stone bricks');
+  await page().waitFor('document.querySelectorAll("#icon-grid .icon-tile[data-icon-slug]").length > 0');
+  await page().evaluate(`
+    const tile = Array.from(document.querySelectorAll('#icon-grid .icon-tile[data-icon-slug]'))
+      .find((node) => node.dataset.iconSlug === 'stone_bricks');
+    tile.click();
+    return true;
+  `);
+  await page().waitFor('!document.querySelector("#icon-dialog").open');
+  const selected = await page().evaluate(`
+    const button = document.querySelector('#mat-steps [data-step="stack"]');
+    return { hidden: button.hidden, text: button.textContent.trim() };
+  `);
+  assert.equal(selected.hidden, false, 'choosing an item reveals the stack stepper');
+  assert.equal(selected.text, '+64', 'the label is the resolved stack (+64 for stone bricks)');
+  await page().click('#mat-steps [data-step="1"]');
+  await page().waitFor('document.querySelector("#mat-needed").value === "2"');
+  await page().click('#mat-steps [data-step="10"]');
+  await page().waitFor('document.querySelector("#mat-needed").value === "12"');
+  await page().click('#mat-steps [data-step="stack"]');
+  await page().waitFor('document.querySelector("#mat-needed").value === "76"');
+  assert.equal(await page().value('#mat-collected'), '0', 'the form steppers never touch Got');
+});
+
+test('73 the import dialog restores by paste and by drop, and reports bad JSON (AC8)', async () => {
+  await reset({ demo: false });
+  assert.equal(await page().evaluate(`return document.querySelector('#file-import').getAttribute('accept');`), '.json', 'the file input accepts only the .json extension token');
+  await page().click('#btn-import');
+  await page().waitFor('document.querySelector("#import-dialog") !== null && document.querySelector("#import-dialog").open');
+  assert.match(await page().text('#import-dialog'), /Restore a backup/);
+  const pasteText = fs.readFileSync(fixture('import-paste.json'), 'utf8');
+  await page().fill('#import-text', pasteText);
+  await page().click('#import-restore');
+  await page().waitFor('document.querySelector("#toast").textContent.indexOf("Backup restored.") === 0');
+  await page().waitFor('document.querySelectorAll("#world-select option").length > 0');
+  assert.ok(await page().count('#build-list .build-entry') > 0, 'the restored world lists its builds');
+  assert.ok(await page().exists('#build-list [aria-current="true"]'), 'the restore selects a build');
+  await page().fill('#import-text', 'not json at all');
+  await page().click('#import-restore');
+  await page().waitFor('document.querySelector("#import-error") !== null && !document.querySelector("#import-error").hidden');
+  assert.match(await page().text('#import-error'), /not valid JSON/i);
+  const dropped = await page().evaluate(`
+    const text = ${JSON.stringify(pasteText)};
+    const transfer = new DataTransfer();
+    transfer.items.add(new File([text], 'backup.json', { type: 'application/json' }));
+    const dialog = document.querySelector('#import-dialog');
+    const zone = document.querySelector('#import-drop');
+    (zone || dialog).dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: transfer }));
+    return true;
+  `);
+  assert.equal(dropped, true);
+  await page().waitFor('document.querySelector("#toast").textContent.indexOf("Backup restored.") === 0');
+});
+
+test('74 custom materials are created in three scopes with the exact error strings (AC4/AC5)', async () => {
+  await reset();
+  await page().click('#mat-choice');
+  await page().waitFor('document.querySelector("#icon-dialog").open');
+  const materialPicker = await page().evaluate(`
+    return { custom: !!document.querySelector('#btn-new-custom'),
+      visible: !!(document.querySelector('#btn-new-custom') && document.querySelector('#btn-new-custom').offsetParent),
+      flagged: document.querySelector('#icon-dialog').classList.contains('picker--material') };
+  `);
+  assert.equal(materialPicker.custom, true, 'the material picker carries the New custom material control');
+  assert.equal(materialPicker.visible, true, 'the control is visible in material mode');
+  assert.equal(materialPicker.flagged, true, 'the picker is flagged for material use');
+  await page().click('#icon-cancel');
+  await page().waitFor('!document.querySelector("#icon-dialog").open');
+  await page().click('#detail-avatar');
+  await page().waitFor('document.querySelector("#icon-dialog").open');
+  assert.equal(await page().evaluate(`return document.querySelector('#btn-new-custom').offsetParent === null;`), true, 'the control is away in icon mode');
+  await page().click('#icon-cancel');
+  await page().waitFor('!document.querySelector("#icon-dialog").open');
+
+  const create = async (name, stack, scope, iconSlug) => {
+    await page().click('#mat-choice');
+    await page().waitFor('document.querySelector("#icon-dialog").open');
+    await page().click('#btn-new-custom');
+    await page().waitFor('document.querySelector("#custom-dialog") !== null && document.querySelector("#custom-dialog").open');
+    assert.equal(await page().text('#custom-error'), '', 'a freshly opened custom dialog carries no stale error');
+    await page().fill('#custom-name', name);
+    await page().fill('#custom-stack', String(stack));
+    await page().fill('#custom-scope', scope);
+    if (iconSlug) {
+      await page().click('#custom-icon-pick');
+      await page().waitFor('document.querySelector("#icon-dialog").open');
+      await page().fill('#icon-search', iconSlug.replace(/_/g, ' '));
+      await page().waitFor('document.querySelectorAll("#icon-grid .icon-tile[data-icon-slug]").length > 0');
+      await page().evaluate(`
+        const tile = Array.from(document.querySelectorAll('#icon-grid .icon-tile[data-icon-slug]'))
+          .find((node) => node.dataset.iconSlug === ${JSON.stringify(iconSlug)});
+        tile.click();
+        return true;
+      `);
+      await page().waitFor('document.querySelector("#custom-dialog").open && !document.querySelector("#icon-dialog").open');
+    }
+    await page().click('#custom-save');
+    await page().waitFor('!document.querySelector("#custom-dialog").open && !document.querySelector("#icon-dialog").open');
+  };
+
+  await create('Test Bricks', 16, 'build', 'stone_bricks');
+  assert.equal(await page().text('#mat-choice-name'), 'Test Bricks', 'the new entry becomes the pending material');
+  let registries = await page().evaluate(`
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v1'));
+    const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
+    const build = world.builds.find((entry) => entry.id === state.activeBuildId) || world.builds[0];
+    return { build: (build.customItems || []).map((item) => ({ name: item.name, stack: item.stack, icon: item.icon })),
+      world: (world.customItems || []).length, account: (state.customItems || []).length };
+  `);
+  assert.deepEqual(registries.build, [{ name: 'Test Bricks', stack: 16, icon: { kind: 'item', slug: 'stone_bricks' } }], 'the build registry stores the entry');
+  assert.equal(registries.world, 0, 'a build scope does not leak into the world registry');
+  assert.equal(registries.account, 0, 'a build scope does not leak into the account registry');
+  await create('World Slate', 1, 'world', null);
+  await create('Account Plank', 999, 'account', null);
+  registries = await page().evaluate(`
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v1'));
+    const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
+    return { world: (world.customItems || []).map((item) => item.name), account: (state.customItems || []).map((item) => item.name) };
+  `);
+  assert.deepEqual(registries.world, ['World Slate']);
+  assert.deepEqual(registries.account, ['Account Plank']);
+
+  const failing = async (name, stack, scope) => {
+    await page().click('#mat-choice');
+    await page().waitFor('document.querySelector("#icon-dialog").open');
+    await page().click('#btn-new-custom');
+    await page().waitFor('document.querySelector("#custom-dialog").open');
+    // Run-2 correction: every refusal gets a freshly opened dialog and a clean error slot, so a
+    // stale message from the previous refusal can never answer this one.
+    assert.equal(await page().text('#custom-error'), '', 'each refusal starts with a clean error slot');
+    await page().fill('#custom-name', name);
+    await page().fill('#custom-stack', String(stack));
+    await page().fill('#custom-scope', scope);
+    await page().click('#custom-save');
+    const text = await page().text('#custom-error');
+    await page().click('#custom-cancel');
+    await page().waitFor('!document.querySelector("#custom-dialog").open');
+    return text;
+  };
+  assert.equal(await failing('', 64, 'build'), 'Custom material needs a name.', 'an empty name is refused');
+  assert.equal(await failing('World Slate', 64, 'world'), 'Name already used by another material.', 'a duplicate name in the same registry is refused');
+  assert.equal(await failing('Stack Probe', 0, 'build'), 'Stack size must be between 1 and 999.', 'a zero stack is refused');
+  await page().click('#custom-cancel').catch(() => {});
+});
+
+test('75 resolution runs build -> world -> account -> catalogue (AC4)', async () => {
+  const state = JSON.parse(fs.readFileSync(fixture('custom-items.v1.json'), 'utf8'));
+  await injectState(state);
+  const stackLabel = async (query, slug) => {
+    await page().click('#mat-choice');
+    await page().waitFor('document.querySelector("#icon-dialog").open');
+    await page().fill('#icon-search', query);
+    await page().waitFor('document.querySelectorAll("#icon-grid .icon-tile[data-icon-slug]").length > 0');
+    const clicked = await page().evaluate(`
+      const tiles = Array.from(document.querySelectorAll('#icon-grid .icon-tile[data-icon-slug]'));
+      const wanted = ${JSON.stringify(slug || null)};
+      const tile = wanted ? tiles.find((node) => node.dataset.iconSlug === wanted) : tiles[0];
+      if (!tile) return null;
+      tile.click();
+      return true;
+    `);
+    assert.ok(clicked, 'no tile matched ' + query);
+    await page().waitFor('!document.querySelector("#icon-dialog").open');
+    return page().text('#mat-steps [data-step="stack"]');
+  };
+  await page().evaluate(`
+    const entry = Array.from(document.querySelectorAll('#build-list .build-entry')).find((node) =>
+      node.querySelector('.build-entry__name').textContent.trim() === 'Iron Farm (spawn)');
+    entry.click();
+    return true;
+  `);
+  assert.equal(await stackLabel('deepslate bricks', 'deepslate_bricks'), '+1', 'a build-scope entry wins');
+  assert.equal(await stackLabel('pillar stone', 'pillar_stone'), '+16', 'a second build-scope entry resolves');
+  assert.equal(await stackLabel('roof tile', 'roof_tile'), '+64', 'the account entry resolves without a lower-scope shadow');
+  assert.equal(await stackLabel('stone', 'stone'), '+64', 'the catalogue answers when no registry matches');
+  await page().evaluate(`
+    const entry = Array.from(document.querySelectorAll('#build-list .build-entry')).find((node) =>
+      node.querySelector('.build-entry__name').textContent.trim() === 'Storage Hall');
+    entry.click();
+    return true;
+  `);
+  assert.equal(await stackLabel('deepslate bricks', 'deepslate_bricks'), '+64', 'without a build entry the world-scope entry answers');
+});
+
+test('76 custom tiles carry the badge and sort after the catalogue (AC5)', async () => {
+  const state = JSON.parse(fs.readFileSync(fixture('custom-items.v1.json'), 'utf8'));
+  await injectState(state);
+  await page().click('#mat-choice');
+  await page().waitFor('document.querySelector("#icon-dialog").open');
+  const badges = await page().count('#icon-grid .tile__badge');
+  assert.equal(badges, 0, 'the unfiltered first batch shows no custom badge');
+  await page().fill('#icon-search', 'pillar');
+  await page().waitFor('document.querySelectorAll("#icon-grid .icon-tile[data-icon-slug]").length > 0');
+  const custom = await page().evaluate(`
+    const tile = Array.from(document.querySelectorAll('#icon-grid .icon-tile[data-icon-slug]'))
+      .find((node) => node.querySelector('.icon-tile__name').textContent.trim() === 'Pillar Stone');
+    return { found: !!tile, badge: tile && tile.querySelector('.tile__badge') && tile.querySelector('.tile__badge').textContent.trim() };
+  `);
+  assert.equal(custom.found, true, 'the custom entry is searchable');
+  assert.equal(custom.badge, 'custom', 'the custom tile is badged');
+  await page().fill('#icon-search', 'stone');
+  await page().waitFor('document.querySelectorAll("#icon-grid .icon-tile[data-icon-slug]").length > 0');
+  assert.equal(
+    await page().evaluate(`return document.querySelector('#icon-grid .icon-tile[data-icon-slug]').dataset.iconSlug;`),
+    'stone',
+    'the catalogue sorts before custom entries'
+  );
+});
+
+test('77 export round-trips the registries and malformed imports are atomic (AC4)', async () => {
+  const state = JSON.parse(fs.readFileSync(fixture('custom-items.v1.json'), 'utf8'));
+  await injectState(state);
+  await page().evaluate(`
+    window.__blobText = null;
+    URL.createObjectURL = (blob) => { blob.text().then((text) => { window.__blobText = text; }); return 'blob:stub'; };
+    HTMLAnchorElement.prototype.click = function () {};
+    return true;
+  `);
+  await page().click('#btn-export');
+  await page().waitFor('window.__blobText !== null');
+  const exported = JSON.parse(await page().evaluate('return window.__blobText;'));
+  assert.equal(exported.customItems.length, 2, 'the account registry exports');
+  assert.equal(exported.worlds[0].customItems.length, 1, 'the world registry exports');
+  assert.equal(exported.worlds[0].builds[0].customItems.length, 2, 'the build registry exports');
+  const before = await page().evaluate(`return localStorage.getItem('mc-build-tracker:v1');`);
+  await page().upload('#file-import', fixture('v1-backup.json'));
+  await page().waitFor('document.querySelector("#toast").textContent.indexOf("Backup restored.") === 0');
+  const v1 = await page().evaluate(`return JSON.parse(localStorage.getItem('mc-build-tracker:v1'));`);
+  assert.deepEqual(v1.customItems || [], [], 'a v1 backup without registries imports as empty arrays');
+  const afterImport = await page().evaluate(`return localStorage.getItem('mc-build-tracker:v1');`);
+  for (const name of ['invalid-no-name.json', 'invalid-duplicate-name.json', 'invalid-stack-zero.json', 'invalid-stack-1000.json', 'invalid-bad-icon.json', 'invalid-registry-shape.json']) {
+    await page().upload('#file-import', fixture(name));
+    await page().waitFor(`
+      (function () {
+        const toast = document.querySelector('#toast');
+        return !!toast && !toast.hidden && /custom material|Name already|Stack size|Icon must|not a tracker backup|not valid JSON/i.test(toast.textContent);
+      })()
+    `);
+    assert.equal(await page().evaluate(`return localStorage.getItem('mc-build-tracker:v1');`), afterImport, name + ' must not mutate storage');
+  }
+  assert.notEqual(before, afterImport);
+});
+
+test('78 the pause control persists the choice across reloads (AC11/R7)', async () => {
+  // Emulated media is sticky: case 48 (or 26) may have left `reduce` on, and R7 correctly
+  // defaults the strip to paused under reduce. This case exercises the play default.
+  await page().emulateReducedMotion(false);
+  await reset();
+  assert.equal(await page().evaluate(`return getComputedStyle(document.querySelector('.backdrop > .backdrop__layer')).animationPlayState;`), 'running', 'the strip runs by default');
+  assert.equal(await page().evaluate(`return localStorage.getItem('mc-build-tracker:motion');`), null, 'no stored choice means play');
+  await page().click('#backdrop-pause');
+  await page().waitFor('getComputedStyle(document.querySelector(".backdrop > .backdrop__layer")).animationPlayState === "paused"');
+  assert.equal(await page().evaluate(`return localStorage.getItem('mc-build-tracker:motion');`), 'paused', 'pausing is remembered');
+  assert.equal(await page().evaluate(`return document.querySelector('#backdrop-pause').getAttribute('aria-pressed');`), 'true', 'the control reports paused');
+  await page().reload();
+  await page().waitFor('document.querySelector("#world-select") !== null');
+  assert.equal(await page().evaluate(`return getComputedStyle(document.querySelector(".backdrop > .backdrop__layer")).animationPlayState;`), 'paused', 'the pause survives a reload');
+  await page().click('#backdrop-pause');
+  await page().waitFor('getComputedStyle(document.querySelector(".backdrop > .backdrop__layer")).animationPlayState === "running"');
+  assert.equal(await page().evaluate(`return localStorage.getItem('mc-build-tracker:motion');`), 'play', 'resuming is remembered');
+});
+
+test('79 the world header no longer duplicates the retired summary line (AC2)', async () => {
+  await reset();
+  const meta = (await page().text('#world-meta')).trim();
+  assert.match(meta, /^Java\s+1\.21\.4\s+·\s+3 builds$/, 'the identity line is edition/version/build count only');
+  assert.equal(await page().exists('#world-summary'), false);
+  assert.equal((await page().text('.panel__topbar')).indexOf('items still to collect') !== -1, true, 'the remaining count lives in the stats row');
+});
+
+test('80 the detail panel contains its sections and nothing paints over the gathered strip (containment)', async () => {
+  // Added after run 11 (S5, EDICT-0015): `.materials` had been moved out of the detail panel
+  // (depth 4 in the working tree vs 5 in HEAD; `.detail` measured 191.5 px tall), so
+  // `#detail-body` no longer contained its own sections, while every earlier case stayed green
+  // (they asserted alignment, heights and budgets, never containment). This is a guard:
+  // containment first, then overlap between sections and across the compact top bar.
+  for (const vp of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
+    await page().setViewport(vp.width, vp.height);
+    await reset();
+    assert.equal(
+      await page().exists('#detail-body .mtable'),
+      true,
+      `${vp.width}px: the materials table must be a descendant of #detail-body`
+    );
+    assert.equal(
+      await page().exists('#detail-body #material-body .mat-row'),
+      true,
+      `${vp.width}px: the material rows must be descendants of #detail-body`
+    );
+    const report = await page().evaluate(`
+      return (function () {
+        const rect = (el) => el.getBoundingClientRect();
+        const visible = (el) => {
+          if (!el) return false;
+          const r = rect(el);
+          return r.width > 0 && r.height > 0;
+        };
+        const overlap = (a, b) => {
+          const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+          const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+          return (w > 2 && h > 2) ? { x: Math.round(w), y: Math.round(h) } : null;
+        };
+        const detail = document.querySelector('#detail-body');
+        const strip = document.querySelector('#detail-body .progress-block');
+        const rows = Array.from(document.querySelectorAll('#detail-body #material-body .mat-row'));
+        const dRect = rect(detail);
+        const last = rows.length ? rect(rows[rows.length - 1]) : null;
+        const offenders = [];
+        const locked = [
+          document.querySelector('#detail-body h3.section-head__title'),
+          document.querySelector('#detail-body .mtable__head'),
+          ...rows
+        ];
+        for (const el of locked) {
+          if (!visible(el) || !strip) continue;
+          const hit = overlap(rect(el), rect(strip));
+          if (hit) offenders.push({ what: el.className || el.tagName, hit });
+        }
+        const topHits = [];
+        const bar = [
+          document.querySelector('.world-picker'),
+          document.querySelector('#world-meta'),
+          document.querySelector('#world-stats'),
+          document.querySelector('.topbar__actions')
+        ].filter(visible);
+        for (let i = 0; i < bar.length; i++) {
+          for (let j = i + 1; j < bar.length; j++) {
+            const hit = overlap(rect(bar[i]), rect(bar[j]));
+            if (hit) topHits.push({ a: bar[i].id || bar[i].className, b: bar[j].id || bar[j].className, hit });
+          }
+        }
+        return {
+          rows: rows.length,
+          detailBottom: Math.round(dRect.bottom),
+          lastRowBottom: last ? Math.round(last.bottom) : Math.round(dRect.bottom),
+          stripHeight: strip ? Math.round(rect(strip).height) : 0,
+          offenders,
+          topHits
+        };
+      })()
+    `);
+    assert.ok(report.stripHeight > 0, `${vp.width}px: the gathered strip exists inside #detail-body`);
+    assert.ok(report.rows >= 1, `${vp.width}px: the selected demo build still has material rows`);
+    assert.ok(
+      report.lastRowBottom <= report.detailBottom + 1,
+      `${vp.width}px: the detail panel contains its last row (panel bottom ${report.detailBottom}, last row ${report.lastRowBottom})`
+    );
+    assert.deepEqual(report.offenders, [], `${vp.width}px: heading/table/rows must not paint over the gathered strip`);
+    assert.deepEqual(report.topHits, [], `${vp.width}px: top-bar nodes must not overlap each other`);
+  }
+  await page().setViewport(1280, 900);
+});
 
 test('66 the whole run, including the new surfaces, stayed free of console errors', async () => {
   assert.deepEqual(app.consoleErrors, []);

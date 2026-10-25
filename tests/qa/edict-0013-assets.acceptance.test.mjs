@@ -232,8 +232,14 @@ test('AC-A5 the panorama layers blur at most 1px on desktop and 1.5px on mobile'
   const scrim = /--backdrop-scrim-alpha\s*:\s*([\d.]+)/.exec(css());
   assert.ok(scrim, 'the scrim token must survive');
   assert.ok(Number(scrim[1]) >= 0.12, 'the scrim may only get stronger, never weaker');
-  assert.match(css(), /prefers-reduced-motion: reduce\)[\s\S]{0,240}animation:\s*none/,
-    'reduced motion still stops the pan');
+  // EDICT-0015 §1 / R7 supersedes EDICT-0014's "reduce stops the pan": the layer keeps its
+  // animation and freezes by play-state, never by `animation: none`, on a single copy.
+  assert.match(css(), /@keyframes\s+backdrop-drift/, 'the 120 s single-layer drift keyframe exists');
+  assert.match(css(), /prefers-reduced-motion: reduce\)[\s\S]{0,400}animation-play-state:\s*paused/,
+    'reduced motion pauses the layer');
+  assert.doesNotMatch(css(), /\.backdrop__layer[^}]*animation:\s*none/, 'the layer is never stopped with animation:none');
+  assert.doesNotMatch(css(), /\.backdrop__layer:nth-child\(2\)/, 'the second backdrop copy is retired');
+  assert.doesNotMatch(css(), /:root\.has-panorama \.backdrop::before\s*\{[^}]*filter/, 'the blur stays on the layer, not a pseudo-element');
 });
 
 /* ------------------------------------------------------------------ catalog */

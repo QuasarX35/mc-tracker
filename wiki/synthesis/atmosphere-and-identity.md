@@ -40,7 +40,10 @@ pattern rather than a one-off.
    ([[In-game GUI design]]). EDICT-0014 added the motion half: six resolved inputs, four side
    faces stitched with a wrap crossfade into a 2,560×640 strip, baked at 2.0, displayed as two
    copies translated −50 % over 180 s — a seamless one-direction loop in place of the 120 s
-   ping-pong.
+   ping-pong. EDICT-0015 diagnosed the still-static background (this machine reports
+   `prefers-reduced-motion: reduce`, and the strip was drawn at 50 % × 100 % instead of its 4:1
+   aspect) and replaced the two copies with one 800vh layer drifting over 120 s, with a WCAG pause
+   control; reduce now defaults the layer to paused with the frame painted, never `animation: none`.
 
 ## Identity: item icon or upload
 
@@ -74,9 +77,10 @@ redistribution]]).
   prevent them ([[Local-first tracking]]).
 - **Authenticity has a taste dimension.** Pan speed, blur radius and scrim alpha were tuned
   against screenshots, not measured. EDICT-0013 settled the sharpness (bake 2.5, CSS 1 px, scrim
-  0.2) and EDICT-0014 the motion (a 180 s seamless loop over four stitched sides), but not the
-  comparison — nobody has watched it beside the real title screen on a physical display, so
-  "menu-like" remains partly a judgement ([[Open questions]]).
+  0.2), EDICT-0014 the seamless direction, and EDICT-0015 made the motion a single 800vh layer
+  drifting over 120 s with a pause control and a default-paused state under reduce; none of that
+  settles the comparison — nobody has watched it beside the real title screen on a physical
+  display, so "menu-like" remains partly a judgement ([[Open questions]]).
 - **A large identity catalog is a discovery problem.** 1,368 icons in one dialog is search-first:
   the picker pages 120 tiles at a time and never stops short, with curated/common items first,
   recents from the browser, and a deterministic suggestion. That fixes reachability but not
@@ -86,8 +90,9 @@ redistribution]]).
   material list and explains its pick; it is deterministic and cheap, not intelligent, and a
   plausible wrong icon is always possible. The reason string is the honesty mechanism
   ([[Open questions]]).
-- **Emulation is not a device.** 390 px and reduced-motion are emulated in headless Chrome;
-  no phone or OS-level motion preference was physically observed.
+- **Emulation is not a device.** 390 px and the reduce preference are emulated in headless Chrome;
+  the pause control is the tested escape hatch, but no phone or physical OS motion preference was
+  observed.
 - **Resolution is a one-off local upgrade.** The 256 px identity icons depend on an export of
   the owner's game that the repository cannot regenerate; a fresh machine still gets the
   lower-resolution fallback or letters ([[Vanilla assets without redistribution]]).
@@ -96,6 +101,10 @@ redistribution]]).
 
 - Implements the product-facing side of [[Vanilla assets without redistribution]].
 - Extends [[In-game GUI design]] from chrome into atmosphere and identity.
-- Verified by [[Testing a UI like a user]] (66 browser flows at the time).
+- Verified by [[Testing a UI like a user]] (80 browser flows at the time).
 - Extended by EDICT-0014's interaction pass: paging, recents and the suggestion make a
   1,368-icon identity catalog usable; the backdrop became a seamless 180 s loop.
+- Extended by EDICT-0015's layout pass: the identity catalog is unchanged, but the scenery is now
+  a single 800vh layer over 120 s with a pause control and a default-paused state under reduce;
+  custom items join the catalogue as a local, typed extension
+  ([[Status-ranked build ordering]], [[Material registry]]).

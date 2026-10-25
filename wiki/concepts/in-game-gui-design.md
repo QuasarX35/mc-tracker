@@ -83,6 +83,29 @@ whether or not it was designed:
 - **Wrapping is geometry.** Item names ellipsed to fit a fixed slot are the browser silently
   editing the copy; wrapping 2–3 lines keeps the panel's dimensions honest at 1280 and 390 px.
 
+## Measurement is the new screenshot pass
+
+EDICT-0015 turned three previously visual judgements into rect arithmetic:
+
+- **Layout alignment.** Labels pair with their own control, not one shared left edge; the rule is
+  ±1 px at 1280×900 and 390×844, one control height per visual row, add-form slot/Needed/Got
+  tops equal, table head and row cells aligned, and top-bar controls centred across a row. It is
+  asserted with `getBoundingClientRect` against an injected fixture, not judged from a screenshot
+  ([[Testing a UI like a user]]).
+- **Height as a budget.** The desktop page must fit 900 px exactly and the 390×844 page ≤1,500
+  (measured 1,423); only material lists may scroll. The budget fixture (4 builds, 6 materials) is
+  test data, not `?demo=1`, so the number means the same thing on every run.
+- **State that can be derived.** The world header's `"X% gathered"` is computed from
+  `M.worldSummary` on each render; a literal would be a second source of truth
+  ([[Status-ranked build ordering]]).
+- **Dialogs for file paths.** Import got a real dialog (`accept=".json"`, drop, paste, restore)
+  because Chrome's chooser used the first `accept` token as its extension filter and this machine
+  has no `.json` MIME type — a browser fact, not a design preference.
+- **A control for motion.** One `.backdrop__layer` at 4:1 (`width: 800vh; background-size: 400vh
+  auto; repeat-x`) drifts −50 % over 120 s; `#backdrop-pause` is the WCAG 2.2.2 stop, and
+  `prefers-reduced-motion: reduce` defaults the layer to paused rather than removing it — the OS
+  preference sets the initial state, the control changes it.
+
 ## Tensions
 
 - **Contrast vs. fidelity.** Vanilla draws white text on light grey, which fails WCAG AA. The
@@ -101,13 +124,21 @@ whether or not it was designed:
   Firefox and Safari, the only options are a JavaScript listbox or the unthemed OS popup — the
   design system currently ships the split and documents it.
 - **Taste is measurable only up to a point.** The backdrop is now defined by numbers (six inputs,
-  four stitched sides, 2,560×640, bake 2.0, CSS 1 px, 0.2 scrim, 180 s seamless loop), but the
-  comparison that would settle it — side by side with the real title screen on a physical display
-  — has not been made ([[Open questions]]).
-- **Seamless is a loop, not a video.** Two copies translated −50 % over 180 s give a clean wrap
-  with one style rule; the cost is that the strip must tile perfectly and the eye sees the same
-  four side faces every cycle. A true six-face orbit would need more usable source views than the
-  release ships (the top/bottom caps are recorded, not stitched).
+  four stitched sides, 2,560×640, bake 2.0, CSS 1 px, 0.2 scrim, one 800vh layer over a 120 s
+  drift, a pause control), but the comparison that would settle it — side by side with the real
+  title screen on a physical display — has not been made ([[Open questions]]).
+- **Seamless is a loop, not a video.** One `.backdrop__layer` 800vh wide, repeating a 400vh-at-auto
+  strip and translated −50 % over 120 s, gives a clean wrap with one style rule; the cost is that
+  the strip must tile perfectly and the eye sees the same four side faces every cycle. A true
+  six-face orbit would need more usable source views than the release ships (the top/bottom caps
+  are recorded, not stitched).
+- **Motion is a preference with a control.** `prefers-reduced-motion: reduce` now defaults the
+  layer to paused with the frame still painted, and `#backdrop-pause` (or a stored `motion=play`)
+  is the opt-in — the media query sets the default, not a veto. The paused phase is not persisted:
+  a reload restarts at phase 0, so the frozen frame re-samples the strip.
+- **Alignment is a two-viewport claim.** 1280×900 and 390×844 are asserted pairwise; other widths
+  and HiDPI zoom levels are outside the measured contract, and a long builds list is allowed to
+  scroll ([[Testing a UI like a user]]).
 - **Paging trades completeness for discovery.** All 1,368 items are reachable but only by
   scrolling; there is no letter jump or virtual list, so finding an obscure item depends on
   search, recents or the suggestion ([[Open questions]]).
@@ -143,8 +174,11 @@ The menu's atmosphere is not the GUI chrome — it is the panorama behind it: si
 screenshots of a world, blurred and slowly rotating. The app resolves six inputs, stitches the
 four side faces with a wrap crossfade (the caps are recorded but not stitched), bakes at a
 Gaussian radius of **2.0** and composes a 2,560×640 strip (55,096 B, sha256 `331253bd…bf1a5`).
-Display is two copies translated −50 % over **180 s** with CSS `blur(1px)` (1.5 px at ≤640 px) and
-a **0.2** scrim, and `prefers-reduced-motion` sets the animation to none. EDICT-0013's sharper
+Display is a single `.backdrop__layer` 800vh wide (`background-size: 400vh auto`, repeat-x)
+translated −50 % over **120 s** linear infinite, with CSS `blur(1px)` (1.5 px at ≤640 px) and a
+**0.2** scrim; `#backdrop-pause` stops it, and `prefers-reduced-motion: reduce` defaults the layer
+to paused with the frame painted (the OS preference is respected; the layer never gets
+`animation: none`). EDICT-0013's sharper
 bake answered the emperor's "less blurred so you can tell what it is": edge-variance on the same
 1,280×900 strip rose from 1,132.6 to 1,379.9 and the strip grew from 15,280 to 45,664 B; EDICT-0014
 made the rotation seamless and settled the geometry. Crucially, the source is odd: the version
@@ -164,3 +198,7 @@ same idea: small, square, bevelled slots that make a world or build recognisable
 - Extended by EDICT-0014 into the browser-default surface: one top-layer tooltip, append-only
   paging instead of a render cap, five real empty states, wrapped names, undo, recents and a
   deterministic icon suggestion ([[Minecraft Build Tracker]]).
+- Extended by EDICT-0015 from look into measurement: label/control pairing, the 900 px desktop
+  budget, a derived header percentage, the import dialog that works without the OS chooser, custom
+  badges in the picker, and the paused-under-reduce scenery with a WCAG pause control
+  ([[Status-ranked build ordering]], [[Material registry]]).

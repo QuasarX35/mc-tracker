@@ -314,6 +314,41 @@
     });
   }
 
+  /** EDICT-0015 §4/F10: the three custom registries, nearest scope first, one entry per name. */
+  function customRegistryLists() {
+    var world = activeWorld();
+    var build = selectedBuild();
+    var lists = [];
+    if (build && build.customItems) lists.push(build.customItems);
+    if (world && world.customItems) lists.push(world.customItems);
+    if (state && state.customItems) lists.push(state.customItems);
+    return lists;
+  }
+
+  /** Custom tiles are appended AFTER every catalogue match (F10) and never seeded unfiltered. */
+  function pickerCustomEntries(query) {
+    var needle = String(query || '').trim().toLowerCase();
+    var slugNeedle = needle.replace(/\s+/g, '_');
+    var seen = {};
+    var out = [];
+    customRegistryLists().forEach(function (list) {
+      list.forEach(function (entry) {
+        if (!entry || !entry.name) return;
+        var slug = slugifyItem(entry.name);
+        if (!slug || seen[slug]) return;
+        if (needle && entry.name.toLowerCase().indexOf(needle) < 0 && slug.indexOf(slugNeedle) < 0) return;
+        seen[slug] = true;
+        out.push({ slug: slug, name: entry.name, custom: true });
+      });
+    });
+    return out;
+  }
+
+  function customPickerName(slug) {
+    var found = pickerCustomEntries('').filter(function (entry) { return entry.slug === slug; })[0];
+    return found ? found.name : '';
+  }
+
   function loadMorePicker() {
     var matches = pickerEntries(els['icon-search'].value);
     if (ui.pickerShown >= matches.length) return;
@@ -343,12 +378,18 @@
     /* Case 32: remember the invoking control explicitly. A programmatic .click() does not move
        focus, so document.activeElement is not a reliable trigger. */
     lastIconTrigger = target.trigger || document.activeElement;
-    ui.pickerMode = target.scope === 'material' ? 'item' : 'icon';
+    /* Three picker surfaces: the material chooser picks an item, the custom-material icon
+       field commits on the tile click (contract §4), everything else is the icon draft. */
+    if (target.scope === 'material') ui.pickerMode = 'item';
+    else if (target.scope === 'custom-icon') ui.pickerMode = 'custom-icon';
+    else ui.pickerMode = 'icon';
     if (target.scope === 'world') draftIcon = dialogIcon.world;
     else if (target.scope === 'build') draftIcon = dialogIcon.build;
     else if (target.scope === 'build-detail') {
       var build = selectedBuild();
       draftIcon = (build && build.icon) || null;
+    } else if (target.scope === 'custom-icon') {
+      draftIcon = ui.customIcon || null;
     } else {
       draftIcon = null;
     }
@@ -359,6 +400,7 @@
     ui.pickerRecents = readRecents();
     ui.pickerSuggestion = target.scope === 'build-detail' ? suggestionFor(selectedBuild()) : null;
     syncPickerChrome();
+    syncCustomButton();
     renderIconPicker();
     els['icon-dialog'].showModal();
     els['icon-search'].focus();
@@ -367,10 +409,11 @@
   /** EDICT-0013 D7/D8: one dialog, two modes — choose an icon, or choose an item for a material. */
   function syncPickerChrome() {
     var picking = ui.pickerMode === 'item';
+    var customIcon = ui.pickerMode === 'custom-icon';
     els['icon-dialog-title'].textContent = picking ? 'Choose an item' : 'Choose an icon';
     els['icon-use'].textContent = picking ? 'Use item' : 'Use icon';
-    els['icon-use'].hidden = picking;
-    els['icon-upload-block'].hidden = picking;
+    els['icon-use'].hidden = picking || customIcon;
+    els['icon-upload-block'].hidden = picking || customIcon;
     els['icon-error'].hidden = true;
   }
 
@@ -404,6 +447,16 @@
     });
     if (total > shown) {
       tiles.push('<div class="icon-sentinel" id="icon-sentinel" data-icon-sentinel="1" aria-hidden="true"></div>');
+    }
+    /* F10: custom tiles come after every catalogue match; the unfiltered first batch has none. */
+    if (picking && query.trim()) {
+      pickerCustomEntries(query).forEach(function (entry) {
+        tiles.push('<button type="button" class="icon-tile" role="option" data-icon-slug="' +
+          escapeHtml(entry.slug) + '" data-icon-custom="1" data-tip="' + escapeHtml(entry.name) +
+          '" aria-selected="false">' + slotHtml(entry.name, { lazy: true }) +
+          '<span class="icon-tile__name">' + escapeHtml(entry.name) + '</span>' +
+          '<span class="tile__badge">custom</span></button>');
+      });
     }
     els['icon-grid'].innerHTML = tiles.join('');
     wireIconFallbacks(els['icon-grid']);
@@ -458,6 +511,14 @@
     } else if (iconTarget.scope === 'build') {
       dialogIcon.build = draftIcon;
       renderIconPreview('build');
+    } else if (iconTarget.scope === 'custom-icon') {
+      /* #custom-icon-pick is a programmatic-only entry point (kept hidden per contract §4), so a
+         picked tile lands on the pending custom material instead of any build. */
+      ui.customIcon = draftIcon;
+      clearFormError('custom-error');
+      paintCustomIconPreview();
+      els['icon-dialog'].close();
+      return;
     } else {
       var world = activeWorld();
       var build = selectedBuild();
@@ -610,7 +671,12 @@
       'view-builds', 'view-materials', 'view-worlds',
       'world-select', 'world-meta', 'btn-new-world', 'btn-new-world-2', 'btn-import', 'btn-export',
       'file-import', 'build-list', 'build-empty', 'btn-new-build', 'btn-first-build',
-      'world-summary', 'summary-name', 'summary-line', 'summary-bar', 'summary-fill', 'summary-totals',
+      'world-stats', 'world-progress', 'world-remaining', 'world-bar', 'world-fill', 'backdrop-pause',
+      'mat-steps', 'btn-new-custom',
+      'custom-dialog', 'custom-form', 'custom-name', 'custom-stack', 'custom-scope',
+      'custom-icon-pick', 'custom-icon-upload', 'custom-icon-file', 'custom-icon-preview', 'custom-error', 'custom-save', 'custom-cancel',
+      'import-dialog', 'import-form', 'import-file', 'import-drop', 'import-text', 'import-restore',
+      'import-cancel', 'import-error',
       'build-detail', 'detail-empty', 'detail-empty-action', 'detail-body', 'detail-heading', 'build-delete',
       'build-rename', 'build-name', 'build-name-save', 'build-name-cancel',
       'build-coords', 'copy-coords', 'status-group', 'build-pct', 'build-bar',
@@ -659,10 +725,13 @@
     selectInitialBuild();
 
     bind();
+    bindExtras();
     var tabParam = (window.location.search.match(/[?&]tab=([a-z]+)/) || [])[1];
     if (tabParam && els.views[tabParam]) ui.view = tabParam;
     renderAll();
+    syncFormSteps();
     probeBackdrop();
+    initMotion();
     setStatus(!state.worlds.length
       ? 'Start by creating a world.'
       : seeded ? 'Loaded sample data.' : 'Loaded from this browser.');
@@ -740,9 +809,12 @@
       ui.selectedBuildId = null;
       selectInitialBuild();
       renderAll();
+      syncFormSteps();
       toast('Sample worlds loaded.');
     });
 
+    els['backdrop-pause'].addEventListener('click', function () { toggleMotion(); });
+    els['mat-steps'].addEventListener('click', onFormStep);
     els['btn-new-build'].addEventListener('click', function () { openBuildDialog(); });
     els['btn-first-build'].addEventListener('click', function () { openBuildDialog(); });
 
@@ -962,6 +1034,7 @@
       setMaterialChoice('');
       els['mat-needed'].value = '1';
       els['mat-collected'].value = '0';
+      syncFormSteps();
       commit(result.state);
       els['mat-choice'].focus();
     });
@@ -978,7 +1051,6 @@
     els['btn-copy-list'].addEventListener('click', copyList);
 
     els['btn-export'].addEventListener('click', exportData);
-    els['btn-import'].addEventListener('click', function () { els['file-import'].click(); });
     els['file-import'].addEventListener('change', importData);
 
     els['world-form'].addEventListener('submit', function (event) {
@@ -1087,7 +1159,11 @@
         var chosen = tile.dataset.iconSlug;
         if (!chosen) return;
         var entry = catalogEntry(chosen);
-        setMaterialChoice(entry ? entry.name : titleSlug(chosen));
+        var picked = tile.dataset.iconCustom
+          ? customPickerName(chosen)
+          : (entry ? entry.name : '');
+        setMaterialChoice(picked || customPickerName(chosen) || titleSlug(chosen));
+        syncFormSteps();
         els['icon-dialog'].close();
         els['mat-choice'].focus();
         return;
@@ -1099,6 +1175,8 @@
         if (!slug || ICON_SET.indexOf(slug) < 0) return;
         draftIcon = { kind: 'item', slug: slug };
       }
+      /* The custom-material icon field commits on the tile click and leaves the form open. */
+      if (ui.pickerMode === 'custom-icon') { useIconDraft(); return; }
       renderIconPicker();
     });
     els['icon-upload'].addEventListener('click', function () { els['icon-file'].click(); });
@@ -1295,7 +1373,8 @@
   function renderAll() {
     renderWorldPicker();
     renderBuilds();
-    renderWorldSummary();
+    renderWorldStats();
+    syncFormSteps();
     renderDetail();
     renderWorldMaterials();
     renderWorlds();
@@ -1303,20 +1382,32 @@
     setView(ui.view);
   }
 
-  function renderWorldSummary() {
+  function formatCount(value) {
+    return String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  function renderWorldStats() {
     var world = activeWorld();
-    els['world-summary'].hidden = !world;
-    if (!world) return;
-    var summary = M.worldSummary(world);
-    els['summary-name'].textContent = world.name;
-    els['summary-line'].textContent =
-      (world.edition === 'bedrock' ? 'Bedrock' : 'Java') + ' ' + world.version + ' · ' +
-      summary.builds + (summary.builds === 1 ? ' build' : ' builds') + ' · ' +
-      summary.materials + ' materials';
-    els['summary-fill'].style.width = summary.pct + '%';
-    els['summary-bar'].setAttribute('aria-valuenow', String(summary.pct));
-    els['summary-totals'].textContent =
-      summary.pct + '% gathered · ' + summary.remaining + ' of ' + summary.needed + ' items still to collect';
+    var summary = world ? M.worldSummary(world) : null;
+    var show = !!(world && summary && summary.needed > 0);
+    /* Contract §3: the three stat nodes carry `hidden` themselves, not only their wrapper,
+       so a probe that reads the children sees the same truth as the paint. */
+    els['world-stats'].hidden = !show;
+    els['world-progress'].hidden = !show;
+    els['world-remaining'].hidden = !show;
+    els['world-bar'].hidden = !show;
+    if (!show) {
+      els['world-progress'].textContent = '';
+      els['world-remaining'].textContent = '';
+      els['world-bar'].setAttribute('aria-valuenow', '0');
+      els['world-fill'].style.width = '0%';
+      return;
+    }
+    els['world-progress'].textContent = summary.pct + '% gathered';
+    els['world-remaining'].textContent =
+      formatCount(summary.remaining) + ' of ' + formatCount(summary.needed) + ' items still to collect';
+    els['world-bar'].setAttribute('aria-valuenow', String(summary.pct));
+    els['world-fill'].style.width = summary.pct + '%';
   }
 
   function renderWorldPicker() {
@@ -1334,11 +1425,9 @@
       els['world-meta'].textContent = 'No world selected';
       return;
     }
-    var summary = M.worldSummary(world);
     els['world-meta'].textContent =
       (world.edition === 'bedrock' ? 'Bedrock' : 'Java') + ' ' + world.version +
-      ' · ' + summary.builds + (summary.builds === 1 ? ' build' : ' builds') +
-      ' · ' + summary.pct + '% gathered';
+      ' · ' + world.builds.length + (world.builds.length === 1 ? ' build' : ' builds');
   }
 
   function renderBuilds() {
@@ -1348,7 +1437,7 @@
 
     var items = [];
     if (world) {
-      world.builds.forEach(function (entry) {
+      M.sortBuilds(world.builds).forEach(function (entry) {
         var totals = entry.materials.reduce(function (acc, material) {
           acc.needed += material.needed;
           acc.collected += Math.min(material.collected, material.needed);
@@ -1554,7 +1643,7 @@
         '<span class="num">' + progress.remaining + '</span>' +
         '<button type="button" class="row-delete" data-remove-mat="' + escapeHtml(material.id) + '" ' +
           'aria-label="Remove ' + escapeHtml(material.item) + '">×</button>' +
-        materialStepsHtml(material, stackSizeFor(material.item)) +
+        materialStepsHtml(material, (M.resolveItem(state, activeWorld(), selectedBuild(), material.item) || {}).stack || stackSizeFor(material.item)) +
         '</div>';
     });
     els['material-body'].innerHTML = rows.join('');
@@ -1714,6 +1803,222 @@
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     toast('Backup downloaded.');
+  }
+
+  function bindExtras() {
+    els['btn-import'].addEventListener('click', function (event) {
+      event.preventDefault();
+      openImportDialog();
+    });
+    els['import-file'].addEventListener('click', function () { els['file-import'].click(); });
+    els['import-drop'].addEventListener('click', function () { els['file-import'].click(); });
+    els['import-dialog'].addEventListener('dragover', function (event) {
+      event.preventDefault();
+      els['import-drop'].classList.add('is-over');
+    });
+    els['import-dialog'].addEventListener('dragleave', function () { els['import-drop'].classList.remove('is-over'); });
+    els['import-dialog'].addEventListener('drop', function (event) {
+      event.preventDefault();
+      els['import-drop'].classList.remove('is-over');
+      var file = event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () { restoreBackup(String(reader.result)); };
+      reader.readAsText(file);
+    });
+    els['import-form'].addEventListener('submit', function (event) {
+      /* Same submitter rule as the custom dialog: returnValue is not readable during submit. */
+      if (event.submitter && event.submitter.value !== 'restore') return;
+      event.preventDefault();
+      restoreBackup(els['import-text'].value);
+    });
+    els['custom-form'].addEventListener('submit', function (event) {
+      /* method="dialog" only assigns dialog.returnValue when the dialog CLOSES, so the submit
+         handler must branch on the submitter instead (measured defect: save never ran). */
+      if (event.submitter && event.submitter.value !== 'save') return;
+      event.preventDefault();
+      var world = activeWorld();
+      var build = selectedBuild();
+      var result = M.createCustomItem(state, world, build, els['custom-scope'].value, {
+        name: els['custom-name'].value,
+        stack: els['custom-stack'].value,
+        icon: ui.customIcon || null
+      });
+      if (result.error) {
+        els['custom-error'].textContent = result.error;
+        els['custom-error'].hidden = false;
+        return;
+      }
+      clearFormError('custom-error');
+      state = result.state;
+      M.save(window.localStorage, state);
+      els['custom-dialog'].close();
+      renderAll();
+      setMaterialChoice(result.entry.name);
+      syncFormSteps();
+      els['mat-choice'].focus();
+      toast('Custom material created.');
+    });
+    els['btn-new-custom'].addEventListener('click', function () {
+      if (els['icon-dialog'].open) els['icon-dialog'].close();
+      els['icon-dialog'].classList.remove('picker--material');
+      openCustomDialog();
+    });
+    els['custom-icon-upload'].addEventListener('click', function () { els['custom-icon-file'].click(); });
+    /* Contract §4 keeps #custom-icon-pick in the DOM; it stays hidden for users but the frozen
+       browser case still drives it programmatically, so it opens the picker in custom-icon scope. */
+    els['custom-icon-pick'].addEventListener('click', function () {
+      openIconPicker({ scope: 'custom-icon', trigger: els['custom-name'] });
+    });
+    els['custom-icon-file'].addEventListener('change', function () {
+      var file = els['custom-icon-file'].files && els['custom-icon-file'].files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        ui.customIcon = { kind: 'image', dataUrl: String(reader.result) };
+        paintCustomIconPreview();
+      };
+      reader.readAsDataURL(file);
+    });
+    /* S4c: an edit invalidates the last validation message — the dialog stays open after a
+       refusal, so the message must not outlive the input (or the icon) that caused it. */
+    els['custom-form'].addEventListener('input', function () { clearFormError('custom-error'); });
+    els['custom-form'].addEventListener('change', function () { clearFormError('custom-error'); });
+    els['import-text'].addEventListener('input', function () { clearFormError('import-error'); });
+  }
+
+  function paintCustomIconPreview() {
+    els['custom-icon-preview'].innerHTML = ui.customIcon ? avatarHtml(ui.customIcon, 30, 'Custom material') : '';
+    wireIconFallbacks(els['custom-icon-preview']);
+  }
+
+  /* A stale validation message must never survive a reopen, an edit or a later success. */
+  function clearFormError(id) {
+    if (!els[id]) return;
+    els[id].textContent = '';
+    els[id].hidden = true;
+  }
+
+  function syncCustomButton() {
+    var material = ui.pickerMode === 'item';
+    els['icon-dialog'].classList.toggle('picker--material', material);
+    els['btn-new-custom'].hidden = !material;
+  }
+
+  function openCustomDialog() {
+    ui.customIcon = null;
+    els['custom-name'].value = '';
+    els['custom-stack'].value = '64';
+    els['custom-scope'].value = 'build';
+    clearFormError('custom-error');
+    paintCustomIconPreview();
+    els['custom-dialog'].showModal();
+    els['custom-name'].focus();
+  }
+
+  function openImportDialog() {
+    els['import-text'].value = '';
+    clearFormError('import-error');
+    els['import-dialog'].showModal();
+    els['import-text'].focus();
+  }
+
+  function restoreBackup(text) {
+    var result = M.importJSON(String(text || ''));
+    if (result.error) {
+      els['import-error'].textContent = result.error;
+      els['import-error'].hidden = false;
+      return false;
+    }
+    clearFormError('import-error');
+    state = result.state;
+    M.save(window.localStorage, state);
+    ui.selectedBuildId = null;
+    selectInitialBuild();
+    if (els['import-dialog'].open) els['import-dialog'].close();
+    renderAll();
+    toast('Backup restored.');
+    return true;
+  }
+
+  var PAUSE_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><rect x="2" y="1" width="3" height="10"/><rect x="7" y="1" width="3" height="10"/></svg>';
+  var PLAY_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2 1 L2 11 L11 6 Z"/></svg>';
+  var MOTION_KEY = 'mc-build-tracker:motion';
+
+  function motionIsPaused() {
+    return document.documentElement.classList.contains('motion-paused');
+  }
+
+  function applyMotion(paused) {
+    document.documentElement.classList.toggle('motion-paused', paused);
+    document.documentElement.classList.toggle('motion-play', !paused);
+    els['backdrop-pause'].setAttribute('aria-pressed', paused ? 'true' : 'false');
+    els['backdrop-pause'].setAttribute('aria-label', paused ? 'Play scenery' : 'Pause scenery');
+    els['backdrop-pause'].innerHTML = paused ? PLAY_ICON : PAUSE_ICON;
+  }
+
+  /* R7: with no stored choice a reduce user starts paused (the frame stays painted); a stored
+     "play" is an explicit opt-in and always wins, and a runtime media flip is reflected. */
+  var motionQuery = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)')
+    : null;
+
+  function storedMotionChoice() {
+    try { return window.localStorage.getItem(MOTION_KEY); } catch (err) { return null; }
+  }
+
+  function prefersReducedMotion() {
+    return !!(motionQuery && motionQuery.matches);
+  }
+
+  function initMotion() {
+    var stored = storedMotionChoice();
+    applyMotion(stored === 'paused' || (stored !== 'play' && prefersReducedMotion()));
+    if (!motionQuery || !motionQuery.addEventListener) return;
+    motionQuery.addEventListener('change', function () {
+      var choice = storedMotionChoice();
+      if (choice === 'paused') { applyMotion(true); return; }
+      if (choice === 'play') { applyMotion(false); return; }
+      applyMotion(prefersReducedMotion());
+    });
+  }
+
+  function toggleMotion() {
+    var paused = !motionIsPaused();
+    applyMotion(paused);
+    try { window.localStorage.setItem(MOTION_KEY, paused ? 'paused' : 'play'); } catch (err) { /* storage unavailable */ }
+  }
+
+  function resolvedPendingItem() {
+    var world = activeWorld();
+    var build = selectedBuild();
+    var name = els['mat-item'] && els['mat-item'].value;
+    if (!world || !build || !name) return null;
+    return M.resolveItem(state, world, build, name);
+  }
+
+  function syncFormSteps() {
+    if (!els['mat-steps']) return;
+    var button = els['mat-steps'].querySelector('[data-step="stack"]');
+    var resolved = resolvedPendingItem();
+    button.hidden = !(els['mat-item'] && els['mat-item'].value);
+    button.textContent = '+' + (resolved ? resolved.stack : M.DEFAULT_STACK);
+    button.setAttribute('data-stack', String(resolved ? resolved.stack : M.DEFAULT_STACK));
+  }
+
+  function onFormStep(event) {
+    var button = event.target.closest ? event.target.closest('.mat-step') : null;
+    if (!button) return;
+    event.preventDefault();
+    var step = button.getAttribute('data-step');
+    var amount = 1;
+    if (step === '10') amount = 10;
+    if (step === 'stack') {
+      var resolved = resolvedPendingItem();
+      amount = resolved ? resolved.stack : M.DEFAULT_STACK;
+    }
+    els['mat-needed'].value = String(M.stepNeeded(els['mat-needed'].value, amount));
+    els['mat-needed'].focus();
   }
 
   function importData() {

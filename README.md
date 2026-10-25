@@ -26,6 +26,12 @@ a backup and **Import** to restore it.
   materials and states why, without replacing a choice you made; one shared tooltip follows the
   slot and is never painted under a dialog; empty screens offer the next action instead of an
   error toast. The picker pages 120 tiles at a time, so all 1,368 items are reachable.
+- **Layout and custom items** — the build list ranks **Building → Planned → Done**, and the top bar
+  shows a derived `X% gathered` plus `N of M items still to collect`; labels and controls align
+  pairwise at 1280×900 and 390×844, with a 900 px desktop budget and a 1,423 px mobile budget.
+  Custom materials can be added at build, world or account scope (name, stack 1–999, catalogue
+  icon or upload) and resolve nearest-first; the add form gains `+1 / +10 / +stack` steppers, and
+  **Import** works through a dialog with file, drop or paste.
 - **Sample data** — `src/index.html?demo=1` seeds two example worlds if storage is empty.
   Deep links: `?tab=builds|materials|worlds`.
 
@@ -104,10 +110,12 @@ It writes `src/assets/panorama/backdrop.webp` (git-ignored), plus the committed
 `manifest.json` and `PROVENANCE.md`. The strip is 2,560×640, baked at Gaussian radius **2.0**
 (ceiling 2), brightness 0.95 / saturation 0.92, 55,096 B (sha256 `331253bd…`), composed from
 six resolved panorama inputs — four side faces stitched with a wrap crossfade, the top/bottom
-caps recorded but not stitched. The app displays two copies translated −50 % over **180 s** (a
-seamless loop) with CSS `blur(1px)` (1.5 px at ≤640 px) behind a **0.2** scrim. It
-feature-detects the file: if it exists the scene shows; if not, the dirt texture stays and
-nothing errors. `prefers-reduced-motion` stops the loop.
+caps recorded but not stitched. The app shows one `.backdrop__layer` 800vh wide over the 4:1
+strip, drifting −50 % over **120 s**, with CSS `blur(1px)` (1.5 px at ≤640 px) behind a **0.2**
+scrim. `#backdrop-pause` stops it; `prefers-reduced-motion: reduce` defaults it to paused with the
+frame painted (never `animation: none`), and the choice persists in
+`mc-build-tracker:motion`. It feature-detects the file: if it exists the scene shows; if not, the
+dirt texture stays and nothing errors.
 
 > Modern clients ship **1×1 placeholder** panorama files in the version jar; the real
 > 1024×1024 faces live in the content-addressed asset store reached through
@@ -145,27 +153,29 @@ node --check src/app.js && node --check src/tracker/model.js
 node tests/unit/tracker-model.test.mjs                # 22 model cases
 node tests/unit/tracker-icons.test.mjs                # 9 identity cases
 node tests/unit/tracker-suggest.test.mjs              # 38 suggestion cases (frozen fixtures)
+node tests/unit/tracker-0015.test.mjs                 # 11 ordering/stats/custom/import/motion cases
 node tests/qa/tracker.acceptance.test.mjs             # 17 acceptance + static contract cases
 node tests/qa/tracker-icons.acceptance.test.mjs       # 8 identity/backdrop acceptance cases
 node tests/qa/tracker-icon-resolution.acceptance.test.mjs  # 7 high-resolution icon cases
 node tests/qa/edict-0013-assets.acceptance.test.mjs   # 11 catalog/font/dropdown/stack/backdrop cases
 node tests/qa/edict-0014.acceptance.test.mjs          # 14 paging/tooltip/empty/stepper/paste/undo/recents cases
-python tests/qa/mc_ui_audit.py                        # 147 contrast/structure/pixel/identity/interaction cases
+node tests/qa/edict-0015.acceptance.test.mjs          # 11 ordering/stats/alignment/custom/import/motion cases
+python tests/qa/mc_ui_audit.py                        # 187 contrast/structure/pixel/identity/interaction cases
 # wiki + governance (the wiki is a required output of every edict)
 node src/wiki/cli.mjs lint                      # incl. the edict-sync rule
 node src/wiki/cli.mjs sync                      # which completed edicts have been ingested
 node src/wiki/cli.mjs index --check             # catalogue freshness
 
 # UI acceptance (real Chrome, driven over the DevTools Protocol — no packages)
-node tests/qa/ui.e2e.test.mjs                   # 66 user-flow cases (identity + interaction + backdrop)
+node tests/qa/ui.e2e.test.mjs                   # 80 user-flow cases (identity + interaction + layout + backdrop)
 node scripts/app-qa.mjs run                     # run them AND stamp the app sources
 node scripts/app-qa.mjs status                  # verified / STALE
 
 ```
 
-Current status: **98/98** unit cases (model, identity, suggestion, app-qa, wiki), **85/85**
-acceptance cases, **147/147** UI-audit cases, **66/66** browser flows — screenshots verified at
-1280 px and 390 px, stamp `2026-10-25T12:27:45.271Z` covering 8 hashed sources.
+Current status: **109/109** unit cases (model, identity, suggestion, layout, app-qa, wiki),
+**96/96** acceptance cases, **187/187** UI-audit cases, **80/80** browser flows — screenshots
+verified at 1280 px and 390 px, stamp `2026-10-25T14:39:07.404Z` covering 8 hashed sources.
 
 ## Scope and honesty
 
@@ -187,6 +197,11 @@ acceptance cases, **147/147** UI-audit cases, **66/66** browser flows — screen
 - The menu backdrop comes from your own game files, is generated locally and git-ignored;
   without it the dirt texture remains. No Mojang pixels are redistributed.
 - Text notes only — no screenshots or blueprint uploads on builds (yet).
-- Import replaces the current data set, and only after validation; a bad file changes nothing.
+- Import (file dialog, drag-drop or paste) replaces the current data set, and only after
+  validation; a bad file changes nothing. Custom items are local data scoped to a build, world or
+  account; `SCHEMA` stays 1, so older backups import with empty registries.
+- Number fields stay `type=number` with their native spinners hidden, and the scenery only pans
+  with the explicit pause control on browsers that honour `prefers-reduced-motion`; the motion
+  preference is stored per browser.
 
 

@@ -156,6 +156,32 @@ stored icon, the avatar shows it display-only (`data-icon-auto`), and choosing a
 `iconAuto` false. The catalogue shape is deliberately mixed: `MC_ICON_SET` is an array of slug
 strings while `MC_ICON_NAMES` and `MC_ICON_STACKS` are slug-keyed objects.
 
+## The layout and identity pass (EDICT-0015)
+
+EDICT-0015 attacked the friction that survived the interaction pass: the list, the header, the add
+form, the guide rails and the scenery.
+
+- **Ordering.** Builds render by status rank — Building → Planned → Done — stable within a rank,
+  never by completion ratio ([[Status-ranked build ordering]]).
+- **Header.** The redundant world card is gone; `#world-meta` carries identity only, while
+  `#world-progress` (`"36% gathered"` on the demo fixture, derived from `M.worldSummary`),
+  `#world-remaining` (`"1,452 of 2,252 items still to collect"`) and a 10 px `#world-bar` with a
+  6 px fill replace it ([[Status-ranked build ordering]]).
+- **Measured layout.** Labels pair with their own controls ±1 px at 1280×900 and 390×844; one
+  control height per row; the 1280×900 page fits its 900 px budget exactly, and the 390×844 case
+  measures 1,423 px against a ≤1,500 threshold, with only material lists allowed to scroll.
+- **Custom materials.** Three additive registries (build, world, account) resolve nearest-first
+  over the 1,368-icon catalogue, with stack 1–999 and an icon from the catalogue or an upload
+  ([[Material registry]]). Creation is immutable, the schema stays 1, and v1 backups still import.
+- **Faster entry.** The add form gains `+1/+10/+<stack>` (the stack button appears after an item
+  is chosen), and an Import dialog (`accept=".json"`) adds drag-drop and paste paths next to the
+  chooser — the chooser itself was hiding JSON because its first `accept` token was an
+  unregistered MIME type.
+- **Scenery.** One `.backdrop__layer` at 4:1 (`800vh` / `400vh auto`) drifts `translateX(-50%)`
+  over 120 s, with `#backdrop-pause` as the WCAG 2.2.2 control; `prefers-reduced-motion: reduce`
+  now defaults the layer to **paused** (the OS preference is respected) and the button or a stored
+  `motion=play` opts in — the opposite of EDICT-0014's freeze.
+
 ## Identity
 
 Every world and build carries one optional avatar (EDICT-0010): a Minecraft item icon from the
@@ -171,37 +197,44 @@ The dirt texture is the fallback. When the locally generated panorama exists, th
 real title-screen scenery: six resolved panorama inputs, of which the four side faces are
 stitched with a wrap crossfade (the top/bottom caps are recorded but not stitched), baked at a
 Gaussian radius of **2.0** and composed into a 2,560×640 strip (55,096 B, sha256
-`331253bd…bf1a5`). The app renders two copies of the strip and translates them −50 % over
-**180 s** for a seamless one-direction loop, under CSS `blur(1px)` (`1.5px` at ≤640 px) and a
-**0.2** scrim; `prefers-reduced-motion` sets the animation to none. EDICT-0013 sharpened the
-treatment (bake 2.5, 45,664 B, edge-variance 1,379.9 against 1,132.6 before); EDICT-0014 made
-the loop seamless and set the geometry. The extractor resolves the client's asset index because
-the jar's panorama files are 1×1 decoys (raw source:
+`331253bd…bf1a5`). EDICT-0015 replaced the two-copy 180 s loop with a single 4:1 layer —
+`width: 800vh; background-size: 400vh auto; repeat-x` — drifting `translateX(-50%) → 0` over
+**120 s** linear infinite, with `#backdrop-pause` as the user-facing stop.
+`prefers-reduced-motion: reduce` defaults the layer to paused with the frame painted (the OS
+preference is respected), and the button or a stored `mc-build-tracker:motion = "play"` opts in;
+the global reduced-motion reset excludes `.backdrop__layer` and the layer never gets
+`animation: none`. A missing or blocked backdrop silently keeps the dirt texture; nothing errors.
+The extractor resolves the client's asset index because the jar's panorama files are 1×1 decoys
+(raw source:
 [`2026-10-25-minecraft-panorama-provenance`](../../raw/sources/2026-10-25-minecraft-panorama-provenance.md)).
-A missing or blocked backdrop silently keeps the dirt texture; nothing errors.
+
 
 ## Verification
 
-**98/98** unit cases (22 model, 9 identity, 38 suggestion, 9 app-qa, 20 wiki), **85/85**
-independent acceptance cases (17 core + 8 identity/backdrop + 7 high-resolution icons + 11
-EDICT-0013 catalog/font/dropdown/stack/backdrop + 14 EDICT-0014 paging/tooltip/empty/stepper/
-paste/undo/recents + 13 wiki + 8 wiki-sync + 7 app-qa), a **147-case**
-contrast/structure/identity/icon/interaction audit, and a **66-case browser UI suite** that drives
+**109/109** unit cases (22 model, 9 identity, 38 suggestion, 9 app-qa, 20 wiki, 11 EDICT-0015
+model/registry), **96/96** independent acceptance cases (17 core + 8 identity/backdrop + 7
+high-resolution icons + 11 EDICT-0013 catalog/font/dropdown/stack/backdrop + 14 EDICT-0014
+paging/tooltip/empty/stepper/paste/undo/recents + 11 EDICT-0015 ordering/stats/alignment/custom/
+import/rotation + 13 wiki + 8 wiki-sync + 7 app-qa), a **187-case**
+contrast/structure/identity/icon/interaction audit, and an **80-case browser UI suite** that drives
 real Chrome through every flow, failure path, accessibility expectation, responsive breakpoint,
-the visual contract, and the identity/backdrop/catalog interactions. A passing UI run stamps the
-hashes of the five app sources plus the font, panorama WebP and panorama manifest (8 files) in
-`docs/governance/app-qa.json`; `lint` refuses a stale stamp, so UI coverage cannot silently rot.
-The QA gate failed EDICT-0010's first submission for a seed that silently dropped a material and a
-4.07:1 muted-text token; both are covered by regression checks. EDICT-0011's high-resolution icon
-contract is verified by an independent 测试部 suite (manifest + PNG dimensions/hashes + CSS
-rendering policy); EDICT-0012 adds the brightness reference (vanilla 0.99/0.65/0.40 face ratios);
-EDICT-0013 adds the frozen DOM contract, the 1,368-icon catalog, the font licence/coverage, the
-themed-select probe and the backdrop numbers; EDICT-0014 adds the paging-to-last-tile,
-top-layer-tooltip, five-empty-state, bulk-paste, undo-expiry and recent-pick cases plus the
-seamless-backdrop probe, with browser execution by the Lead seat (the verifier's sandbox cannot
-launch Chrome) and judgement by 测试部
-(`app-qa: verified — 2026-10-25T12:27:45.271Z, 66 UI cases`; evidence
-`reports/qa/evidence/edict-0014/`).
+the visual contract, and the identity/backdrop/catalog/ordering/import interactions. A passing UI
+run stamps the hashes of the five app sources plus the font, panorama WebP and panorama manifest
+(8 files) in `docs/governance/app-qa.json`; `lint` refuses a stale stamp, so UI coverage cannot
+silently rot. The QA gate failed EDICT-0010's first submission for a seed that silently dropped a
+material and a 4.07:1 muted-text token; both are covered by regression checks. EDICT-0011's
+high-resolution icon contract is verified by an independent 测试部 suite (manifest + PNG
+dimensions/hashes + CSS rendering policy); EDICT-0012 adds the brightness reference (vanilla
+0.99/0.65/0.40 face ratios); EDICT-0013 adds the frozen DOM contract, the 1,368-icon catalog, the
+font licence/coverage, the themed-select probe and the backdrop numbers; EDICT-0014 adds the
+paging-to-last-tile, top-layer-tooltip, five-empty-state, bulk-paste, undo-expiry and recent-pick
+cases plus the seamless-backdrop probe; EDICT-0015 adds ordering, derived header stats, measured
+alignment, the injected height budget, custom registries, add-form steppers, the import dialog's
+paste/drop paths and the paused-under-reduce scenery with its pause control. Browser execution
+stays with the Lead seat (the verifier's sandbox cannot launch Chrome) and judgement with 测试部
+(`app-qa: verified — 2026-10-25T14:39:07.404Z, 80 UI cases`; evidence
+`reports/qa/evidence/edict-0015/`).
+
 
 ## Tensions
 
@@ -219,10 +252,29 @@ launch Chrome) and judgement by 测试部
 - **Themed dropdowns are Chromium-only.** `appearance: base-select` + `::picker(select)` gives
   the themed popup on Chrome 155; other browsers keep the OS popup, and the design contract
   accepts that split rather than rewriting `<select>` in JavaScript ([[In-game GUI design]]).
-- **Backdrop taste has a direction but not a measurement.** EDICT-0013 set the sharper bake and
-  EDICT-0014 the seamless geometry (six inputs, four stitched sides, 2,560×640, bake 2.0,
-  two-copy 180 s loop); the physical-display comparison with the real title screen remains open
+- **Backdrop taste has a direction but not a measurement.** EDICT-0013 set the sharper bake,
+  EDICT-0014 the seamless geometry and EDICT-0015 the single-layer 120 s drift with its pause
+  control (six inputs, four stitched sides, 2,560×640, bake 2.0); the physical-display comparison
+  with the real title screen remains open
   ([[Atmosphere and identity without shipping assets]]).
+- **Custom items are additive and create-only.** Three registries resolve nearest-first over the
+  catalogue; a custom name can shadow a catalogue name or a wider scope silently, editing and
+  deletion are deferred, and existing free-text materials are not migrated
+  ([[Material registry]]).
+- **Motion policy is inverted from EDICT-0014.** `prefers-reduced-motion: reduce` now defaults the
+  scenery to paused instead of freezing every animation; `#backdrop-pause` or a stored
+  `motion=play` is the explicit opt-in, and the pause state survives reload while the paused frame
+  re-samples at phase 0. WCAG 2.2.2 is met by the control, not by the media query alone.
+- **The import chooser is system-dependent.** `accept=".json"` fixes the local registration, but
+  the paste and drop paths exist because no OS chooser can be trusted to list a file; the native
+  dialog itself is not screenshottable.
+- **Alignment and height are measured at two viewports only** (1280×900 and 390×844), against an
+  injected 4-build/6-material fixture; a long builds list still scrolls and other widths or zoom
+  levels are unasserted.
+- **Round-3 deferrals.** Custom-item editing/deletion, per-build stack overrides, drag reordering,
+  bulk undo, a restore summary and a dialog-wide keyboard contract remain open
+  ([UX backlog](../../docs/backlog/ux.md)).
+
 - **The suggestion is a heuristic, not a model.** `suggestIcon` ranks a frozen keyword table over
   the build name, notes, world name and material list and explains its pick; it can be wrong and
   it never overwrites a stored icon. The fixture table is the contract, so coverage beyond the 23

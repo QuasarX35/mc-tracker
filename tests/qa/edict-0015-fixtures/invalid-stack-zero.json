@@ -1,0 +1,160 @@
+{
+  "version": 1,
+  "activeWorldId": "world-mvnu6lpq-i2zw1v",
+  "worlds": [
+    {
+      "id": "world-mvnu6lpq-i2zw1v",
+      "name": "Survival SMP",
+      "edition": "java",
+      "version": "1.21.4",
+      "notes": "Main long-term survival world. Keep the base at spawn tidy.",
+      "createdAt": "2026-10-25T13:01:21.134Z",
+      "builds": [
+        {
+          "id": "build-mvnu6lps-ilsgbz",
+          "name": "Iron Farm (spawn)",
+          "status": "building",
+          "coords": "120 / 64 / -40",
+          "notes": "Village-based farm, 3 modules. Needs to be roofed before the next storm.",
+          "materials": [
+            {
+              "id": "mat-mvnu6lps-capmj6",
+              "item": "Stone Bricks",
+              "needed": 384,
+              "collected": 200
+            },
+            {
+              "id": "mat-mvnu6lps-tys57q",
+              "item": "Iron Ingot",
+              "needed": 64,
+              "collected": 0
+            },
+            {
+              "id": "mat-mvnu6lps-ozimov",
+              "item": "Glass",
+              "needed": 96,
+              "collected": 96
+            },
+            {
+              "id": "mat-mvnu6lps-ecweda",
+              "item": "Torch",
+              "needed": 32,
+              "collected": 12
+            }
+          ],
+          "icon": {
+            "kind": "item",
+            "slug": "iron_ingot"
+          }
+        },
+        {
+          "id": "build-mvnu6lps-h5qyha",
+          "name": "Storage Hall",
+          "status": "planned",
+          "coords": "0 / 62 / 30",
+          "notes": "Double chest wall, sorting for 20 item types.",
+          "materials": [
+            {
+              "id": "mat-mvnu6lps-cvmpet",
+              "item": "Oak Planks",
+              "needed": 512,
+              "collected": 64
+            },
+            {
+              "id": "mat-mvnu6lps-vwjomy",
+              "item": "Crafting Table",
+              "needed": 12,
+              "collected": 0
+            },
+            {
+              "id": "mat-mvnu6lps-4oiq8z",
+              "item": "Stone Bricks",
+              "needed": 256,
+              "collected": 0
+            }
+          ],
+          "icon": {
+            "kind": "item",
+            "slug": "crafting_table"
+          }
+        },
+        {
+          "id": "build-mvnu6lps-5ixbce",
+          "name": "Nether Hub",
+          "status": "planned",
+          "coords": "8 / 70 / 8",
+          "notes": "Four tunnels + ice road later; start with the portal room.",
+          "materials": [
+            {
+              "id": "mat-mvnu6lps-2cwav0",
+              "item": "Cobblestone",
+              "needed": 768,
+              "collected": 300
+            },
+            {
+              "id": "mat-mvnu6lps-a5vfpa",
+              "item": "Coal",
+              "needed": 128,
+              "collected": 128
+            }
+          ],
+          "icon": {
+            "kind": "item",
+            "slug": "obsidian"
+          }
+        }
+      ],
+      "icon": {
+        "kind": "item",
+        "slug": "grass_block"
+      }
+    },
+    {
+      "id": "world-mvnu6lps-2kr0fm",
+      "name": "Creative Flat",
+      "edition": "bedrock",
+      "version": "1.21",
+      "notes": "Testing redstone contraptions on a flat world.",
+      "createdAt": "2026-10-25T13:01:21.136Z",
+      "builds": [
+        {
+          "id": "build-mvnu6lpt-dfsg69",
+          "name": "Castle Wall",
+          "status": "done",
+          "coords": "-200 / 70 / 0",
+          "notes": "Wall is finished; towers are a separate build later.",
+          "materials": [
+            {
+              "id": "mat-mvnu6lpt-6emkzm",
+              "item": "Stone Bricks",
+              "needed": 1024,
+              "collected": 1024
+            },
+            {
+              "id": "mat-mvnu6lpt-vmrjvp",
+              "item": "Dirt",
+              "needed": 256,
+              "collected": 256
+            }
+          ],
+          "icon": {
+            "kind": "item",
+            "slug": "stone_bricks"
+          }
+        }
+      ],
+      "icon": {
+        "kind": "item",
+        "slug": "glass"
+      }
+    }
+  ],
+  "customItems": [
+    {
+      "id": "x2",
+      "name": "Zero Stack",
+      "stack": 0,
+      "icon": null
+    }
+  ]
+}

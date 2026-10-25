@@ -2,7 +2,7 @@
 
 # Index
 
-Catalogue of 22 pages, regenerated 2026-10-25. Read this first when answering a
+Catalogue of 24 pages, regenerated 2026-10-25. Read this first when answering a
 query; it is the map, the pages are the territory.
 
 ## Overview (1)
@@ -11,7 +11,7 @@ query; it is the map, the pages are the territory.
 |------|---------|---------|
 | [[LLM Wiki]] | A persistent, LLM-maintained knowledge base of interlinked pages that sits between the Emperor and an immutable raw source collection. | 2026-10-25 |
 
-## Concepts (8)
+## Concepts (10)
 
 | Page | Summary | Updated |
 |------|---------|---------|
@@ -20,8 +20,10 @@ query; it is the map, the pages are the territory.
 | [[Ingest, query and lint]] | The three operations that keep a wiki alive — file new sources, answer and file answers back, and periodically health-check the whole graph. | 2026-10-25 |
 | [[Local-first tracking]] | Browser-local persistence (localStorage plus JSON export/import): no server, offline, private — but no sync and no durability guarantee. | 2026-10-25 |
 | [[Maintenance cost]] | The bookkeeping burden — cross-references, current summaries, flagged contradictions — that kills human-maintained wikis and which LLMs reduce to near zero. | 2026-10-25 |
+| [[Material registry]] | How the tracker resolves an item name to a stack size and icon through build, world, account and catalogue scopes, without migrating free-text materials. | 2026-10-25 |
 | [[Memex]] | Vannevar Bush's 1945 vision of a private, curated knowledge store with associative trails — missing only a maintainer, which the LLM supplies. | 2026-10-25 |
 | [[Query-time retrieval]] | The RAG family of approaches — retrieve relevant chunks per question and generate an answer, accumulating nothing between questions. | 2026-10-25 |
+| [[Status-ranked build ordering]] | Builds sort by a fixed status rank with a stable tie-break, and the world header replaces the old summary card with derived progress figures. | 2026-10-25 |
 | [[Wiki schema]] | The configuration document (here AGENTS.md) that fixes a wiki's structure, conventions and workflows, turning a generic model into a disciplined maintainer. | 2026-10-25 |
 
 ## Entities (5)

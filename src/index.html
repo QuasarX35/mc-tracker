@@ -12,7 +12,7 @@
 <body>
 <a class="skip-link" href="#main">Skip to main content</a>
 
-<div class="backdrop" aria-hidden="true"><div class="backdrop__layer"></div><div class="backdrop__layer"></div></div>
+<div class="backdrop" aria-hidden="true"><div class="backdrop__layer"></div></div>
 
 <div class="screen">
   <header class="masthead">
@@ -37,11 +37,19 @@
         </div>
       </div>
       <p class="world-meta" id="world-meta"></p>
+      <div class="world-stats" id="world-stats">
+        <p class="world-stats__line" id="world-progress"></p>
+        <p class="world-stats__line" id="world-remaining"></p>
+        <div class="xpbar xpbar--thin" id="world-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div class="xpbar__fill" id="world-fill"></div>
+        </div>
+      </div>
       <div class="topbar__actions">
+        <button class="mc-btn mc-btn--sm mc-btn--icon" id="backdrop-pause" type="button" aria-pressed="false" aria-label="Pause scenery"><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><rect x="2" y="1" width="3" height="10"/><rect x="7" y="1" width="3" height="10"/></svg></button>
         <button class="mc-btn mc-btn--sm" id="btn-new-world" type="button">New World</button>
         <button class="mc-btn mc-btn--sm" id="btn-import" type="button">Import</button>
         <button class="mc-btn mc-btn--sm" id="btn-export" type="button">Export</button>
-        <input type="file" id="file-import" accept="application/json,.json" aria-label="Import a tracker backup" hidden>
+        <input type="file" id="file-import" accept=".json" aria-label="Import a tracker backup" hidden>
       </div>
     </div>
 
@@ -57,14 +65,6 @@
           <div class="empty" id="build-empty" hidden>
             <p class="empty__text">No builds in this world yet.</p>
             <button class="mc-btn" id="btn-first-build" type="button">Plan your first build</button>
-          </div>
-          <div class="world-summary" id="world-summary">
-            <h3 class="world-summary__name" id="summary-name">World</h3>
-            <p class="world-summary__meta" id="summary-line"></p>
-            <div class="xpbar world-summary__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="summary-bar">
-              <div class="xpbar__fill" id="summary-fill"></div>
-            </div>
-            <p class="world-summary__meta" id="summary-totals"></p>
           </div>
         </div>
         <div class="builds__detail" id="build-detail">
@@ -123,20 +123,19 @@
               </div>
             </div>
 
-            <div class="progress-block">
-              <div class="progress-block__head">
-                <span class="field__label">Materials gathered</span>
-                <span class="progress-block__pct" id="build-pct">0%</span>
-              </div>
-              <div class="xpbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="build-bar">
-                <div class="xpbar__fill" id="build-fill"></div>
-              </div>
-              <p class="progress-block__note" id="build-summary"></p>
-            </div>
-
             <div class="materials">
               <div class="section-head section-head--tight">
                 <h3 class="section-head__title">Materials needed</h3>
+                <div class="progress-block progress-block--inline">
+                  <div class="progress-block__head">
+                    <span class="field__label">Materials gathered</span>
+                    <span class="progress-block__pct" id="build-pct">0%</span>
+                  </div>
+                  <div class="xpbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="build-bar">
+                    <div class="xpbar__fill" id="build-fill"></div>
+                  </div>
+                  <p class="progress-block__note" id="build-summary"></p>
+                </div>
               </div>
               <div class="mtable" role="table" aria-label="Materials for this build">
                 <div class="mtable__head" role="row">
@@ -156,7 +155,7 @@
               <form class="add" id="add-material-form" autocomplete="off">
                 <p class="add__title">Add a material</p>
                 <div class="add__item">
-                  <span class="field__label" id="mat-item-label">Item</span>
+                  <label class="field__label" id="mat-item-label" for="mat-choice">Item</label>
                   <input type="hidden" id="mat-item" name="item">
                   <button class="mat-choice" id="mat-choice" type="button" aria-labelledby="mat-item-label mat-choice-name">
                     <span class="slot mat-choice__slot" id="mat-choice-slot" aria-hidden="true"><span class="slot__letter">?</span></span>
@@ -166,6 +165,11 @@
                 <div class="add__num">
                   <label class="field__label" for="mat-needed">Needed</label>
                   <input class="mc-input" id="mat-needed" type="number" min="1" step="1" value="1" required>
+                  <div class="mat-steps" id="mat-steps" role="group" aria-label="Adjust needed">
+                    <button class="mat-step" type="button" data-step="1" data-mat-field="needed">+1</button>
+                    <button class="mat-step" type="button" data-step="10" data-mat-field="needed">+10</button>
+                    <button class="mat-step" type="button" data-step="stack" data-mat-field="needed" hidden>+64</button>
+                  </div>
                 </div>
                 <div class="add__num">
                   <label class="field__label" for="mat-collected">Got</label>
@@ -343,6 +347,7 @@
     </div>
     <p class="form-error" id="icon-error" role="alert" hidden></p>
     <div class="mc-dialog__actions">
+      <button class="mc-btn" type="button" id="btn-new-custom" hidden>New custom material…</button>
       <button class="mc-btn" value="cancel" type="submit" formnovalidate id="icon-cancel">Cancel</button>
       <button class="mc-btn mc-btn--primary" value="use" type="submit" id="icon-use">Use icon</button>
     </div>
@@ -360,6 +365,51 @@
     <div class="mc-dialog__actions">
       <button class="mc-btn" value="cancel" type="submit" formnovalidate id="bulk-cancel">Cancel</button>
       <button class="mc-btn mc-btn--primary" value="add" type="submit" id="bulk-add">Add matched</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="mc-dialog" id="custom-dialog">
+  <form method="dialog" id="custom-form" novalidate>
+    <h2 class="mc-dialog__title" id="custom-dialog-title">New custom material</h2>
+    <label class="field__label" for="custom-name">Name</label>
+    <input class="mc-input" id="custom-name" type="text" maxlength="60" autocomplete="off" required>
+    <label class="field__label" for="custom-stack">Stack size</label>
+    <input class="mc-input" id="custom-stack" type="number" min="1" max="999" step="1" value="64">
+    <label class="field__label" for="custom-scope">Where</label>
+    <select class="mc-select" id="custom-scope">
+      <option value="build">This build only</option>
+      <option value="world">This world</option>
+      <option value="account">All my worlds</option>
+    </select>
+    <div class="icon-field">
+      <span class="icon-preview" id="custom-icon-preview" aria-hidden="true"></span>
+      <div class="icon-field__actions">
+        <button class="mc-btn mc-btn--sm" type="button" id="custom-icon-pick" hidden>Choose icon…</button>
+        <button class="mc-btn mc-btn--sm" type="button" id="custom-icon-upload">Upload image…</button>
+        <input type="file" id="custom-icon-file" accept="image/png,image/jpeg,image/webp" aria-label="Upload a custom material icon" hidden>
+      </div>
+    </div>
+    <p class="form-error" id="custom-error" role="alert" hidden></p>
+    <div class="mc-dialog__actions">
+      <button class="mc-btn" value="cancel" type="submit" formnovalidate id="custom-cancel">Cancel</button>
+      <button class="mc-btn mc-btn--primary" value="save" type="submit" id="custom-save">Create material</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="mc-dialog" id="import-dialog">
+  <form method="dialog" id="import-form">
+    <h2 class="mc-dialog__title">Restore a backup</h2>
+    <p class="mc-dialog__text">Choose a .json backup, or paste its text. Everything in this browser is replaced.</p>
+    <button class="mc-btn mc-btn--sm" type="button" id="import-file">Choose a file…</button>
+    <div class="import-drop" id="import-drop">Drop a .json file anywhere in this dialog</div>
+    <label class="field__label" for="import-text">Or paste the JSON</label>
+    <textarea class="mc-input mc-input--area" id="import-text" rows="6" spellcheck="false"></textarea>
+    <p class="form-error" id="import-error" role="alert" hidden></p>
+    <div class="mc-dialog__actions">
+      <button class="mc-btn" value="cancel" type="submit" formnovalidate id="import-cancel">Cancel</button>
+      <button class="mc-btn mc-btn--primary" value="restore" type="submit" id="import-restore">Restore</button>
     </div>
   </form>
 </dialog>

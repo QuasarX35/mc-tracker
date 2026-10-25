@@ -94,9 +94,17 @@ background/box-shadow/width; `prefers-reduced-motion` zeroes them.
 | **Recent picks** | `mc-build-tracker:recent` — up to 8 slugs, browser-local, not exported; unknown slugs dropped on load. The unfiltered first picker batch leads with `data-icon-recent="true"` tiles; choosing records the slug at the front, de-duplicated. |
 | **Icon button** | Square panel button with a 2px black border and the standard bevel, 28–30 px, icon-only (`aria-label` mandatory). Used for the title-rename pencil (`#build-rename`, left of Delete) and coords copy (`#copy-coords`, right of the coords field; disabled when empty or whitespace). |
 | **Inline title / notes editor** | View mode is text; edit mode swaps in the existing input/textarea plus `✓` (save) and `✕` (cancel). Enter/Save commits through one model path, Escape cancels and restores the previous value, blank titles are refused, notes are trimmed, and focus returns to the invoking button. `Ctrl/Cmd+Enter` saves notes. |
-| **Micro stepper** | `button.mat-step`, 28 px tall, compact grid above and below the needed field, with **resolved labels**: `+1 +10 +64` over `-1 -10 -64` (the stack number comes from `MC_ICON_STACKS`, default 64). Stack-1 items omit the two stack buttons entirely (four buttons, no disabled twins, no full-stack aria). Every button carries `data-mat` and `data-stack` (`64|16|1`); `data-step` keeps the shipped literals `+1|+10|+stack|-1|-10|-stack` (no rename), and `data-mat-step` carries the resolved amount. `needed` clamps at 1; the row must not overflow at 390×844. |
+| **Micro stepper** | `button.mat-step`, 28 px tall, compact grid above and below the needed field, with **resolved labels**: `+1 +10 +64` over `-1 -10 -64` (the stack number comes from `MC_ICON_STACKS`, default 64). Stack-1 items omit the two stack buttons entirely (four buttons, no disabled twins, no full-stack aria). Every button carries `data-mat` and `data-stack` (`64|16|1`); `data-step` keeps the shipped literals `+1|+10|+stack|-1|-10|-stack` (no rename), and `data-mat-step` carries the resolved amount. `needed` clamps at 1; the row must not overflow at 390×844. The add form reuses the strip (`#mat-steps`, `data-step` unsigned `1|10|stack`, `data-mat-field="needed"`); its stack button stays `hidden` until an item is chosen, and labels resolve through the registry/catalogue stack. |
+| **Add-form stepper strip** | `#mat-steps` after `#mat-needed`: exactly three `button` steps with `data-step="1|10|stack"` and `data-mat-field="needed"`; the stack button is `hidden` until `#mat-item` has a value; labels come from the resolver (custom entry or catalogue `MC_ICON_STACKS`); clamping stays ≥1; the Got column is untouched. |
 | **Chooser chip** | Add-material control: a 30×30 `.slot` with the chosen item's render, the item name beside it, and a "Choose item" affordance (`#mat-choice`/`#mat-choice-slot`/`#mat-choice-name`). Opens the picker in pick-item mode; the hidden `#mat-item` feeds the form and `#mat-error` shows inline validation. |
-| **World backdrop** | Fallback: 16×16 dirt tiled at 2× (`image-rendering: pixelated`), brightness 0.88, radial vignette. **Panorama:** locally generated 2,560×640 strip — six resolved inputs `panorama_0…5` with the top/bottom caps recorded but not stitched, and the four side faces stitched with a wrap crossfade so the loop is seamless; bake Gaussian radius **2.0 px** (ceiling 2), brightness 0.95, saturation 0.92, 55,096 B WebP (sha256 `331253bd…bf1a5`); two `.backdrop__layer` copies of the strip translated −50 % over **180 s** linear infinite (`backdrop-translate`) under `:root.has-panorama`; per-layer `filter: blur(1px)` desktop / `blur(1.5px)` at ≤640 px; `--backdrop-scrim-alpha` (**0.2**) scrim plus vignette. Feature-detected at runtime; absence is a normal state. `prefers-reduced-motion` freezes the pan. |
+| **Build list ordering** | Status rank `building → planned → done`, stable within each rank by registry order, selection preserved, re-ranked only on a status change. The visible effect is two tiers: active work (Building, then Planned) above, Done last. Never sort by completion ratio or name. |
+| **Top-bar world stats** | `#world-meta` stays identity only (`Java 1.21.4 · 3 builds`). `#world-progress` reads `"X% gathered"` derived from `M.worldSummary` (never a literal), `#world-remaining` reads `"N of M items still to collect"` with thousands separators, and `#world-bar` (10 px track) > `#world-fill` (6 px fill, `role="progressbar"`, `aria-valuemin="0"`, `aria-valuemax="100"`, `aria-valuenow` = pct). Binned progress replaces `#world-summary`; the three stats hide with no world or zero total needed. |
+| **Alignment (measured)** | At 1280×900 and 390×844: each label's left equals its **own** control's left ±1 (pairwise, not one shared column); one control height per row; add-form slot/Needed/Got tops and heights equal; table head and row cell edges ±1; top-bar controls centre within ≤2 px per visual row. Measured on `tests/qa/edict-0015-fixtures/budget-state.json`, not `?demo=1`. |
+| **Compact density** | Desktop 1280×900: page `scrollHeight ≤ 900` (**900** measured), material rows ≤60 px, 36 px detail head, materials list capped 264 px. Mobile 390×844: `scrollHeight ≤ 1,500` (**1,423** measured), no horizontal scroll, columns Item 50% / Needed 21.5% / Got 21.5%; ≤640 px hides the eyebrow and tagline but keeps the persistence warning, and merges footer + `#panel__status` onto one line. One-line add form; no per-row labels invented. |
+| **Import dialog** | `#import-dialog` with `#import-file` (`accept=".json"` — the extension token is the fix; `application/json` is unregistered on this host, so the first MIME token hid JSON files), a real `#import-drop` target, `#import-text` + `#import-restore` paste path that works with no chooser, and the backup-list restore action; inline `#import-error`; a restored world selects its first build in §2 order. |
+| **Custom material** | Three scopes: account/state, world, build (`state/world/build.customItems`), id `custom:<slug>`, name 1–60 chars, stack 1–999, icon = catalogue slug or uploaded image (`{ kind: "image", dataUrl }`). Resolver `build → world → account → catalogue`, nearest wins. Creation is immutable/positional: `M.createCustomItem(state, world, build, target, spec)` → `{ state, entry } | { error }`; four exact error strings. `#btn-new-custom` sits in material mode only, badge `custom`, catalogue-first ordering. **Name validates on input; the icon commits on save.** No schema bump; v1 backups import with empty registries; the account registry is bounded by localStorage. |
+| **World backdrop** | Fallback: 16×16 dirt tiled at 2× (`image-rendering: pixelated`), brightness 0.88, radial vignette. **Panorama:** locally generated 2,560×640 strip (six resolved `panorama_0…5` inputs; four side faces stitched with a wrap crossfade; bake radius 2.0, brightness 0.95, saturation 0.92; 55,096 B, sha `331253bd…`). **One** `.backdrop__layer`, `width: 800vh; height: 100%; background-size: 400vh auto; repeat-x; left center`; `backdrop-drift` animates `translateX(-50%) → translateX(0)` over **120 s linear infinite**; per-layer `blur(1px)` desktop / `blur(1.5px)` at ≤640 px; scrim 0.2. `prefers-reduced-motion: reduce` defaults the layer to **paused** (frame still painted: `animation-name: backdrop-drift`, `animation-play-state: paused`) — never `animation: none`; the global 0 ms reset excludes `.backdrop__layer`. Feature-detected at runtime; absence is a normal state. |
+| **Pause control** | `button#backdrop-pause` 28×28 in `.topbar__actions` before `#btn-new-world`, `aria-pressed` (`true` = paused), label Pause/Play scenery; persists `localStorage['mc-build-tracker:motion']` (`paused`/`play`) and the `motion-paused` class. Under `reduce` the default is paused; the button or a stored `play` is the explicit opt-in. |
 
 ---
 
@@ -122,12 +130,10 @@ game pixels (icons, panorama, uploads stay local/git-ignored) · nearest-neighbo
 ## Pre-delivery checklist
 
 - [ ] `node --check src/app.js` and `node --check src/tracker/model.js` clean
-- [ ] Unit files green — **98/98** (model 22, identity 9, suggestion 38, app-qa 9, wiki 20)
-- [ ] Acceptance files green — **85/85** (tracker 17, identity 8, resolution 7, assets 11,
-      edict-0014 14, app-qa 7, wiki 13, wiki-sync 8)
-- [ ] `python tests/qa/mc_ui_audit.py` → **147/147**, exit 0
-- [ ] `node scripts/app-qa.mjs run` → **66/66** browser flows and a fresh stamp covering the
-      8 app sources (app files plus `Minecraft.ttf`, `backdrop.webp`, panorama `manifest.json`)
+- [ ] Unit files green — **109/109** (model 22, identity 9, suggestion 38, app-qa 9, wiki 20, plus the EDICT-0015 units)
+- [ ] Acceptance files green — **96/96** (tracker 17, identity 8, resolution 7, assets 11, edict-0014 14, edict-0015 11, app-qa 7, wiki 13, wiki-sync 8)
+- [ ] `python tests/qa/mc_ui_audit.py` → **187/187**, exit 0
+- [ ] `node scripts/app-qa.mjs run` → **80/80** browser flows and a fresh stamp covering the 8 app sources (`cases 80`, `verified_at 2026-10-25T14:39:07.404Z`, evidence `reports/qa/evidence/edict-0015/`)
 - [ ] Face is Minecraft with the Pixelify fallback; `Minecraft-LICENCE.md` present; glyph gaps
       (arrows, dashes, ellipsis, `×`, `·`, `≥`, `≤`) documented and covered by the fallback
 - [ ] Item catalog is 1,368 addressable base items from 1,609 renders (241 collapsed variants),
@@ -138,17 +144,35 @@ game pixels (icons, panorama, uploads stay local/git-ignored) · nearest-neighbo
       `#icon-count-hint` uses the frozen `showing N of 1368 — scroll for more` wording; typing
       resets to the first batch
 - [ ] Steppers show resolved amounts (`+1 +10 +64`), keep the shipped `+stack`/`-stack` literals
-      in `data-step` with resolved `data-mat-step`, and stack-1 rows omit the two stack buttons
+      in `data-step` with resolved `data-mat-step`, and stack-1 rows omit the two stack buttons;
+      the add-form strip uses unsigned `1|10|stack` and hides the stack button until selection
 - [ ] Tooltip is the single `#mc-tooltip` in the top layer; no `.slot[data-tip]::after` rule
       remains; bubbling `pointerover`/`pointerout` + `relatedTarget`, clamped, flips below,
       hides on Escape and dialog close
-- [ ] Backdrop: six inputs, four stitched sides with a wrap crossfade, 2,560×640, 180 s seamless
-      translate loop over two `.backdrop__layer` copies, bake blur 2.0, per-layer CSS `blur(1px)`
-      (1.5 px at ≤640 px), 0.2 scrim, 55,096 B, sha256 starting `331253bd`
+- [ ] Build order is status rank `building → planned → done`, stable within rank, selection
+      preserved; never sorted by completion ratio; two visible tiers with Done last
+- [ ] Header stats: `#world-meta` identity, `#world-progress` derived `"X% gathered"` (no
+      literal), `#world-remaining` thousands separators, `#world-bar`/`#world-fill` ARIA
+      0/100/now with a 10 px track and 6 px fill; hidden with no world or zero total needed;
+      `#world-summary` is gone
+- [ ] Import dialog: `#import-file` uses `accept=".json"`, JSON files are visible in the
+      chooser, real drop target, paste path works with no chooser, backup list restores,
+      inline `#import-error`, restored world selects its first build
+- [ ] Custom materials: three registries (`state/world/build.customItems`), `custom:<slug>`,
+      immutable positional create, resolved stack/icon, name validates on input and icon
+      commits on save, v1 backups import unchanged
+- [ ] Backdrop: one `.backdrop__layer`, `800vh` / `400vh auto` geometry, `backdrop-drift`
+      120 s linear infinite, bake 2.0, per-layer `blur(1px)` / 1.5 px at ≤640 px, 0.2 scrim,
+      wrap-seamless 2,560×640 strip; `#backdrop-pause` persists; `prefers-reduced-motion`
+      pauses by default and never sets `animation: none`
+- [ ] Budget measured on `tests/qa/edict-0015-fixtures/budget-state.json`: 1280×900
+      `scrollHeight ≤ 900` (900) and 390×844 `≤ 1,500` (1,423), no horizontal scroll,
+      mobile columns Item 50% / Needed 21.5% / Got 21.5%
 - [ ] Themed select probe: `CSS.supports('appearance', 'base-select')` true on the pinned
       Chromium and the `::picker(select)` computed panel/border/font match the frozen values
 - [ ] Headless Chrome screenshots at 1280 px and at 390 px: no overflow, no missing icons,
       tab state matches the visible panel
 - [ ] Every new colour is a token; every new component has a bevel spec above
-- [ ] `prefers-reduced-motion` still honoured; focus ring visible on every control
+- [ ] `prefers-reduced-motion` still honoured (content static, scenery paused by default);
+      focus ring visible on every control
 

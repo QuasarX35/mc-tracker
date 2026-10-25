@@ -1,0 +1,110 @@
+{
+  "version": 1,
+  "activeWorldId": "world-mvnu6lpq-i2zw1v",
+  "worlds": [
+    {
+      "id": "world-mvnu6lpq-i2zw1v",
+      "name": "Survival SMP",
+      "edition": "java",
+      "version": "1.21.4",
+      "notes": "Main long-term survival world. Keep the base at spawn tidy.",
+      "createdAt": "2026-10-25T13:01:21.134Z",
+      "builds": [
+        {
+          "id": "b1",
+          "name": "Weekend Cottage",
+          "status": "planned",
+          "coords": "",
+          "notes": "",
+          "materials": [
+            {
+              "item": "Oak Planks",
+              "needed": 64,
+              "collected": 0,
+              "id": "mat-b1-1"
+            }
+          ]
+        },
+        {
+          "id": "b2",
+          "name": "Iron Factory",
+          "status": "done",
+          "coords": "",
+          "notes": "",
+          "materials": [
+            {
+              "item": "Iron Ingot",
+              "needed": 32,
+              "collected": 32,
+              "id": "mat-b2-1"
+            }
+          ]
+        },
+        {
+          "id": "b3",
+          "name": "Wizard Tower",
+          "status": "building",
+          "coords": "10 / 64 / 10",
+          "notes": "",
+          "materials": [
+            {
+              "item": "Stone Bricks",
+              "needed": 128,
+              "collected": 64,
+              "id": "mat-b3-1"
+            }
+          ]
+        },
+        {
+          "id": "b4",
+          "name": "Barn",
+          "status": "planned",
+          "coords": "",
+          "notes": "",
+          "materials": [
+            {
+              "item": "Spruce Planks",
+              "needed": 96,
+              "collected": 0,
+              "id": "mat-b4-1"
+            }
+          ]
+        },
+        {
+          "id": "b5",
+          "name": "Nether Road",
+          "status": "done",
+          "coords": "",
+          "notes": "",
+          "materials": [
+            {
+              "item": "Netherrack",
+              "needed": 256,
+              "collected": 256,
+              "id": "mat-b5-1"
+            }
+          ]
+        },
+        {
+          "id": "b6",
+          "name": "Greenhouse",
+          "status": "building",
+          "coords": "",
+          "notes": "",
+          "materials": [
+            {
+              "item": "Glass",
+              "needed": 96,
+              "collected": 0,
+              "id": "mat-b6-1"
+            }
+          ]
+        }
+      ],
+      "icon": {
+        "kind": "item",
+        "slug": "grass_block"
+      }
+    }
+  ]
+}
