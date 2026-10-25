@@ -1,6 +1,8 @@
 {
-  "sealed_at": "2026-10-25T04:06:56.333Z",
+  "sealed_at": "2026-10-25T04:35:44.503Z",
   "files": {
-    "sources/2026-10-25-llm-wiki-pattern.md": "3313f21d80f42cabd67516be10e769b4c730b5cf74ea2840e0e4c7fb8f06d7f5"
+    "sources/2026-10-25-llm-wiki-pattern.md": "3313f21d80f42cabd67516be10e769b4c730b5cf74ea2840e0e4c7fb8f06d7f5",
+    "sources/2026-10-25-minecraft-build-tracker-spec.md": "cc6bdd8835a0a11be7ab0665adbd34d4d63ef053713c73c3475f3625d84efe17",
+    "sources/2026-10-25-minecraft-gui-design-system.md": "b30d22af438923c53c79f3e4ac3826e95eae42a82e7dbb265de041d6bdcd6fda"
   }
 }

@@ -37,3 +37,25 @@ then 2–5 lines on what changed. Verbs: `ingest`, `query`, `lint`, `edit`.
 
 - `AGENTS.md` §7 documents running test files directly and why `node --test` is unusable.
 - §8 title-style example and §3 `type` enum cleaned up.
+
+## [2026-10-25] ingest | Minecraft Build Tracker — product + in-game GUI + local-first storage
+
+Triggered by the standing rule in EDICT-0006 (*always update the wiki*), after EDICT-0005 had
+shipped without an ingest. Filed two raw sources:
+`raw/sources/2026-10-25-minecraft-build-tracker-spec.md` and
+`raw/sources/2026-10-25-minecraft-gui-design-system.md` (both sealed).
+
+- New [[Minecraft Build Tracker]] entity page: features, architecture, verification, tensions.
+- New concepts: [[In-game GUI design]] (what actually sells the Minecraft look, and the
+  contrast compromise) and [[Local-first tracking]] (storage, failure modes, mitigations).
+- New synthesis: [[Vanilla GUI over a neon dashboard]] — why explicit direction overrode the
+  inherited design system, and what was archived rather than deleted.
+- Updated [[LLM Wiki]] to declare both domains, and [[Open questions]] with the enforcement
+  gap, sync/icon scope and the mobile-verification caveat.
+- Index regenerated; 15 → 19 pages, 1 → 3 sealed sources.
+
+## [2026-10-25] edit | standing rule: every edict updates this wiki
+
+EDICT-0006 amends the constitution: `AGENTS.md` gains §6.5 (end-of-edict ingest), the
+state machine gains review item `R9` (a plan that does not say what it will add to the wiki is
+rejected), and the ledger records the rule.

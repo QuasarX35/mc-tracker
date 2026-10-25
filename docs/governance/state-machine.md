@@ -74,6 +74,10 @@ A plan passes only if all of the following are true; each failure is a named fin
   permissions, sandbox) and does it verify that before depending on it?
 - `R7` Failure paths — what happens on error, timeout, partial completion?
 - `R8` Escalation — are the points that need 皇帝's decision explicit rather than assumed?
+- `R9` Wiki upkeep (EDICT-0006) — does the plan name the wiki pages this edict will create or
+  update, and the raw sources it will seal? A plan that says "no wiki impact" must justify that
+  in one line. This is checked again at `S5Q`: an edict with no corresponding `wiki/log.md`
+  entry cannot pass verification.
 
 ## QA Gate Criteria (测试部)
 

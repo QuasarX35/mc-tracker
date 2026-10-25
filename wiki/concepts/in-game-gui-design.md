@@ -1,0 +1,56 @@
+---
+title: In-game GUI design
+type: concept
+summary: The techniques that make a web UI read as Minecraft's in-game screens — grey panels, 2px bevels, square corners, slots, bitmap type, XP bars.
+updated: 2026-10-25
+sources:
+  - 2026-10-25-minecraft-gui-design-system
+tags: [design, games, css]
+---
+
+# In-game GUI design
+
+Emulating the look of a 2011-era Java game inside a browser. The lesson from implementing it
+for the [[Minecraft Build Tracker]] is that authenticity comes almost entirely from **chrome
+and geometry**, not from copying artwork: once the panel grey, the 2px bevel, the square corner
+and the bitmap font are right, a flat CSS prototype already reads as Minecraft. Raw decisions:
+[`raw/sources/2026-10-25-minecraft-gui-design-system.md`](../../raw/sources/2026-10-25-minecraft-gui-design-system.md).
+
+## The load-bearing details
+
+- **Panel grey `#c6c6c6`** with a **2px black outline** and an **exact 2px bevel**: white on
+  top-left, `#555` on bottom-right. This single component does most of the work; a 1px or 3px
+  bevel immediately looks wrong.
+- **Square everything.** One `border-radius` anywhere breaks the illusion.
+- **Inverted bevel for insets** (slots, pressed buttons): dark top-left, light bottom-right.
+- **Bitmap type** at integer sizes, bundled locally; the shadow is a hard 2px offset, never a
+  blur.
+- **Slots and XP bars** are semantic objects in the game's visual vocabulary: a 30×30 inset
+  square holding a 16×16 icon, and a green bar with a lighter top band.
+- **Vanilla tooltip**: `#100010` plate with a `#5000ff` border — instantly recognisable.
+- **A textured world behind the panel** (tiled dirt, darkened with a vignette) supplies the
+  "in-game screen" framing that a flat colour cannot.
+
+## Why CSS instead of a texture pack
+
+Real GUI textures would need nine-slice scaling and hundreds of image files. Because the shapes
+are simple rectangles with a fixed bevel, CSS reproduces them more faithfully at any size and
+keeps the repository free of third-party art. Only the parts that *must* be pixel art — item
+icons, tiling block textures — are generated, at 16×16, and scaled with
+`image-rendering: pixelated`.
+
+## Tensions
+
+- **Contrast vs. fidelity.** Vanilla draws white text on light grey, which fails WCAG AA. The
+  shipped system uses dark text on light panels and shadowed white text on dark rows. It looks
+  right and it is readable; it is not pixel-identical ([[Minecraft Build Tracker]]).
+- **Legibility at small sizes.** True Minecraft text at 8–10 px is unreadable on a modern
+  display; the app uses 13–16 px pixel type instead.
+- **Nostalgia is a moving target.** "Looks like Minecraft" spans 1.7 to 1.21, each with a
+  different GUI palette. This system targets the grey-panel era deliberately.
+
+## Relations
+
+- Implemented in the [[Minecraft Build Tracker]]; specified in the design system snapshot above.
+- Depends on [[Local-first tracking]] only for shipping (bundled font, no CDN), not conceptually.
+- Replaced the previous dashboard aesthetic — see [[Vanilla GUI over a neon dashboard]].

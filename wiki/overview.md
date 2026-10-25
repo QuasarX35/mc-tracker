@@ -11,9 +11,10 @@ tags: [knowledge-management, meta]
 
 This knowledge base is an instance of the **LLM Wiki** pattern: instead of retrieving
 chunks from documents at query time, an LLM compiles what it reads into a persistent,
-interlinked set of markdown pages and keeps them current. The first source ingested here is
-the pattern's own description — [[LLM Wiki pattern]] — which makes this wiki partly
-self-describing: it is a working example of the thing it documents.
+interlinked set of markdown pages and keeps them current. It covers two things: the pattern
+itself — [[LLM Wiki pattern]] — and the product this repository ships, the
+[[Minecraft Build Tracker]]. That makes the wiki partly self-describing: it is a working
+example of the thing it documents.
 
 ## The thesis
 
@@ -27,6 +28,18 @@ A wiki like this normally dies of bookkeeping: the cross-references, the current
 the contradictions that need flagging. The pattern's central claim is that an LLM makes the
 maintenance cost approach zero ([[Maintenance cost]]), which is the first proposal to solve
 the part of Vannevar Bush's [[Memex]] that he could not.
+
+## What this repository tracks
+
+The live product is the [[Minecraft Build Tracker]] — worlds → builds → materials, with a
+summed shopping list. Its visual language is [[In-game GUI design]] (grey panels, 2px bevels,
+square corners, slots, XP bars), chosen over the inherited violet dashboard in
+[[Vanilla GUI over a neon dashboard]]. Its persistence model is [[Local-first tracking]]:
+`localStorage` plus validated JSON export/import, no server.
+
+Standing rule since EDICT-0006: **every piece of work updates this wiki** before it is
+reported — pages, index, log, raw seal, lint. Work that is not ingested is work that will be
+re-derived.
 
 ## The three layers
 

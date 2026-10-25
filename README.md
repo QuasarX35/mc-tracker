@@ -35,6 +35,9 @@ a backup and **Import** to restore it.
 | `legacy/superseded-dashboard/` | The retired EDICT-0004 dashboard (neon/violet design), archived |
 | `wiki/`, `AGENTS.md`, `docs/governance/` | The other resident of this repo: an LLM Wiki and the 三省六部 governance record |
 
+**Standing rule (EDICT-0006):** every change also updates the wiki — pages, index, log, raw
+seal, lint — before it is reported. See [`AGENTS.md`](AGENTS.md) §6.5.
+
 ## Checks
 
 ```bash

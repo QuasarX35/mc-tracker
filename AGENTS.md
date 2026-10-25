@@ -147,6 +147,27 @@ query will find them.
 Read `wiki/index.md`; `tail` the last 5 log entries; run `node src/wiki/cli.mjs lint` and
 report any findings before doing new work.
 
+### 6.5 End of every edict — standing rule (EDICT-0006)
+
+**Every piece of work updates this wiki before it is reported.** No exceptions, no "small
+change" exemption. A task that ends without a wiki update is an unfinished task.
+
+Minimum sequence:
+
+1. Decide the wiki impact *before* starting: which pages this work creates, which it changes,
+   which raw sources it adds. An approved plan must state this (review item `R9` in
+   [`docs/governance/state-machine.md`](docs/governance/state-machine.md)).
+2. Ingest the outcome: new/updated pages for entities, concepts and decisions, plus anything
+   the product's behaviour implies for existing pages.
+3. Update `overview.md` if the change alters the standing synthesis.
+4. Record durable questions and caveats in `synthesis/open-questions.md`, including QA
+   findings that were worked around rather than fixed.
+5. `node src/wiki/cli.mjs index --write` and append a
+   `## [YYYY-MM-DD] ingest|edit | <subject>` entry to `wiki/log.md` naming the pages touched.
+6. `node src/wiki/cli.mjs raw --seal` for any new raw source, then
+   `node src/wiki/cli.mjs lint` until clean — the lint pass is the check that the ingest
+   actually happened rather than being claimed.
+
 ## 7. Tooling
 
 Zero dependencies, Node ≥ 18, no network. All commands print human-readable output and

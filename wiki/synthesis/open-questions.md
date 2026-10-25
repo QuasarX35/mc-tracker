@@ -24,9 +24,22 @@ question that a future source or a future session could close.
 
 ## Undecided in this instance
 
-- **Corpus domain.** The wiki currently documents its own pattern. The first real domain
-  (personal tracking, research, book, team) is unannounced, and it will determine whether the
-  page taxonomy holds ([[Implementation decisions]] D1).
+- **Is "always update the wiki" enforceable, or merely promised?** EDICT-0006 makes it a
+  constitutional rule, a review-gate item (`R9`) and a schema workflow — all prompt-level. No
+  runtime check fails when a session reports without ingesting. Candidate mechanism: a lint rule
+  that compares the newest ledger entry's edict id with the newest log entry's subject.
+- **Tracker: sync or no sync.** [[Local-first tracking]] refuses accounts and servers; two
+  players must exchange JSON. Whether that stays acceptable depends on real use.
+- **Tracker: icon coverage.** 18 item icons with a lettered fallback; expanding to a full block
+  list is mechanical but large. Where is the line?
+- **Tracker: is the archive worth keeping?** `legacy/superseded-dashboard/` preserves the v1
+  design and its audit; it also doubles the design narrative in the repo
+  ([[Vanilla GUI over a neon dashboard]]).
+- **Mobile verification.** 390 px was checked in an iframe harness, not a real narrow window
+  (headless Chrome's ~500 px minimum). A real device check has not happened.
+- **Corpus domain.** The wiki now covers its own pattern plus one product. A third domain
+  (reading, research, team knowledge) would test whether the page taxonomy holds
+  ([[Implementation decisions]] D1).
 - **Contradiction protocol.** The rule "record both claims, dated" exists in the schema, but
   no page has yet been through a real contradiction. The first one should be treated as a
   test of the rule ([[Wiki schema]]).

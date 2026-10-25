@@ -2,7 +2,7 @@
 
 # Index
 
-Catalogue of 15 pages, regenerated 2026-10-25. Read this first when answering a
+Catalogue of 19 pages, regenerated 2026-10-25. Read this first when answering a
 query; it is the map, the pages are the territory.
 
 ## Overview (1)
@@ -11,23 +11,26 @@ query; it is the map, the pages are the territory.
 |------|---------|---------|
 | [[LLM Wiki]] | A persistent, LLM-maintained knowledge base of interlinked pages that sits between the Emperor and an immutable raw source collection. | 2026-10-25 |
 
-## Concepts (6)
+## Concepts (8)
 
 | Page | Summary | Updated |
 |------|---------|---------|
 | [[Compiled knowledge]] | Knowledge that is extracted, reconciled and stored once in a maintained artifact, rather than re-derived per query. | 2026-10-25 |
+| [[In-game GUI design]] | The techniques that make a web UI read as Minecraft's in-game screens — grey panels, 2px bevels, square corners, slots, bitmap type, XP bars. | 2026-10-25 |
 | [[Ingest, query and lint]] | The three operations that keep a wiki alive — file new sources, answer and file answers back, and periodically health-check the whole graph. | 2026-10-25 |
+| [[Local-first tracking]] | Browser-local persistence (localStorage plus JSON export/import): no server, offline, private — but no sync and no durability guarantee. | 2026-10-25 |
 | [[Maintenance cost]] | The bookkeeping burden — cross-references, current summaries, flagged contradictions — that kills human-maintained wikis and which LLMs reduce to near zero. | 2026-10-25 |
 | [[Memex]] | Vannevar Bush's 1945 vision of a private, curated knowledge store with associative trails — missing only a maintainer, which the LLM supplies. | 2026-10-25 |
 | [[Query-time retrieval]] | The RAG family of approaches — retrieve relevant chunks per question and generate an answer, accumulating nothing between questions. | 2026-10-25 |
 | [[Wiki schema]] | The configuration document (here AGENTS.md) that fixes a wiki's structure, conventions and workflows, turning a generic model into a disciplined maintainer. | 2026-10-25 |
 
-## Entities (4)
+## Entities (5)
 
 | Page | Summary | Updated |
 |------|---------|---------|
 | [[Dataview]] | Obsidian plugin that queries YAML frontmatter to generate dynamic tables and lists across wiki pages. | 2026-10-25 |
 | [[Marp]] | Markdown-based slide-deck format with an Obsidian plugin, used to turn wiki content into presentations. | 2026-10-25 |
+| [[Minecraft Build Tracker]] | A local, offline web tool for planning Minecraft builds and tracking the materials each one needs, styled after the in-game GUI. | 2026-10-25 |
 | [[Obsidian]] | Local markdown knowledge-base app used as the human-facing IDE for this wiki — graph view, wikilinks, plugins, Web Clipper. | 2026-10-25 |
 | [[qmd]] | A local markdown search engine with hybrid BM25/vector search and LLM re-ranking, exposed as a CLI and an MCP server. | 2026-10-25 |
 
@@ -37,10 +40,11 @@ query; it is the map, the pages are the territory.
 |------|---------|---------|
 | [[LLM Wiki pattern]] | Summary of the pattern document that defines this wiki — compiled persistent pages instead of query-time retrieval, maintained by an LLM. | 2026-10-25 |
 
-## Synthesis (3)
+## Synthesis (4)
 
 | Page | Summary | Updated |
 |------|---------|---------|
 | [[Implementation decisions]] | The concrete choices made in instantiating this wiki — directories, frontmatter, wikilinks, zero-dependency tooling, sealed raw sources. | 2026-10-25 |
 | [[Open questions]] | What this wiki still does not know or has not decided — lint findings, untested claims from the source, and next sources worth ingesting. | 2026-10-25 |
 | [[RAG and LLM Wiki compared]] | Side-by-side comparison of query-time retrieval and a compiled maintained wiki, including where each actually wins. | 2026-10-25 |
+| [[Vanilla GUI over a neon dashboard]] | Case study in overriding an inherited design system — the violet dashboard was replaced by an in-game GUI because explicit direction outweighs an artifact. | 2026-10-25 |
