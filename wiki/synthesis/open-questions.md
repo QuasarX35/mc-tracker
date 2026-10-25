@@ -39,6 +39,12 @@ question that a future source or a future session could close.
   while tiled textures stay nearest-neighbour; nobody has compared the smooth 22 px slots
   against integer-scaled pixel art on a physical HiDPI display. The design contract has a scoped
   exception here — is it the right one? ([[In-game GUI design]])
+- **Tracker: remove the icon brightness compensation when upstream ships.** IconExporter PR #41
+  fixes the dark 3D renders but is unreleased for 1.21.4; the tracker restores the vanilla face
+  ratios offline instead. A future session should re-export with the fixed build, verify the
+  0.99 / 0.65 / 0.40 face ratios, and delete the compensation — the compensation itself is a
+  documented workaround, not the desired end state
+  ([[Vanilla assets without redistribution]]).
 - **Tracker: is the archive worth keeping?** `legacy/superseded-dashboard/` preserves the v1
   design and its audit; it also doubles the design narrative in the repo
   ([[Vanilla GUI over a neon dashboard]]).

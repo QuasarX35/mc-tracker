@@ -50,6 +50,13 @@ downscaled (`image-rendering: auto`) at 22 px in material slots and 28–48 px i
 the tiled dirt/panorama textures stay pixelated and integer-scaled. **Without this step the app
 still works** — every slot falls back to a letter.
 
+IconExporter 1.3.1 renders **3D (block-model) icons about a third too dark** — a non-uniform
+pose scale flattens Minecraft's GUI diffuse lighting (fixed upstream in IconExporter PR #41,
+unreleased for 1.21.4 at export time). The extractor therefore restores the vanilla inventory
+face brightness on the exported render (top/left/right = 0.99/0.65/0.40 of the block texture)
+and records the exact gains in `manifest.json`; flat 2D item sprites are unaffected and copied
+unchanged.
+
 Licensing: personal, non-commercial use of assets from your own purchase; not affiliated with
 Mojang or Microsoft; do not publish a clone containing the generated PNGs.
 
@@ -107,7 +114,7 @@ node tests/unit/tracker-icons.test.mjs                # 9 identity cases
 node tests/qa/tracker.acceptance.test.mjs             # 16 acceptance + static contract cases
 node tests/qa/tracker-icons.acceptance.test.mjs       # 8 identity/backdrop acceptance cases
 node tests/qa/tracker-icon-resolution.acceptance.test.mjs  # 7 high-resolution icon cases
-python tests/qa/mc_ui_audit.py                        # 70 contrast/structure/pixel/identity cases
+python tests/qa/mc_ui_audit.py                        # 72 contrast/structure/pixel/identity cases
 # wiki + governance (the wiki is a required output of every edict)
 node src/wiki/cli.mjs lint                      # incl. the edict-sync rule
 node src/wiki/cli.mjs sync                      # which completed edicts have been ingested
@@ -120,7 +127,7 @@ node scripts/app-qa.mjs status                  # verified / STALE
 
 ```
 
-Current status: **24/24** model+identity unit cases, **31/31** acceptance cases, **70/70**
+Current status: **24/24** model+identity unit cases, **31/31** acceptance cases, **72/72**
 UI-audit cases, **36/36** browser flows — screenshots verified at 1280 px and 390 px.
 
 ## Scope and honesty
@@ -128,8 +135,10 @@ UI-audit cases, **36/36** browser flows — screenshots verified at 1280 px and 
 - Local-only: no accounts, no sync, no server. One browser = one dataset.
 - Icons are **Minecraft's own item renders** (53 of them): 256×256 inventory renders exported
   from your installed game with IconExporter, or the 16×16 client-jar textures as a
-  lower-resolution fallback — generated locally, never committed. Items outside the 53-item set
-  (chest, doors, fences, unknown names) get a lettered slot rather than a wrong icon.
+  lower-resolution fallback — generated locally, never committed. 3D icons carry a documented
+  brightness correction for an IconExporter 1.3.1 lighting bug (flat sprites are untouched).
+  Items outside the 53-item set (chest, doors, fences, unknown names) get a lettered slot rather
+  than a wrong icon.
 - Entity avatars are either a Minecraft item or an uploaded picture. Uploads are centre-cropped
   to 128×128, encoded as WebP/PNG data URLs inside the saved state, and therefore travel with
   backups (and count against browser storage).

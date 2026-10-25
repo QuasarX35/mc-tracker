@@ -42,7 +42,7 @@ import sys
 import zipfile
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "src" / "assets" / "icons"
@@ -52,6 +52,23 @@ EXPORT_DIRNAME = "icon-exports-x256"
 EXPORT_PREFIX = "minecraft__"
 MIN_EXPORT_PX = 128          # high-resolution contract: refuse a downscaled export set
 EXPECTED_EXPORT_PX = 256     # documented IconExporter export size used by the app
+
+# IconExporter 1.3.1 renders 3D (block-model) icons too dark: it scales the pose by
+# (f, f, 1), and PoseStack turns a non-uniform scale into a squashed normal matrix, which
+# flattens Minecraft's GUI diffuse lighting (the 0.4 ambient part survives; the directional
+# part mostly does not). Flat 2D sprites face the camera and are unaffected. The bug is fixed
+# upstream in CyclopsMC/IconExporter PR #41 ("Scale the icon pose uniformly so block icons
+# keep their shading"), but that fix is unreleased for 1.21.4, so the extractor restores the
+# vanilla inventory brightness on the exported render itself. Upstream measurements put a
+# vanilla inventory render at these fractions of the block texture's brightness:
+VANILLA_FACE_FACTORS = {"top": 0.99, "left": 0.65, "right": 0.40}
+# Used only when the client jar is unavailable for calibration (measured on 1.21.4's export).
+FALLBACK_GAINS = {"top": 1.590, "left": 1.372, "right": 0.875}
+LIGHTING_BUG = (
+    "IconExporter 1.3.1 scales the icon pose non-uniformly, squashing vertex normals and "
+    "flattening GUI diffuse lighting, so 3D icons export too dark; flat 2D sprites are "
+    "unaffected. Fixed upstream in CyclopsMC/IconExporter PR #41 (unreleased at export time)."
+)
 
 # Cube blocks: (display name, slug, top texture, side texture, front texture|None)
 BLOCKS = [
@@ -191,13 +208,173 @@ def check_export(path: Path) -> int:
     return width
 
 
-def build_high_res(exports: Path) -> tuple[list[dict], list[str], int]:
+def load_block_texture(zf: zipfile.ZipFile, name: str) -> Image.Image:
+    with zf.open(f"{TEX_PREFIX}block/{name}.png") as handle:
+        image = Image.open(io.BytesIO(handle.read())).convert("RGBA")
+    # animated textures are vertical strips: use the first frame
+    if image.height > image.width and image.height % image.width == 0:
+        image = image.crop((0, 0, image.width, image.width))
+    return image
+
+
+def mean_brightness(image: Image.Image, mask: Image.Image | None = None) -> float:
+    src = image.load()
+    msk = mask.load() if mask is not None else None
+    total = count = 0
+    for y in range(image.height):
+        for x in range(image.width):
+            if msk is not None and not msk[x, y]:
+                continue
+            r, g, b, a = src[x, y]
+            if a > 200:
+                total += (r + g + b) / 3
+                count += 1
+    return total / count if count else 0.0
+
+
+def scale_brightness(image: Image.Image, factor: float) -> Image.Image:
+    """Multiply RGB by factor (clamped) and keep the alpha channel untouched."""
+    red, green, blue, alpha = image.split()
+    transform = lambda channel: channel.point(
+        lambda value: max(0, min(255, int(value * factor + 0.5)))
+    )
+    return Image.merge("RGBA", (transform(red), transform(green), transform(blue), alpha))
+
+
+def cube_face_masks(reference: Image.Image) -> tuple[dict[str, Image.Image], dict[str, float]]:
+    """Split an isometric cube render into its three visible faces.
+
+    IconExporter draws the GUI block model with one fixed projection, so the silhouette is a
+    hexagon: top vertex, the two upper side corners, the two lower side corners, bottom vertex.
+    The three faces meet at the diamond's lower vertex (centre). Returns one alpha mask per
+    face plus the face areas (opaque pixel counts) for weighting.
+    """
+    alpha = reference.getchannel("A")
+    rows = []
+    for y in range(reference.height):
+        xs = [x for x in range(reference.width) if alpha.getpixel((x, y)) > 200]
+        if xs:
+            rows.append((y, min(xs), max(xs)))
+    if len(rows) < 8:
+        raise ValueError("no isometric cube silhouette found")
+    y_top, y_bottom = rows[0][0], rows[-1][0]
+    widest = max(right - left for _y, left, right in rows)
+    band = [(y, left, right) for y, left, right in rows if right - left == widest]
+    y_side_top, y_side_bottom = band[0][0], band[-1][0]
+    x_min = min(left for _y, left, _right in rows)
+    x_max = max(right for _y, _left, right in rows)
+    centre_x = (x_min + x_max) / 2
+    top = (centre_x, y_top)
+    left = (x_min, y_side_top)
+    right = (x_max, y_side_top)
+    centre = (centre_x, 2 * y_side_top - y_top)
+    left_bottom = (x_min, y_side_bottom)
+    right_bottom = (x_max, y_side_bottom)
+    bottom = (centre_x, y_bottom)
+    polygons = {
+        "top": [top, right, centre, left],
+        "left": [left, centre, bottom, left_bottom],
+        "right": [centre, right, right_bottom, bottom],
+    }
+    masks: dict[str, Image.Image] = {}
+    for face, polygon in polygons.items():
+        mask = Image.new("L", reference.size, 0)
+        ImageDraw.Draw(mask).polygon(polygon, fill=255)
+        masks[face] = mask
+    return masks
+
+
+def face_weights(masks: dict[str, Image.Image]) -> dict[str, int]:
+    return {face: mask.histogram()[255] for face, mask in masks.items()}
+
+
+def calibrate_lighting(zf: zipfile.ZipFile, exports: Path, masks: dict[str, Image.Image]) -> tuple[dict[str, float], dict[str, float]]:
+    """Measure how dark the 3D exports are against the source textures, then derive gains.
+
+    For every solid full-cube block the rendered face brightness is compared with the matching
+    block texture's brightness; the median ratio is the exporter's current face factor. The
+    gain that restores the vanilla inventory factor is target / current.
+    """
+    excluded = {"glass", "grass_block"}  # transparency and the biome tint muddy the mean
+    samples: dict[str, list[float]] = {face: [] for face in VANILLA_FACE_FACTORS}
+    for _name, slug, top_tex, side_tex, front_tex in BLOCKS:
+        if slug in excluded:
+            continue
+        export = exports / f"{EXPORT_PREFIX}{slug}.png"
+        if not export.is_file():
+            continue
+        render = Image.open(export).convert("RGBA")
+        textures = {
+            "top": load_block_texture(zf, top_tex),
+            "left": load_block_texture(zf, side_tex),
+            "right": load_block_texture(zf, front_tex or side_tex),
+        }
+        for face in samples:
+            source = mean_brightness(textures[face])
+            if source > 0:
+                samples[face].append(mean_brightness(render, masks[face]) / source)
+    if any(len(values) < 5 for values in samples.values()):
+        raise ValueError("not enough reference blocks to calibrate the lighting")
+    current = {}
+    for face, values in samples.items():
+        values.sort()
+        current[face] = values[len(values) // 2]
+    gains = {face: VANILLA_FACE_FACTORS[face] / current[face] for face in current}
+    return current, gains
+
+
+def silhouette_box(image: Image.Image) -> tuple[int, int, int, int]:
+    return image.convert("RGBA").getchannel("A").getbbox() or (0, 0, 0, 0)
+
+
+def build_high_res(exports: Path, jar: Path | None) -> tuple[list[dict], list[str], int, dict | None]:
     manifest: list[dict] = []
     missing: list[str] = []
     pixels: int | None = None
+
+    # The exporter's projection is identical for every full-cube icon, so the face masks and
+    # the lighting calibration are derived once from the set itself.
+    masks = None
+    correction: dict | None = None
+    gains: dict[str, float] = {}
+    reference = exports / f"{EXPORT_PREFIX}stone.png"
+    if reference.is_file():
+        try:
+            masks = cube_face_masks(Image.open(reference).convert("RGBA"))
+            if jar is not None:
+                with zipfile.ZipFile(jar) as zf:
+                    measured, gains = calibrate_lighting(zf, exports, masks)
+                calibrated_from = "the client jar's block textures"
+            else:
+                measured = {face: VANILLA_FACE_FACTORS[face] / FALLBACK_GAINS[face] for face in FALLBACK_GAINS}
+                gains = dict(FALLBACK_GAINS)
+                calibrated_from = "the built-in 1.21.4/IconExporter-1.3.1 measurements (client jar not available)"
+            weights = face_weights(masks)
+            total = sum(weights.values()) or 1
+            gains["props"] = sum(gains[face] * weights[face] for face in masks) / total
+            correction = {
+                "applied": True,
+                "reason": LIGHTING_BUG,
+                "method": "per-face brightness gain on the exported render (flat 2D sprites are "
+                          "copied unchanged; 3D props get the face-area-weighted gain)",
+                "target_vanilla_face_factors": dict(VANILLA_FACE_FACTORS),
+                "measured_export_face_factors": {face: round(value, 4) for face, value in measured.items()},
+                "gains": {key: round(value, 4) for key, value in gains.items()},
+                "calibrated_from": calibrated_from,
+            }
+            print(
+                "lighting: correcting IconExporter 1.3.1 dark 3D icons "
+                f"(top x{gains['top']:.2f}, left x{gains['left']:.2f}, right x{gains['right']:.2f})"
+            )
+        except (ValueError, OSError, zipfile.BadZipFile) as error:
+            print(f"note: lighting correction disabled ({error})")
+
+    reference_box = silhouette_box(Image.open(reference).convert("RGBA")) if reference.is_file() else None
+
     entries = [(name, slug, "block") for name, slug, _t, _s, _f in BLOCKS]
-    entries += [(name, slug, "item") for name, slug, _folder, _texture in ITEMS]
-    for name, slug, kind in entries:
+    entries += [(name, slug, "prop" if folder == "block" else "item") for name, slug, folder, _texture in ITEMS]
+    boxed_entries = list(entries)
+    for name, slug, kind in boxed_entries:
         source = exports / f"{EXPORT_PREFIX}{slug}.png"
         if not source.is_file():
             missing.append(f"{EXPORT_DIRNAME}/{EXPORT_PREFIX}{slug}.png")
@@ -212,17 +389,30 @@ def build_high_res(exports: Path) -> tuple[list[dict], list[str], int]:
                 "Re-export the whole set at one resolution."
             )
         target = OUT / f"{slug}.png"
-        shutil.copyfile(source, target)
+        lighting = "none"
+        if correction is not None and masks is not None and kind in ("block", "prop"):
+            icon = Image.open(source).convert("RGBA")
+            if kind == "block" and reference_box is not None and silhouette_box(icon) == reference_box:
+                for face, mask in masks.items():
+                    icon = Image.composite(scale_brightness(icon, gains[face]), icon, mask)
+                lighting = "faces"
+            else:
+                icon = scale_brightness(icon, gains["props"])
+                lighting = "uniform"
+            icon.save(target)
+        else:
+            shutil.copyfile(source, target)
         manifest.append({
             "name": name,
             "slug": slug,
             "kind": kind,
             "image": f"{slug}.png",
             "pixels": size,
+            "lighting": lighting,
             "source": f"{EXPORT_DIRNAME}/{EXPORT_PREFIX}{slug}.png",
             "sha256": sha256(target),
         })
-    return manifest, missing, pixels or EXPECTED_EXPORT_PX
+    return manifest, missing, pixels or EXPECTED_EXPORT_PX, correction
 
 
 # ------------------------------------------------------------------- jar fallback (16x16)
@@ -314,13 +504,13 @@ def isometric_icon(top: Image.Image, side: Image.Image, front: Image.Image | Non
     A, B, C, D = (0, 4), (8, 0), (16, 4), (8, 8)
     U_top = (B[0] - A[0], B[1] - A[1])          # (8, -4)
     V_top = (D[0] - A[0], D[1] - A[1])          # (8, 4)
-    draw_face(canvas, top, A, U_top, V_top, 1.0)
+    draw_face(canvas, top, A, U_top, V_top, VANILLA_FACE_FACTORS["top"])
     U_left = (D[0] - A[0], D[1] - A[1])         # (8, 4)
     V_left = (0, 8)
-    draw_face(canvas, side, A, U_left, V_left, 0.80)
+    draw_face(canvas, side, A, U_left, V_left, VANILLA_FACE_FACTORS["left"])
     U_right = (C[0] - D[0], C[1] - D[1])        # (8, -4)
     V_right = (0, 8)
-    draw_face(canvas, front or side, D, U_right, V_right, 0.60)
+    draw_face(canvas, front or side, D, U_right, V_right, VANILLA_FACE_FACTORS["right"])
     return canvas
 
 
@@ -428,16 +618,31 @@ def write_icons_js(manifest: list[dict], version: str, mode: str) -> None:
 def write_provenance(manifest: list[dict], source: dict, jar: Path | None, exports: Path | None) -> None:
     mode = source["mode"]
     if mode == "hires-exports":
+        correction = source.get("lighting_correction") or {}
+        gains = correction.get("gains") or {}
+        correction_line = (
+            "- **Lighting correction for 3D models.** IconExporter 1.3.1 scales the icon pose "
+            "non-uniformly, which squashes the vertex normals and flattens Minecraft's GUI "
+            "diffuse lighting; 3D (block-model) icons therefore export roughly a third too dark, "
+            "while flat 2D sprites are unaffected. The upstream fix (CyclopsMC/IconExporter "
+            "PR #41) was unreleased at export time, so this project restores the vanilla "
+            "inventory face brightness on the exported render: top 0.99, left 0.65, right 0.40 "
+            "of the block texture"
+            + (
+                f" (gains top x{gains['top']}, left x{gains['left']}, right x{gains['right']}, "
+                f"3D props x{gains['props']})"
+                if gains
+                else ""
+            )
+            + ". Flat item sprites are copied unchanged."
+        )
         source_lines = f"""- Game client: `{jar}`.
 - Inventory render export: `{exports}` (`{EXPORT_DIRNAME}/` from IconExporter).
-- Rendering: {source["renderer"]} rendered each item exactly as the game draws it in an
-  inventory slot, at **256×256** (16x the GUI pixel). The renders were exported
-  {source["exported"] or "from the owner's installation"} and are copied **byte-for-byte** —
-  no scaling, tinting or re-encoding by this project."""
-        method_line = (
-            "256×256 inventory item renders exported by IconExporter from the owner's own game; "
-            "copied unchanged. The app displays them smoothly downscaled (image-rendering: auto)."
-        )
+- Rendering: {source["renderer"]} rendered each item as the game draws it in an inventory
+  slot, at **256×256** (16x the GUI pixel). The renders were exported
+  {source["exported"] or "from the owner's installation"}; they are copied with no scaling or
+  tinting and are not re-encoded for flat 2D sprites.
+{correction_line}"""
         resolution_line = (
             "The app shows them at 22 px in material slots (including icon-picker tiles) and inside "
             "24/28/36/44 px avatar images in 28/32/40/48 px boxes; the 256 px source keeps every "
@@ -446,15 +651,11 @@ def write_provenance(manifest: list[dict], source: dict, jar: Path | None, expor
     else:
         source_lines = f"""- Game client: `{jar}`.
 - Rendering: the client jar's own 16×16 textures. Flat item sprites are copied; cube blocks
-  are composited into a 2:1 isometric icon from their top/side/front textures (top 100 %,
-  left 80 %, right 60 %). Animated textures use frame 1; grass uses the plains tint because
-  the app has no biome data.
+  are composited into a 2:1 isometric icon from their top/side/front textures with the vanilla
+  inventory face brightness (top 0.99, left 0.65, right 0.40). Animated textures use frame 1;
+  grass uses the plains tint because the app has no biome data.
 - **This is the low-resolution fallback**: IconExporter's high-resolution export folder was
   not found, so `manifest.json` records `mode: jar-fallback`."""
-        method_line = (
-            "flat item sprites copied at 16×16; cube blocks composited 2:1 isometric "
-            "(top 100 %, left 80 %, right 60 %); animated textures use frame 1"
-        )
         resolution_line = "Icons are 16×16 sources; the app scales them up in integer-friendly steps."
 
     provenance = f"""# Icon provenance and licensing
@@ -517,7 +718,7 @@ def main() -> int:
         print(f"source: {renderer}")
         if version != args.version:
             print(f"note:   exports look like {version} (inferred from the item set), recording that")
-        manifest, missing, pixels = build_high_res(exports)
+        manifest, missing, pixels, correction = build_high_res(exports, jar)
         source = {
             "game": "Minecraft Java Edition",
             "version": version,
@@ -528,8 +729,12 @@ def main() -> int:
             "exported": exported,
             "extracted": today,
             "method": "owner's own 256x256 inventory item renders exported by IconExporter; "
-                      "copied unchanged; app displays them smoothly downscaled (image-rendering: auto)",
+                      "flat 2D sprites copied unchanged, 3D models brightness-corrected for the "
+                      "IconExporter 1.3.1 dark-lighting bug; app displays them smoothly downscaled "
+                      "(image-rendering: auto)",
         }
+        if correction is not None:
+            source["lighting_correction"] = correction
     else:
         if jar is None:
             raise SystemExit(

@@ -161,3 +161,36 @@ All 53 item icons became the game's own 256×256 inventory renders instead of th
   `QA_PASS` cycle 1 (161/161 cases; 53/53 renders byte-identical to the owner's export). All
   findings minor: verifier zoom-capture tooling (fixed), the accepted refresh of the hardcoded
   EDICT-0009 evidence screenshots, and two documentation figures corrected after the verdict.
+
+## [2026-10-25] edit | icon brightness: fixing the IconExporter dark 3D renders (EDICT-0012)
+
+The icons added in EDICT-0011 looked dark. Nothing in the app filtered them — the darkening was
+baked into the exported PNGs for 3D models only.
+
+- Diagnosis: flat sprites were still byte-identical to the game, while full-cube renders sat at
+  0.62 / 0.47 / 0.46 of the texture brightness instead of vanilla's 0.99 / 0.65 / 0.40.
+  IconExporter 1.3.1 scales the icon pose non-uniformly, which squashes the vertex normals and
+  flattens Minecraft's GUI diffuse lighting (CyclopsMC/IconExporter PR #41; the fix exists only
+  on an unreleased branch, and no 1.21.4 release contains it).
+- New raw source `raw/sources/2026-10-25-iconexporter-dark-light-bug.md`: the cause, the
+  upstream measurement table, the unreleased fix, and the compensation's calibration and limits.
+- `scripts/mc-icons.py` now derives the three cube face masks from the export silhouette and
+  applies a per-face gain calibrated against the client jar (measured 0.6227 / 0.4738 / 0.4569 →
+  gains ×1.5898 / ×1.3720 / ×0.8755; 3D props get the area-weighted ×1.2565; flat sprites stay
+  byte-identical). The manifest records the correction and a per-icon `lighting` mode,
+  `PROVENANCE.md` documents it, and the 16×16 jar fallback now shades with the same vanilla
+  ratios.
+- Updated [[Minecraft Build Tracker]] (Icons + verification + tension), [[In-game GUI design]]
+  (the reference-measurement lesson), [[Vanilla assets without redistribution]] ("a correct
+  source can still be wrong") and [[Open questions]] (drop the compensation when upstream
+  ships).
+- Verification: corrected face medians 0.991 / 0.651 / 0.403 vs targets; 11/11 flat sprites
+  byte-identical; 24 unit / 31 acceptance / 72 audit / 36 browser flows; app-qa stamp still
+  verified because no app source changed. Evidence: `reports/qa/evidence/edict-0012/`.
+- QA: a separate 测试部 teammate rebuilt the face masks from each PNG's alpha silhouette,
+  measured against textures resolved from the client jar's own block models, and filed
+  `QA_PASS` cycle 1 — 292/292 independent checks, corrected medians 0.9901 / 0.6509 / 0.4010 vs
+  targets, raw export 0.6228 / 0.4745 / 0.4571 (the bug reproduced), 11/11 flat sprites
+  byte-identical, 42/42 3D icons corrected with alpha preserved. Notes only: the brightest
+  top faces overshoot by up to +0.048, and emissive prop cores clip in 8-bit (torch 20 %,
+  lantern 32 %) — both inherent to an offline compensation.

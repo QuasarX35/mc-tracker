@@ -67,7 +67,7 @@ background/box-shadow/width; `prefers-reduced-motion` zeroes them.
 | **Panel** | `--mc-panel`, 2px black border, `inset 2px 2px 0 #fff, inset -2px -2px 0 #555`, plus a hard offset shadow against the world backdrop. Padding 16px. |
 | **Button** | Panel face + bevel; 2px black border; hover lightens face and adds a pale inner ring; active inverts the bevel and moves 1px down. Variants: `--primary` (grass green), `--danger` (red). Minimum height 38px, 32px for `--sm`. |
 | **Input / select** | Black field (`--mc-field`) with white pixel text and a 2px bevel; focus adds a 3px gold ring. Selects use the dark 6f6f6f face with the vanilla dropdown chevron drawn in CSS. |
-| **Slot** | 30×30, `#8b8b8b` face, 2px black border, inverted bevel (dark top-left, light bottom-right); holds a 22×22 icon from the game's own **256×256 inventory renders** (generated locally by `scripts/mc-icons.py`, git-ignored) displayed smoothly downscaled. A missing icon shows the item's initial — never a broken image. |
+| **Slot** | 30×30, `#8b8b8b` face, 2px black border, inverted bevel (dark top-left, light bottom-right); holds a 22×22 icon from the game's own **256×256 inventory renders** (generated locally by `scripts/mc-icons.py`, git-ignored; 3D renders carry a documented brightness correction for an upstream IconExporter bug) displayed smoothly downscaled. A missing icon shows the item's initial — never a broken image. |
 | **Chip** | Dark `#1e1e1e` plate, 2px border in the status colour, white label. **Colour is never the only signal** — the word is always present. |
 | **XP bar** | 16px tall (12px in table rows), black border, `#1e1e1e` track, green fill with a lighter top band. Exposed as `role="progressbar"` with `aria-valuenow`. |
 | **Tooltip** | `#100010` plate with a `#5000ff` border, white text, 8px above the item slot; pure CSS on `:hover`/`:focus-visible`. |
@@ -104,9 +104,10 @@ game pixels (icons, panorama, uploads stay local/git-ignored) · nearest-neighbo
 - [ ] `node --check src/app.js` and `node --check src/tracker/model.js` clean
 - [ ] `node tests/unit/tracker-model.test.mjs` green
 - [ ] `node tests/qa/tracker.acceptance.test.mjs` green
-- [ ] `python tests/qa/mc_ui_audit.py` → 70/70, exit 0
+- [ ] `python tests/qa/mc_ui_audit.py` → 72/72, exit 0
 - [ ] Item icons are the game's 256×256 inventory renders (`manifest.json` → `mode:
-      hires-exports`, `pixels: 256`) shown smoothly downscaled; tiled textures still pixelated
+      hires-exports`, `pixels: 256`) shown smoothly downscaled; tiled textures still pixelated;
+      the documented 3D brightness correction is recorded in the manifest
 - [ ] Headless Chrome screenshots at 1280 px and at 390 px (iframe harness): no overflow,
       no missing icons, tab state matches the visible panel
 - [ ] Every new colour is a token; every new component has a bevel spec above

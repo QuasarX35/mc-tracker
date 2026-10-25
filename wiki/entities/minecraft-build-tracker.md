@@ -9,6 +9,7 @@ sources:
   - 2026-10-25-minecraft-asset-provenance
   - 2026-10-25-minecraft-panorama-provenance
   - 2026-10-25-minecraft-icon-render-provenance
+  - 2026-10-25-iconexporter-dark-light-bug
 tags: [product, minecraft, tooling]
 ---
 
@@ -53,16 +54,27 @@ documented in [[In-game GUI design]], and the reversal itself in
 
 Icons are the real thing, within licensing limits. Since EDICT-0011 they are the game's own
 **256×256 inventory renders**, exported from the owner's installation with IconExporter and
-copied byte-for-byte by `scripts/mc-icons.py` ([[In-game GUI design]]). That is the game's
-actual inventory-renderer output — correct 3D item models and isometric blocks — rather than
-the approximate 16×16 composites EDICT-0007 made by hand. The app downscales the renders
-smoothly at 22 px in slots and 28–48 px in avatars; the tiled block textures stay
-nearest-neighbour pixel art. The repository commits the extractor, a provenance manifest and a
-notice, never the pixels; a machine without the export falls back to the 16×16 client-jar
-extraction, and the manifest labels which mode was used. A machine without Minecraft installed
-still runs the app; missing icons fall back to the item's initial. The curated set is still 53
-materials — model-only items (chest, doors, fences) could now be rendered but are not in the
-set, so they stay lettered.
+copied by `scripts/mc-icons.py` ([[In-game GUI design]]). That is the game's actual
+inventory-renderer output — correct 3D item models and isometric blocks — rather than the
+approximate 16×16 composites EDICT-0007 made by hand. The app downscales the renders smoothly
+at 22 px in slots and 28–48 px in avatars; the tiled block textures stay nearest-neighbour
+pixel art. The repository commits the extractor, a provenance manifest and a notice, never the
+pixels; a machine without the export falls back to the 16×16 client-jar extraction, and the
+manifest labels which mode was used. A machine without Minecraft installed still runs the app;
+missing icons fall back to the item's initial. The curated set is still 53 materials —
+model-only items (chest, doors, fences) could now be rendered but are not in the set, so they
+stay lettered.
+
+**Brightness correction (EDICT-0012).** IconExporter 1.3.1 exports 3D (block-model) icons
+roughly a third too dark: it scales the icon pose non-uniformly, which flattens Minecraft's GUI
+diffuse lighting, while flat 2D sprites are unaffected ([[Vanilla assets without
+redistribution]] records the upstream bug). The extractor therefore restores the vanilla
+inventory face ratios — 0.99 top / 0.65 left / 0.40 right of the block texture — with a
+per-face gain calibrated against the client jar, records the measured factors and gains in
+`manifest.json`, and leaves flat sprites byte-identical; 3D props get the area-weighted gain.
+After correction the median face fractions are 0.991 / 0.651 / 0.403 (≤1 % off the targets).
+This is a compensation for a known exporter bug, not a re-render; when a fixed IconExporter for
+1.21.4 ships, re-exporting should let the correction be dropped.
 
 ## Identity
 
@@ -85,7 +97,7 @@ A missing or blocked backdrop silently keeps the dirt texture; nothing errors.
 ## Verification
 
 24 model unit tests (15 core + 9 identity), 31 independent acceptance tests (16 core + 8
-identity/backdrop + 7 high-resolution icons), a **70-case** contrast/structure/identity/icon
+identity/backdrop + 7 high-resolution icons), a **72-case** contrast/structure/identity/icon
 audit, and a **36-case browser UI suite** that drives real Chrome through every flow, failure
 path, accessibility expectation, responsive breakpoint, the visual contract and the
 identity/backdrop cases. A passing UI run stamps the app source hashes in
@@ -93,7 +105,9 @@ identity/backdrop cases. A passing UI run stamps the app source hashes in
 rot. The QA gate failed EDICT-0010's first submission for a seed that silently dropped a
 material and a 4.07:1 muted-text token; both are now covered by regression checks. EDICT-0011's
 high-resolution icon contract is verified by an independent 测试部 suite (manifest + PNG
-dimensions/hashes + CSS rendering policy) and by the browser suite's natural-size assertions.
+dimensions/hashes + CSS rendering policy) and by the browser suite's natural-size assertions;
+EDICT-0012 adds the brightness reference (vanilla 0.99/0.65/0.40 face ratios) to the audit and
+verifies the correction per face.
 
 ## Tensions
 
@@ -107,6 +121,12 @@ dimensions/hashes + CSS rendering policy) and by the browser suite's natural-siz
   scale"; 256 px renders shown at 22 px cannot honour that, so item icons are smoothly
   downscaled while tiled textures stay nearest-neighbour. The gain is authentic 3D item models
   and HiDPI sharpness; the cost is a scoped exception in the design system ([[In-game GUI design]]).
+- **Authentic pixels vs. a known exporter bug.** The 3D renders were exported darker than the
+  game's own inventory because of an IconExporter 1.3.1 lighting bug; the tracker compensates
+  the brightness offline rather than re-rendering. The pixels are therefore "the game's
+  projection with restored vanilla lighting ratios", not untouched exporter output — disclosed
+  in the manifest and `PROVENANCE.md`. A fixed exporter release would remove the caveat
+  ([[Open questions]]).
 - **Authenticity vs. legibility.** A pixel-faithful clone of vanilla's white-on-grey text
   fails WCAG AA; the shipped compromise favours reading ([[In-game GUI design]]).
 - **Uploaded avatars live in browser storage.** 128×128 data URLs keep them small, but many

@@ -62,6 +62,10 @@ is opened repeatedly while playing.
   256`); the app displays them smoothly downscaled (22 px slot, 28–48 px avatars) and never
   nearest-neighbour-scales them; the PNGs stay git-ignored and a missing render falls back to a
   letter. The lower-resolution 16×16 client-jar extraction remains a labelled fallback mode.
+  Because IconExporter 1.3.1 exports 3D icons too dark (it flattens Minecraft's GUI diffuse
+  lighting; upstream fix PR #41 unreleased), the extractor applies and records a documented
+  per-face brightness correction restoring the vanilla inventory ratios (top 0.99, left 0.65,
+  right 0.40 of the block texture); flat 2D sprites are copied unchanged.
 
 ## 5. Verification record (2026-10-25)
 
@@ -70,8 +74,8 @@ is opened repeatedly while playing.
 | Unit (model) | `node tests/unit/tracker-model.test.mjs` + `tracker-icons.test.mjs` | 15/15 + 9/9 |
 | Acceptance | `tracker.acceptance.test.mjs` + `tracker-icons.acceptance.test.mjs` + `tracker-icon-resolution.acceptance.test.mjs` | 16/16 + 8/8 + 7/7 |
 | Browser UI suite | `node tests/qa/ui.e2e.test.mjs` | 36/36 (identity + backdrop) |
-| UI audit | `python tests/qa/mc_ui_audit.py` | 70/70 (contrast, structure, pixel, identity/backdrop, 256 px icon contract) |
-| Icon set | `scripts/mc-icons.py` + `manifest.json` | 53 icons, 256×256 RGBA renders, sha256 per icon; zero game pixels tracked |
+| UI audit | `python tests/qa/mc_ui_audit.py` | 72/72 (contrast, structure, pixel, identity/backdrop, 256 px icon + lighting-correction contract) |
+| Icon set | `scripts/mc-icons.py` + `manifest.json` | 53 icons, 256×256 RGBA renders, sha256 per icon; 3D renders brightness-corrected (vanilla face ratios 0.99/0.65/0.40), flat sprites untouched; zero game pixels tracked |
 | Desktop render | headless Chrome, 1280×1100 | avatars, panorama, picker, high-res slots verified visually |
 | Mobile 390px | CDP viewport override | no horizontal overflow, panorama covers |
 | Evidence | `reports/qa/evidence/edict-0010/`, `reports/qa/evidence/edict-0011/` | identity/backdrop screenshots + high-res icon evidence |
@@ -83,6 +87,11 @@ is opened repeatedly while playing.
   falls back to the 16×16 client-jar textures and labels the manifest accordingly. The set is
   still the curated 53 materials: chests, doors, fences and unknown item names keep the lettered
   fallback — adding a rendered item is one row in `scripts/mc-icons.py` plus a regenerate.
+- **IconExporter 1.3.1 exports 3D icons too dark** (non-uniform pose scale flattens the GUI
+  diffuse lighting). The extractor restores vanilla face brightness on the exported render and
+  records the measured factors/gains in `manifest.json`; this is a compensation, not a
+  re-render. The upstream fix exists (IconExporter PR #41) but is unreleased for 1.21.4 — when
+  it ships, re-export and drop the correction.
 - Storage is per-browser only: the footer says so and Export exists for backups; there is no
   server sync.
 - No image/screenshot attachments on builds; no sharing links; no multi-user.

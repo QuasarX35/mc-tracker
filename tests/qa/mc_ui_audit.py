@@ -114,6 +114,27 @@ def audit_icons() -> None:
         "IconExporter" in source.get("renderer", ""),
         f"render provenance names the exporter ({source.get('renderer')})",
     )
+    correction = source.get("lighting_correction") or {}
+    target_factors = correction.get("target_vanilla_face_factors") or {}
+    gains = correction.get("gains") or {}
+    check(
+        "icons/lighting-correction",
+        correction.get("applied") is True
+        and "IconExporter" in correction.get("reason", "")
+        and "PR #41" in correction.get("reason", "")
+        and abs(float(target_factors.get("top", 0)) - 0.99) < 1e-6
+        and float(gains.get("top", 0)) > 1.0
+        and float(gains.get("left", 0)) > 1.0
+        and float(gains.get("right", 0)) < 1.0,
+        "3D icon brightness is restored for the IconExporter 1.3.1 dark-lighting bug (PR #41)",
+    )
+    check(
+        "icons/lighting-modes",
+        all(icon.get("lighting") in ("faces", "uniform", "none") for icon in manifest["icons"])
+        and any(icon.get("lighting") == "faces" for icon in manifest["icons"])
+        and any(icon.get("lighting") == "none" for icon in manifest["icons"]),
+        "per-icon lighting treatment is recorded (3D corrected, flat sprites untouched)",
+    )
     check(
         "icons/local-install",
         ".minecraft" in source.get("jar", ""),

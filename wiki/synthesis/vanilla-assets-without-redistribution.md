@@ -6,6 +6,7 @@ updated: 2026-10-25
 sources:
   - 2026-10-25-minecraft-asset-provenance
   - 2026-10-25-minecraft-icon-render-provenance
+  - 2026-10-25-iconexporter-dark-light-bug
   - 2026-10-25-minecraft-gui-design-system
 tags: [licensing, asset-pipeline, pattern]
 ---
@@ -42,6 +43,15 @@ imitation. The lesson generalises: before building a renderer, check whether the
 produced the images you want. Fallback still matters; the extractor labels the
 lower-resolution path when the export is absent.
 
+The EDICT-0011 → EDICT-0012 sequence adds a second lesson: **verify the extracted asset
+against the game's own appearance.** The IconExporter 256 px renders came from the game yet
+were ~a third too dark on 3D models, because a non-uniform pose scale flattens the GUI diffuse
+lighting. "It came from the real client" did not guarantee fidelity; only a reference
+measurement (the vanilla inventory face ratios 0.99 / 0.65 / 0.40 of the block texture) did.
+The tracker now calibrates a per-face brightness gain against the jar, records it in the
+manifest, and treats the corrected pixels as "the game's projection with restored vanilla
+lighting" ([[Minecraft Build Tracker]]).
+
 ## Why this is better than the alternatives
 
 | Approach | Problem |
@@ -64,6 +74,10 @@ lower-resolution path when the export is absent.
   fences have no flat texture — but a render export *can* produce them, as it does for
   torch/ladder/lantern. They stay out of the shipped 53-item set because adding items is a
   product decision, not a technical limit.
+- **A correct source can still be wrong.** The 256 px export came from the game yet was darker
+  than the game's inventory; "it came from the real client" is not a fidelity guarantee. The
+  extraction now carries a measured, documented brightness compensation for the upstream bug,
+  and the audit checks the vanilla ratios ([[Minecraft Build Tracker]]).
 - **High resolution depends on a third-party exporter.** The 256 px path needs IconExporter's
   export on the owner's machine; the repository cannot reproduce it. The fallback keeps the app
   honest, and the manifest labels which mode produced the pixels ([[Minecraft Build Tracker]]).

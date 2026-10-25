@@ -9,6 +9,8 @@
   [EDICT-0010](EDICT-0010.md) (the identity icon set now uses the same renders),
   [EDICT-0009](EDICT-0009.md) (UI audit grows from 65 to 70 cases; the visual-contract case now
   asserts the high-resolution contract)
+- **Amended by:** [EDICT-0012](EDICT-0012.md) — 3D renders are no longer byte-for-byte copies;
+  they carry a documented brightness correction for an IconExporter 1.3.1 lighting bug
 
 ## 1. The change
 

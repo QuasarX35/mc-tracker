@@ -174,6 +174,27 @@ test('AC-10 icons come from the local client, are git-ignored, and degrade grace
       /256|inventory render/i,
       'method must describe the high-resolution inventory renders'
     );
+    const correction = manifest.source.lighting_correction;
+    assert.ok(correction && correction.applied === true, 'the 3D brightness correction must be recorded');
+    assert.match(
+      correction.reason,
+      /IconExporter[\s\S]*PR #41/,
+      'the correction must cite the upstream dark-lighting bug and its fix'
+    );
+    assert.equal(correction.target_vanilla_face_factors.top, 0.99, 'vanilla top-face brightness target');
+    assert.ok(correction.gains.top > 1, 'the top face must be brightened');
+    assert.ok(correction.gains.left > 1, 'the left face must be brightened');
+    assert.ok(correction.gains.right < 1, 'the right face must be darkened back to the vanilla ratio');
+    for (const icon of manifest.icons) {
+      assert.ok(
+        ['faces', 'uniform', 'none'].includes(icon.lighting),
+        `${icon.slug}: per-icon lighting treatment must be recorded`
+      );
+    }
+    assert.ok(
+      manifest.icons.some((icon) => icon.kind === 'prop') && manifest.icons.some((icon) => icon.kind === 'item'),
+      'full cubes, 3D props and flat sprites must be distinguished'
+    );
   }
 
   // Licensing contract: the extractor and the filename manifest are committed; Mojang's

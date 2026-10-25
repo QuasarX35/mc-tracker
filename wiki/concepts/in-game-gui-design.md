@@ -6,6 +6,7 @@ updated: 2026-10-25
 sources:
   - 2026-10-25-minecraft-gui-design-system
   - 2026-10-25-minecraft-icon-render-provenance
+  - 2026-10-25-iconexporter-dark-light-bug
 tags: [design, games, css]
 ---
 
@@ -65,6 +66,16 @@ composited cube icons from 16×16 textures by hand and the geometry was visibly 
 logs, flat stand-ins for 3D items); the game's own projection fixed that and raised the
 resolution in the same move. That 256 px source is then shown at UI sizes with smooth
 downscaling — the one place the pixel-art "integer scale" rule is deliberately retired.
+
+One more trap: the exporter's own output was **darker than the game it came from**.
+IconExporter 1.3.1 scales the icon pose non-uniformly, which flattens Minecraft's GUI diffuse
+lighting, so 3D block icons exported roughly a third too dark while flat sprites stayed
+correct. The tracker now restores the vanilla inventory face brightness (0.99 / 0.65 / 0.40 of
+the block texture for top / left / right, calibrated against the jar and recorded in the
+manifest) — a documented compensation for an upstream bug, not a re-render
+([[Vanilla assets without redistribution]]). The lesson for design systems: "use the game's
+own asset" only guarantees authenticity if the extraction path is verified against the game's
+own appearance; a reference measurement belongs in the acceptance criteria.
 
 ## Panorama backdrop
 
