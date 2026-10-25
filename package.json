@@ -10,6 +10,7 @@
     "index:check": "node src/wiki/cli.mjs index --check",
     "lint": "node src/wiki/cli.mjs lint",
     "seal": "node src/wiki/cli.mjs raw --seal",
-    "test": "node tests/unit/wiki-core.test.mjs && node tests/qa/wiki.acceptance.test.mjs"
+    "test": "node tests/unit/wiki-core.test.mjs && node tests/qa/wiki.acceptance.test.mjs && node tests/unit/tracker-model.test.mjs && node tests/qa/tracker.acceptance.test.mjs"
   }
 }
+

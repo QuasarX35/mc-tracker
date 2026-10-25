@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Build Tracker — Minecraft</title>
+<meta name="description" content="Plan builds and track the materials they need across your Minecraft worlds.">
+<link rel="icon" type="image/png" href="assets/favicon.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<div class="backdrop" aria-hidden="true"></div>
+
+<div class="screen">
+  <header class="masthead">
+    <p class="masthead__eyebrow">Minecraft</p>
+    <h1 class="masthead__title">Build Tracker</h1>
+    <p class="masthead__tagline">Plan the build. List the blocks. Track the grind.</p>
+  </header>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab" id="tab-builds" role="tab" aria-selected="true" aria-controls="view-builds" data-view="builds" type="button">Builds</button>
+    <button class="tab" id="tab-materials" role="tab" aria-selected="false" aria-controls="view-materials" data-view="materials" type="button">Materials</button>
+    <button class="tab" id="tab-worlds" role="tab" aria-selected="false" aria-controls="view-worlds" data-view="worlds" type="button">Worlds</button>
+  </nav>
+
+  <main class="panel" id="main" tabindex="-1">
+    <div class="panel__topbar">
+      <div class="world-picker">
+        <label class="world-picker__label" for="world-select">World</label>
+        <select class="mc-select" id="world-select"></select>
+      </div>
+      <p class="world-meta" id="world-meta"></p>
+      <div class="topbar__actions">
+        <button class="mc-btn mc-btn--sm" id="btn-new-world" type="button">New World</button>
+        <button class="mc-btn mc-btn--sm" id="btn-import" type="button">Import</button>
+        <button class="mc-btn mc-btn--sm" id="btn-export" type="button">Export</button>
+        <input type="file" id="file-import" accept="application/json,.json" hidden>
+      </div>
+    </div>
+
+    <!-- ------------------------------------------------------------ builds -->
+    <section class="view" id="view-builds" role="tabpanel" aria-labelledby="tab-builds">
+      <div class="builds">
+        <div class="builds__list">
+          <div class="section-head">
+            <h2 class="section-head__title">Builds</h2>
+            <button class="mc-btn mc-btn--sm" id="btn-new-build" type="button">+ Build</button>
+          </div>
+          <ul class="mc-list" id="build-list" aria-label="Builds in this world"></ul>
+          <div class="empty" id="build-empty" hidden>
+            <p class="empty__text">No builds in this world yet.</p>
+            <button class="mc-btn" id="btn-first-build" type="button">Plan your first build</button>
+          </div>
+          <div class="world-summary" id="world-summary">
+            <h3 class="world-summary__name" id="summary-name">World</h3>
+            <p class="world-summary__meta" id="summary-line"></p>
+            <div class="xpbar world-summary__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="summary-bar">
+              <div class="xpbar__fill" id="summary-fill"></div>
+            </div>
+            <p class="world-summary__meta" id="summary-totals"></p>
+          </div>
+        </div>
+        <div class="builds__detail" id="build-detail">
+          <div class="empty" id="detail-empty" hidden>
+            <p class="empty__text">Pick a build on the left, or plan a new one.</p>
+          </div>
+          <div class="detail" id="detail-body" hidden>
+            <div class="section-head">
+              <h2 class="section-head__title" id="detail-heading">Build</h2>
+              <button class="mc-btn mc-btn--sm mc-btn--danger" id="build-delete" type="button">Delete</button>
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="build-name">Name</label>
+              <input class="mc-input" id="build-name" type="text" maxlength="64" autocomplete="off">
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <span class="field__label" id="status-label">Status</span>
+                <div class="status" role="group" aria-labelledby="status-label" id="status-group">
+                  <button class="status__btn" type="button" data-status="planned">Planned</button>
+                  <button class="status__btn" type="button" data-status="building">Building</button>
+                  <button class="status__btn" type="button" data-status="done">Done</button>
+                </div>
+              </div>
+              <div class="field field--coords">
+                <label class="field__label" for="build-coords">Coords</label>
+                <input class="mc-input" id="build-coords" type="text" maxlength="32" placeholder="x / y / z" autocomplete="off">
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="field__label" for="build-notes">Notes</label>
+              <textarea class="mc-input mc-input--area" id="build-notes" rows="2" maxlength="400" placeholder="What still needs doing?"></textarea>
+            </div>
+
+            <div class="progress-block">
+              <div class="progress-block__head">
+                <span class="field__label">Materials gathered</span>
+                <span class="progress-block__pct" id="build-pct">0%</span>
+              </div>
+              <div class="xpbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="build-bar">
+                <div class="xpbar__fill" id="build-fill"></div>
+              </div>
+              <p class="progress-block__note" id="build-summary"></p>
+            </div>
+
+            <div class="materials">
+              <div class="section-head section-head--tight">
+                <h3 class="section-head__title">Materials needed</h3>
+              </div>
+              <div class="mtable" role="table" aria-label="Materials for this build">
+                <div class="mtable__head" role="row">
+                  <span role="columnheader">Item</span>
+                  <span role="columnheader" class="num">Needed</span>
+                  <span role="columnheader" class="num got-col">Got</span>
+                  <span role="columnheader" class="num">Left</span>
+                  <span role="columnheader" class="num"><span class="sr-only">Remove</span></span>
+                </div>
+                <div id="material-body"></div>
+              </div>
+              <p class="empty__text" id="material-empty" hidden>No materials listed for this build yet.</p>
+
+              <form class="add" id="add-material-form" autocomplete="off">
+                <p class="add__title">Add a material</p>
+                <div class="add__item">
+                  <label class="field__label" for="mat-item">Item</label>
+                  <input class="mc-input" id="mat-item" type="text" list="item-options" maxlength="48" placeholder="e.g. Stone Bricks" required>
+                  <datalist id="item-options"></datalist>
+                </div>
+                <div class="add__num">
+                  <label class="field__label" for="mat-needed">Needed</label>
+                  <input class="mc-input" id="mat-needed" type="number" min="1" step="1" value="1" required>
+                </div>
+                <div class="add__num">
+                  <label class="field__label" for="mat-collected">Got</label>
+                  <input class="mc-input" id="mat-collected" type="number" min="0" step="1" value="0">
+                </div>
+                <button class="mc-btn mc-btn--sm" type="submit">Add</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- --------------------------------------------------------- materials -->
+    <section class="view" id="view-materials" role="tabpanel" aria-labelledby="tab-materials" hidden>
+      <div class="section-head">
+        <h2 class="section-head__title">Shopping list</h2>
+        <button class="mc-btn mc-btn--sm" id="btn-copy-list" type="button">Copy list</button>
+      </div>
+      <p class="lede" id="materials-lede"></p>
+
+      <div class="filters">
+        <div class="field field--grow">
+          <label class="field__label" for="mat-search">Search items</label>
+          <input class="mc-input" id="mat-search" type="search" placeholder="Search materials" autocomplete="off">
+        </div>
+        <div class="field">
+          <label class="field__label" for="mat-filter">Show</label>
+          <select class="mc-select mc-select--sm" id="mat-filter">
+            <option value="remaining">Still needed</option>
+            <option value="all">Everything</option>
+            <option value="done">Gathered</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="mtable mtable--wide" role="table" aria-label="All materials in this world">
+        <div class="mtable__head" role="row">
+          <span role="columnheader">Item</span>
+          <span role="columnheader" class="num">Needed</span>
+          <span role="columnheader" class="num got-col">Got</span>
+          <span role="columnheader" class="num">Left</span>
+          <span role="columnheader" class="progress-col">Progress</span>
+          <span role="columnheader" class="builds-col">Used by</span>
+        </div>
+        <div id="world-material-body"></div>
+      </div>
+      <p class="empty__text" id="world-material-empty" hidden>Nothing matches this filter.</p>
+      <p class="totals" id="mat-totals"></p>
+    </section>
+
+    <!-- ------------------------------------------------------------ worlds -->
+    <section class="view" id="view-worlds" role="tabpanel" aria-labelledby="tab-worlds" hidden>
+      <div class="section-head">
+        <h2 class="section-head__title">Worlds</h2>
+        <button class="mc-btn mc-btn--sm" id="btn-new-world-2" type="button">+ World</button>
+      </div>
+      <p class="lede" id="worlds-lede"></p>
+      <div class="worlds" id="world-cards"></div>
+      <div class="empty" id="world-empty" hidden>
+        <p class="empty__text">No worlds yet. Create one, or load the sample so you can look around first.</p>
+        <button class="mc-btn" id="btn-sample" type="button">Load sample worlds</button>
+      </div>
+    </section>
+
+    <p class="panel__status" id="status-line" role="status" aria-live="polite"></p>
+  </main>
+
+  <footer class="footer">
+    <p>Saved in this browser only. Export to keep a backup.</p>
+  </footer>
+</div>
+
+<!-- ------------------------------------------------------------- dialogs -->
+<dialog class="mc-dialog" id="world-dialog">
+  <form method="dialog" id="world-form">
+    <h2 class="mc-dialog__title" id="world-dialog-title">New World</h2>
+    <div class="field">
+      <label class="field__label" for="world-name">World name</label>
+      <input class="mc-input" id="world-name" type="text" maxlength="48" required autocomplete="off">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label class="field__label" for="world-edition">Edition</label>
+        <select class="mc-select mc-select--sm" id="world-edition">
+          <option value="java">Java</option>
+          <option value="bedrock">Bedrock</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="field__label" for="world-version">Version</label>
+        <input class="mc-input" id="world-version" type="text" maxlength="24" placeholder="1.21.4" autocomplete="off">
+      </div>
+    </div>
+    <div class="field">
+      <label class="field__label" for="world-notes">Notes</label>
+      <textarea class="mc-input mc-input--area" id="world-notes" rows="2" maxlength="240"></textarea>
+    </div>
+    <p class="form-error" id="world-error" role="alert" hidden></p>
+    <div class="mc-dialog__actions">
+      <button class="mc-btn" value="cancel" type="submit" formnovalidate>Cancel</button>
+      <button class="mc-btn mc-btn--primary" value="save" type="submit" id="world-save">Create</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="mc-dialog" id="build-dialog">
+  <form method="dialog" id="build-form">
+    <h2 class="mc-dialog__title">New Build</h2>
+    <div class="field">
+      <label class="field__label" for="build-dlg-name">Build name</label>
+      <input class="mc-input" id="build-dlg-name" type="text" maxlength="64" required autocomplete="off" placeholder="e.g. Iron Farm">
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label class="field__label" for="build-dlg-status">Status</label>
+        <select class="mc-select mc-select--sm" id="build-dlg-status">
+          <option value="planned">Planned</option>
+          <option value="building">Building</option>
+          <option value="done">Done</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="field__label" for="build-dlg-coords">Coords</label>
+        <input class="mc-input" id="build-dlg-coords" type="text" maxlength="32" placeholder="x / y / z" autocomplete="off">
+      </div>
+    </div>
+    <p class="form-error" id="build-error" role="alert" hidden></p>
+    <div class="mc-dialog__actions">
+      <button class="mc-btn" value="cancel" type="submit" formnovalidate>Cancel</button>
+      <button class="mc-btn mc-btn--primary" value="save" type="submit">Create build</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="mc-dialog" id="confirm-dialog">
+  <form method="dialog">
+    <h2 class="mc-dialog__title" id="confirm-title">Are you sure?</h2>
+    <p class="mc-dialog__text" id="confirm-text"></p>
+    <div class="mc-dialog__actions">
+      <button class="mc-btn" value="cancel" type="submit">Cancel</button>
+      <button class="mc-btn mc-btn--danger" value="confirm" type="submit" id="confirm-ok">Delete</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="tracker/model.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

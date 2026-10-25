@@ -1,42 +1,55 @@
-# LLM Wiki
+# Minecraft Build Tracker
 
-A working instance of the [LLM Wiki](wiki/overview.md) pattern: an agent-compiled,
-persistent knowledge base that sits between the Emperor and an immutable collection of raw
-sources. Markdown only; no database, no embeddings, no build step.
+Plan your builds, list the blocks they need, and tick off the grind — across every world you
+play. Styled as closely as possible to Minecraft's in-game GUI: GUI-grey panels, 2px bevels,
+square corners, pixel font, item slots and XP-style progress bars.
 
-## Where things are
+**Open it:** double-click `src/index.html`. No build step, no server, no install, works
+offline from `file://`. Data is saved in your browser (`localStorage`); use **Export** to keep
+a backup and **Import** to restore it.
+
+## What it does
+
+- **Worlds** — one tracker per world, with edition + version. Select the active world in the
+  top bar; edit or delete from the Worlds tab.
+- **Builds** — plan a build with status (Planned / Building / Done), coordinates and notes.
+- **Materials** — give each build the blocks it needs (`needed` / `got`), edit quantities
+  inline; the build's XP bar fills as you gather.
+- **Shopping list** — every item summed across all builds in the world, sorted so outstanding
+  items come first, filterable, copyable as text (`Stone Bricks x640 (440 left)`).
+- **Sample data** — `src/index.html?demo=1` seeds two example worlds if storage is empty.
+  Deep links: `?tab=builds|materials|worlds`.
+
+## Layout
 
 | Path | What it is |
 |------|------------|
-| [`AGENTS.md`](AGENTS.md) | The **schema** — layout, frontmatter contract, ingest/query/lint workflows. Read this first. |
-| `raw/sources/` | Raw sources. Immutable, sealed by `raw/manifest.json` (SHA-256). Never edited. |
-| `wiki/` | The wiki itself — agent-owned pages, `index.md`, `log.md`. |
-| `src/wiki/` | Zero-dependency tooling: lint, index generation, search, raw sealing. |
-| `tests/unit/` | Unit tests (兵部). |
-| `tests/qa/` | Independent acceptance tests (测试部). |
-| `docs/governance/` | The 三省六部 pipeline that governs this workspace. |
+| `src/index.html` | The app shell (tabs, panel, dialogs) |
+| `src/styles.css` | Minecraft GUI design system — tokens first, no rounded corners |
+| `src/app.js` | Rendering and event binding; all state goes through the model |
+| `src/tracker/model.js` | Pure domain model: worlds → builds → materials, aggregation, validation, storage |
+| `src/assets/` | 9 tiling textures, 18 item icons, favicon, Pixelify Sans (OFL) |
+| `scripts/gen-assets.py` | Deterministic generator for every pixel asset |
+| `design-system/minecraft-tracker/` | `MASTER.md` (v2 in-game GUI) + `pages/tracker.md` (page rules & ACs) |
+| `tests/unit/`, `tests/qa/` | Model unit tests, independent acceptance tests, UI audit |
+| `legacy/superseded-dashboard/` | The retired EDICT-0004 dashboard (neon/violet design), archived |
+| `wiki/`, `AGENTS.md`, `docs/governance/` | The other resident of this repo: an LLM Wiki and the 三省六部 governance record |
 
-## Commands
+## Checks
 
 ```bash
-node src/wiki/cli.mjs lint              # structural checks, exit 1 on findings
-node src/wiki/cli.mjs index --write     # regenerate wiki/index.md
-node src/wiki/cli.mjs index --check     # fail if the index is stale
-node src/wiki/cli.mjs search "compiled" # ranked search over wiki pages
-node src/wiki/cli.mjs raw --seal        # seal new raw sources
-node src/wiki/cli.mjs stats             # counts
-node tests/unit/wiki-core.test.mjs && node tests/qa/wiki.acceptance.test.mjs   # tests
+node --check src/app.js && node --check src/tracker/model.js
+node tests/unit/tracker-model.test.mjs          # 15 model cases
+node tests/qa/tracker.acceptance.test.mjs       # 16 acceptance + static contract cases
+python tests/qa/mc_ui_audit.py                  # 30 contrast/structure/pixel cases
 ```
 
-## First read
+Current status: **15/15**, **16/16**, **30/30**, and screenshots verified at 1280 px and
+390 px.
 
-1. [`wiki/index.md`](wiki/index.md) — the catalogue.
-2. [`wiki/overview.md`](wiki/overview.md) — the standing synthesis.
-3. [`wiki/log.md`](wiki/log.md) — what has happened, newest last.
+## Scope and honesty
 
-## Current state
-
-- 1 raw source: the pattern document that defines this wiki.
-- 15 wiki pages (1 overview, 6 concepts, 4 entities, 1 source summary, 3 synthesis).
-- The wiki documents its own pattern; the first external domain is not yet chosen
-  ([open questions](wiki/synthesis/open-questions.md)).
+- Local-only: no accounts, no sync, no server. One browser = one dataset.
+- 18 items have pixel icons; anything else gets a lettered slot rather than a wrong icon.
+- Text notes only — no screenshots or blueprint uploads on builds (yet).
+- Import replaces the current data set, and only after validation; a bad file changes nothing.

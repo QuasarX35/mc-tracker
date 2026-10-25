@@ -59,6 +59,8 @@ Full rationale: [EDICT-0002 §4](EDICT-0002.md). Gate criteria and the `S5Q` sta
 | Write | `.github/**`, `scripts/**`, `Dockerfile*` | 工部 |
 | Write | `data/**`, `reports/**` (except `reports/qa/**`) | 户部 |
 | Write | `docs/security/**` | 刑部 |
+| Write | `design-system/**` | 礼部 |
+| Write | `legacy/**` (archive of retired work) | 礼部 |
 | Write | `wiki/**`, `AGENTS.md`, `README.md`, `.gitignore` | 礼部 |
 | Write | `raw/**` (write-once on intake, then sealed) | 太子 |
 | Write | `package.json` | 兵部 |
@@ -68,6 +70,17 @@ Full rationale: [EDICT-0002 §4](EDICT-0002.md). Gate criteria and the `S5Q` sta
 authority that the original twelve-scope table did not grant (`R5` finding). `raw/**` is
 write-once and hash-sealed, so 太子 can intake a source but nothing can edit it afterwards.
 
+**Revision 3 (EDICT-0004).** Added `design-system/**` for 礼部. The `ui-ux-pro-max` skill
+mandates `design-system/<project-slug>/MASTER.md` at the project root, a path no office
+held. Disclosed rather than glossed: the two design-system files were written at 11:56–11:57,
+minutes before this grant was recorded at 12:09. No other office claimed the path, so no
+scope was taken from anyone, but the order is logged as a minor process finding (`R5`).
+
 Any office needing a path outside its scope must obtain a registry revision from 吏部-HR,
 recorded in the ledger. A grant to one office is never widened by another office's need:
 split the path instead.
+
+**Revision 4 (EDICT-0005).** `design-system/**` was rewritten from the EDICT-0004 v1
+(neon dashboard) to v2 (Minecraft in-game GUI) by 礼部 on 皇帝's explicit direction; the old
+page override is retained and marked as archive. `legacy/**` was added so the retired
+dashboard SPA is preserved in git instead of deleted.

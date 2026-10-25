@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Minecraft Tracker — server player dashboard</title>
+<meta name="description" content="Track Minecraft player activity, playtime, blocks mined and progression for your server.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Russo+One&display=swap">
+<link rel="stylesheet" href="styles.css">
+<script src="dashboard.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<!-- Icon sprite: one family, 24px grid, 2px stroke (MASTER: no emoji icons) -->
+<svg class="sprite" aria-hidden="true" focusable="false" width="0" height="0">
+  <defs>
+    <symbol id="i-cube" viewBox="0 0 24 24"><path d="M12 2.8 20.2 7v10L12 21.2 3.8 17V7L12 2.8Z"/><path d="M3.8 7 12 11.2 20.2 7"/><path d="M12 11.2v10"/></symbol>
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/><path d="M16 3.1a4 4 0 0 1 0 7.8"/></symbol>
+    <symbol id="i-activity" viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M12 3 13.9 7.6 18.5 9.5 13.9 11.4 12 16 10.1 11.4 5.5 9.5 10.1 7.6 12 3Z"/><path d="M18 15l.9 2.1 2.1.9-2.1.9L18 21l-.9-2.1-2.1-.9 2.1-.9L18 15Z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></symbol>
+    <symbol id="i-chevron-up" viewBox="0 0 24 24"><path d="m6 15 6-6 6 6"/></symbol>
+    <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-sort" viewBox="0 0 24 24"><path d="m7 9 5-5 5 5"/><path d="m7 15 5 5 5-5"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="M7 17 17 7"/><path d="M8 7h9v9"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M7 7l10 10"/><path d="M17 8v9H8"/></symbol>
+    <symbol id="i-skull" viewBox="0 0 24 24"><path d="M12 3a8 8 0 0 0-8 8c0 2.6 1.3 4 2.5 5.2.7.7 1 1.5 1 2.3V20a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1v-1.5c0-.8.3-1.6 1-2.3C18.7 15 20 13.6 20 11a8 8 0 0 0-8-8Z"/><circle cx="9" cy="11" r="1.3"/><circle cx="15" cy="11" r="1.3"/></symbol>
+    <symbol id="i-signal" viewBox="0 0 24 24"><path d="M4 18v-3"/><path d="M9 18v-6"/><path d="M14 18v-9"/><path d="M19 18V5"/></symbol>
+  </defs>
+</svg>
+
+<header class="appbar">
+  <div class="appbar__inner">
+    <a class="brand" href="#main">
+      <span class="brand__mark" aria-hidden="true"><svg class="icon icon--lg" aria-hidden="true"><use href="#i-cube"/></svg></span>
+      <span class="brand__text">Minecraft <span class="brand__accent">Tracker</span></span>
+    </a>
+
+    <div class="server">
+      <label class="server__label" for="server">Server</label>
+      <select class="server__select" id="server" name="server">
+        <option>play.example.net</option>
+        <option>survival.example.net</option>
+        <option>creative.example.net</option>
+      </select>
+    </div>
+
+    <p class="live" role="status" aria-live="polite">
+      <span class="live__dot" aria-hidden="true"></span>
+      <span class="live__text"><strong id="online-count">128</strong> online</span>
+    </p>
+
+    <form class="search" role="search" onsubmit="return false;">
+      <label class="sr-only" for="player-search">Search players by name</label>
+      <svg class="icon search__icon" aria-hidden="true"><use href="#i-search"/></svg>
+      <input class="search__input" id="player-search" type="search" name="q"
+             placeholder="Search players" autocomplete="off" spellcheck="false">
+    </form>
+
+    <button class="btn btn--primary" id="refresh" type="button" aria-label="Refresh player data">
+      <svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg>
+      <span class="btn__label">Refresh</span>
+    </button>
+  </div>
+</header>
+
+<div class="alert" id="offline-alert" role="alert" hidden>
+  <svg class="icon" aria-hidden="true"><use href="#i-signal"/></svg>
+  <p class="alert__text">You are offline — showing the last synced data from <strong id="alert-time">today at 11:56</strong>.</p>
+  <button class="btn btn--ghost alert__action" type="button" id="retry">Retry</button>
+</div>
+
+<main id="main" tabindex="-1">
+  <div class="page-head">
+    <div>
+      <p class="eyebrow">Server overview</p>
+      <h1>Player activity</h1>
+      <p class="lede">Playtime, progression and session patterns for
+        <strong>play.example.net</strong>. Last synced
+        <time id="synced-at" datetime="2026-10-25T11:56:00+08:00">today at 11:56</time>.</p>
+    </div>
+    <p class="season">Season&nbsp;5 · Hardcore survival</p>
+  </div>
+
+  <section class="section" aria-labelledby="kpi-heading">
+    <h2 class="sr-only" id="kpi-heading">Key metrics</h2>
+    <ul class="kpi-grid">
+      <li class="card kpi">
+        <p class="kpi__label"><svg class="icon" aria-hidden="true"><use href="#i-users"/></svg>Players online</p>
+        <p class="kpi__value">128</p>
+        <p class="kpi__delta kpi__delta--up"><svg class="icon" aria-hidden="true"><use href="#i-up"/></svg>+12<span class="kpi__delta-unit">vs. yesterday</span></p>
+        <svg class="spark" viewBox="0 0 120 32" aria-hidden="true" focusable="false"><polyline points="0,24 15,20 30,26 45,16 60,18 75,10 90,14 105,7 120,9"/></svg>
+      </li>
+      <li class="card kpi">
+        <p class="kpi__label"><svg class="icon" aria-hidden="true"><use href="#i-activity"/></svg>Sessions today</p>
+        <p class="kpi__value">342</p>
+        <p class="kpi__delta kpi__delta--up"><svg class="icon" aria-hidden="true"><use href="#i-up"/></svg>+4.8%<span class="kpi__delta-unit">vs. last week</span></p>
+        <svg class="spark" viewBox="0 0 120 32" aria-hidden="true" focusable="false"><polyline points="0,20 15,22 30,14 45,18 60,12 75,16 90,9 105,12 120,8"/></svg>
+      </li>
+      <li class="card kpi">
+        <p class="kpi__label"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>Playtime (7d)</p>
+        <p class="kpi__value">1,284<span class="kpi__unit">h</span></p>
+        <p class="kpi__delta kpi__delta--up"><svg class="icon" aria-hidden="true"><use href="#i-up"/></svg>+9.2%<span class="kpi__delta-unit">vs. last week</span></p>
+        <svg class="spark" viewBox="0 0 120 32" aria-hidden="true" focusable="false"><polyline points="0,26 15,24 30,22 45,20 60,18 75,14 90,12 105,10 120,6"/></svg>
+      </li>
+      <li class="card kpi">
+        <p class="kpi__label"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"/></svg>New players</p>
+        <p class="kpi__value">27</p>
+        <p class="kpi__delta kpi__delta--down"><svg class="icon" aria-hidden="true"><use href="#i-down"/></svg>−3<span class="kpi__delta-unit">vs. last week</span></p>
+        <svg class="spark spark--down" viewBox="0 0 120 32" aria-hidden="true" focusable="false"><polyline points="0,10 15,12 30,9 45,14 60,16 75,14 90,20 105,22 120,24"/></svg>
+      </li>
+      <li class="card kpi">
+        <p class="kpi__label"><svg class="icon" aria-hidden="true"><use href="#i-cube"/></svg>Blocks mined</p>
+        <p class="kpi__value">4.2<span class="kpi__unit">M</span></p>
+        <p class="kpi__delta kpi__delta--up"><svg class="icon" aria-hidden="true"><use href="#i-up"/></svg>+14%<span class="kpi__delta-unit">vs. last week</span></p>
+        <svg class="spark" viewBox="0 0 120 32" aria-hidden="true" focusable="false"><polyline points="0,28 15,25 30,26 45,21 60,19 75,20 90,13 105,11 120,5"/></svg>
+      </li>
+    </ul>
+  </section>
+
+  <div class="chart-grid">
+    <section class="card chart-card" aria-labelledby="trend-heading">
+      <header class="card__head">
+        <h2 id="trend-heading">Playtime &amp; unique players</h2>
+        <p class="card__sub">Last 14 days · hours played and distinct players per day</p>
+      </header>
+      <div class="legend" aria-hidden="true">
+        <span class="legend__item"><span class="legend__line legend__line--solid"></span>Playtime (h)</span>
+        <span class="legend__item"><span class="legend__line legend__line--dashed"></span>Unique players</span>
+      </div>
+      <figure class="chart">
+        <figcaption class="sr-only">Line chart of daily playtime hours and unique players over the last 14 days. Exact values are listed in the data table below.</figcaption>
+        <svg id="trend-chart" viewBox="0 0 720 280" role="img" aria-labelledby="trend-title" preserveAspectRatio="xMidYMid meet"></svg>
+        <p class="chart__summary" id="trend-summary"></p>
+      </figure>
+      <details class="data-table">
+        <summary>View data table</summary>
+        <div class="table-wrap"><table id="trend-table"><caption class="sr-only">Daily playtime and unique players</caption></table></div>
+      </details>
+    </section>
+
+    <section class="card chart-card" aria-labelledby="activity-heading">
+      <header class="card__head">
+        <h2 id="activity-heading">Activity by day &amp; hour</h2>
+        <p class="card__sub">Average players online · brighter is busier</p>
+      </header>
+      <figure class="chart chart--heat">
+        <figcaption class="sr-only">Heat map of average players online for each day of the week and hour of the day. A data table with exact values follows.</figcaption>
+        <svg id="heatmap" viewBox="0 0 420 284" role="img" aria-labelledby="heat-title"></svg>
+        <div class="legend legend--scale" aria-hidden="true">
+          <span class="legend__scale"></span>
+          <span class="legend__scale-labels"><span>0</span><span>40</span><span>80</span><span>120</span></span>
+        </div>
+      </figure>
+      <details class="data-table">
+        <summary>View data table</summary>
+        <div class="table-wrap"><table id="heat-table"><caption class="sr-only">Average players by day and hour</caption></table></div>
+      </details>
+    </section>
+  </div>
+
+  <section class="card table-card" aria-labelledby="board-heading" id="board">
+    <header class="card__head card__head--row">
+      <div>
+        <h2 id="board-heading">Player leaderboard</h2>
+        <p class="card__sub">Demo dataset · sortable and filterable</p>
+      </div>
+      <div class="filters" role="group" aria-labelledby="filter-label">
+        <p class="sr-only" id="filter-label">Filter players by status</p>
+        <button class="chip" type="button" data-filter="all" aria-pressed="true">All</button>
+        <button class="chip" type="button" data-filter="online" aria-pressed="false">Online</button>
+        <button class="chip" type="button" data-filter="offline" aria-pressed="false">Offline</button>
+        <button class="chip" type="button" data-filter="new" aria-pressed="false">New this week</button>
+      </div>
+    </header>
+
+    <div class="table-wrap" id="players-wrap">
+      <table id="players-table">
+        <caption class="sr-only">Tracked players with playtime, blocks mined, deaths and last seen time. Column headers are buttons that sort the table.</caption>
+        <thead>
+          <tr>
+            <th scope="col" class="col-rank">#</th>
+            <th scope="col" aria-sort="none"><button class="sort" type="button" data-sort="name">Player<svg class="icon" aria-hidden="true"><use href="#i-sort"/></svg></button></th>
+            <th scope="col">Status</th>
+            <th scope="col" class="num" aria-sort="descending"><button class="sort" type="button" data-sort="playtime">Playtime<svg class="icon" aria-hidden="true"><use href="#i-sort"/></svg></button></th>
+            <th scope="col" class="num" aria-sort="none"><button class="sort" type="button" data-sort="blocks">Blocks<svg class="icon" aria-hidden="true"><use href="#i-sort"/></svg></button></th>
+            <th scope="col" class="num" aria-sort="none"><button class="sort" type="button" data-sort="deaths">Deaths<svg class="icon" aria-hidden="true"><use href="#i-sort"/></svg></button></th>
+            <th scope="col">Last seen</th>
+          </tr>
+        </thead>
+        <tbody id="players-body"></tbody>
+      </table>
+    </div>
+
+    <div class="empty" id="players-empty" hidden>
+      <svg class="icon icon--xl" aria-hidden="true"><use href="#i-search"/></svg>
+      <p class="empty__title">No players match “<span id="empty-term"></span>”</p>
+      <p class="empty__body">Try a different name, or clear the filter to see every tracked player.</p>
+      <button class="btn btn--ghost" type="button" id="clear-search">Clear search</button>
+    </div>
+
+    <footer class="table-foot">
+      <p class="table-foot__count"><span id="visible-count">12</span> of <span id="total-count">12</span> players shown</p>
+      <p class="table-foot__note">Sample data — connect a server to track real players.</p>
+    </footer>
+    <p class="sr-only" role="status" aria-live="polite" id="table-live"></p>
+  </section>
+</main>
+
+<footer class="site-foot">
+  <p>Prototype built with the <strong>ui-ux-pro-max</strong> design system
+    (<a href="https://github.com/nextlevelbuilder/ui-ux-pro-max-skill">nextlevelbuilder/ui-ux-pro-max-skill</a>).
+    Design tokens: <code>design-system/minecraft-tracker/MASTER.md</code>.</p>
+</footer>
+</body>
+</html>
