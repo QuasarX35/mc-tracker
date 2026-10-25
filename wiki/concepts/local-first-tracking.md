@@ -47,6 +47,19 @@ runtime — the page is a folder of files that works from `file://`.
 - **Testability is good though:** because persistence is an injected storage adapter, failures
   such as quota exhaustion are unit-testable without a browser.
 
+## Running it
+
+- **Double-click `src/index.html`**, or paste `file:///D:/minecraft-tracker/src/index.html`
+  into the address bar. No install, no build, no server.
+- `file://` persistence was **verified on 2026-10-25**: seed in one run, re-open in another,
+  the data is read back with no storage error. Data belongs to the browser profile, keyed by
+  origin.
+- If a browser refuses local storage for `file://` (private windows, managed policies), serve
+  the folder instead: `python -m http.server 8000` from `src/`, then
+  `http://localhost:8000/`. Nothing in the app requires it.
+- **Recovery:** delete worlds in-app or clear the site's storage — export first. There is no
+  server-side copy to restore from.
+
 ## Relations
 
 - Chosen for the [[Minecraft Build Tracker]].

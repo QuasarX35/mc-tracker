@@ -59,3 +59,11 @@ shipped without an ingest. Filed two raw sources:
 EDICT-0006 amends the constitution: `AGENTS.md` gains §6.5 (end-of-edict ingest), the
 state machine gains review item `R9` (a plan that does not say what it will add to the wiki is
 rejected), and the ledger records the rule.
+
+## [2026-10-25] edit | how to run the tracker (file:// persistence verified)
+
+Answered "how do I run the app" and turned the answer into a check rather than an assurance:
+seeded in one browser run, re-opened in a second, data was read back from `localStorage` with
+no error. Added a **Running it** section to [[Local-first tracking]] covering the double-click
+path, the `python -m http.server` fallback for browsers that refuse local storage, and the
+recovery caveat (no server-side copy exists).
