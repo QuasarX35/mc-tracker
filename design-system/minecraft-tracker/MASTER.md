@@ -74,7 +74,9 @@ background/box-shadow/width; `prefers-reduced-motion` zeroes them.
 | **Tab** | Folder tab: unselected `#6f6f6f`, selected is the panel face and merges into the panel (no bottom border, −2px overlap). |
 | **List row** | Dark row, 2px seam, tight bevel; hover lightens; selected is `#4a4a4a` with a 2px white inner outline (vanilla list selection). |
 | **Dialog** | Native `<dialog>`, panel face, black border, bevel, scrim `rgb(0 0 0 / 0.6)`, right-aligned Cancel/Confirm. |
-| **World backdrop** | 16×16 dirt texture tiled at 2× (`image-rendering: pixelated`), brightness 0.88, radial vignette. |
+| **Avatar** | Square identity chip: 2px black border, inverted bevel, image `object-fit: cover` with `image-rendering: pixelated`. Sizes 28 / 32 / 40 / 48 px. Items use their 16×16 texture; uploads are 128×128 WebP/PNG data URLs; a missing texture falls back to the subject's initial. |
+| **Icon picker** | Dialog with Item/Image tabs; item grid of 64–72px tiles (slot + label), searchable, `role="listbox"`; upload pane previews the image. “Use icon” commits, Cancel discards, Escape clears the search then closes and returns focus. |
+| **World backdrop** | Fallback: 16×16 dirt tiled at 2× (`image-rendering: pixelated`), brightness 0.88, radial vignette. **Panorama:** a locally generated 2560×640 blurred strip (bake: Gaussian radius ≈ width/320, brightness 0.95) revealed via `:root.has-panorama .backdrop::before`, `background-size: cover`, 120 s ping-pong pan between 30 % and 70 % of the horizontal overflow, `filter: blur(2px)`, plus a `--backdrop-scrim-alpha` (0.12) scrim and vignette. Feature-detected at runtime; absence is a normal state. `prefers-reduced-motion` freezes the pan. |
 
 ---
 
@@ -88,9 +90,10 @@ keep the panel grey unmistakably `#c6c6c6` · put dark text on light panels and 
 white text on dark rows · use 1×1 CSS pixel borders so the result looks like it was drawn at
 16×.
 
-**Never:** `border-radius` · `backdrop-filter` · gradients other than the 2px bevel and the
-XP fill · drop shadows that blur (use hard offset shadows) · emoji as icons · animation that
-moves layout · colour-only status · web fonts from a CDN.
+**Never:** `border-radius` · `backdrop-filter` · gradients other than the 2px bevel, the
+XP fill and the backdrop scrim · drop shadows that blur (use hard offset shadows) · emoji as
+icons · animation that moves layout · colour-only status · web fonts from a CDN · committing
+game pixels (icons, panorama, uploads stay local/git-ignored).
 
 ---
 

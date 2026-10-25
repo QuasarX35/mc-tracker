@@ -7,6 +7,7 @@ sources:
   - 2026-10-25-minecraft-build-tracker-spec
   - 2026-10-25-minecraft-gui-design-system
   - 2026-10-25-minecraft-asset-provenance
+  - 2026-10-25-minecraft-panorama-provenance
 tags: [product, minecraft, tooling]
 ---
 
@@ -57,13 +58,32 @@ pixels. A machine without Minecraft installed still runs the app; missing icons 
 to the item's initial. Model-only items (chest, doors, fences) have no standalone texture
 and stay lettered.
 
+## Identity
+
+Every world and build carries one optional avatar (EDICT-0010): a Minecraft item icon from the
+locally extracted set, or an uploaded picture. It appears in the world bar, world cards, build
+rows and the build detail header; clearing it restores the subject's initial. Uploads are
+centre-cropped to 128×128, encoded WebP/PNG and stored as data URLs inside the saved state, so
+backups remain self-contained at the cost of browser storage. See
+[[Atmosphere and identity without shipping assets]].
+
+## Atmosphere
+
+The dirt texture is the fallback. When the locally generated panorama exists, the app shows the
+real title-screen scenery — four stitched cube faces, baked blur, 120 s ping-pong pan, 0.12 scrim
+— and freezes it under `prefers-reduced-motion`. The extractor resolves the client's asset index
+because the jar's panorama files are 1×1 decoys (raw source:
+[`2026-10-25-minecraft-panorama-provenance`](../../raw/sources/2026-10-25-minecraft-panorama-provenance.md)).
+A missing or blocked backdrop silently keeps the dirt texture; nothing errors.
+
 ## Verification
 
-15 model unit tests, 16 independent acceptance tests (static offline/accessibility/pixel
-contract), a 41-case contrast and structure audit, and a **27-case browser UI suite** that drives
-real Chrome through every flow, failure path, accessibility expectation, responsive breakpoint
-and the visual contract. A passing UI run stamps the app source hashes in
-`docs/governance/app-qa.json`; `lint` refuses a stale stamp, so UI coverage cannot silently rot. The QA gate failed the first submission for a seed that silently dropped a
+24 model unit tests (15 core + 9 identity), 24 independent acceptance tests (16 + 8
+identity/backdrop), a **65-case** contrast/structure/identity audit, and a **36-case browser UI
+suite** that drives real Chrome through every flow, failure path, accessibility expectation,
+responsive breakpoint, the visual contract and the identity/backdrop cases. A passing UI run
+stamps the app source hashes in `docs/governance/app-qa.json`; `lint` refuses a stale stamp, so
+UI coverage cannot silently rot. The QA gate failed the first submission for a seed that silently dropped a
 material and a 4.07:1 muted-text token; both are now covered by regression checks.
 
 ## Tensions
@@ -75,5 +95,9 @@ material and a 4.07:1 muted-text token; both are now covered by regression check
   Unknown items get the same honest fallback rather than a misleading picture.
 - **Authenticity vs. legibility.** A pixel-faithful clone of vanilla's white-on-grey text
   fails WCAG AA; the shipped compromise favours reading ([[In-game GUI design]]).
+- **Uploaded avatars live in browser storage.** 128×128 data URLs keep them small, but many
+  uploads grow backups and count against `localStorage` ([[Local-first tracking]]).
+- **Atmosphere depends on local extraction.** The menu backdrop is generated from the owner's
+  client and git-ignored; without that step the app falls back to dirt ([[In-game GUI design]]).
 - **Mobile is emulated, not physical.** The 390 px case uses CDP viewport override (a real
   390 px layout) but no phone, touch or OS file dialog is exercised. See [[Testing a UI like a user]].

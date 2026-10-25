@@ -45,6 +45,7 @@
   --mc-xp-dark: #2e6b00;
   --mc-bar-bg: #1e1e1e;
   --mc-tip-bg: #100010;
+  --backdrop-scrim-alpha: 0.12;
   --mc-tip-border: #5000ff;
 
   --font-pixel: 'Pixelify', 'Courier New', ui-monospace, monospace;
@@ -746,6 +747,206 @@ ul { list-style: none; padding: 0; }
 }
 
 .panel__status { margin-top: var(--space-3); font-size: 13px; color: var(--mc-text-muted); }
+
+
+/* ------------------------------------------------------------- backdrops */
+/* EDICT-0010: the dirt texture stays as the guaranteed fallback; when the
+   locally generated panorama is present, a blurred, slowly panning layer is
+   revealed above it and the dirt is hidden. */
+.backdrop { overflow: hidden; }
+
+:root.has-panorama .backdrop {
+  background-image: none;
+  background-color: #15140f;
+}
+
+.backdrop::before {
+  content: '';
+  position: absolute;
+  inset: -4%;
+  opacity: 0;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: 35% 50%;
+  transition: opacity 320ms ease-out;
+}
+
+:root.has-panorama .backdrop::before {
+  opacity: 1;
+  background-image: var(--panorama-image);
+  filter: blur(2px) brightness(0.95) saturate(1);
+  animation: panorama-drift 120s ease-in-out infinite alternate;
+  will-change: background-position;
+}
+
+:root.has-panorama .backdrop::after {
+  background:
+    linear-gradient(rgb(0 0 0 / var(--backdrop-scrim-alpha)), rgb(0 0 0 / var(--backdrop-scrim-alpha))),
+    radial-gradient(ellipse at 50% 40%, rgb(0 0 0 / 0.12) 0%, rgb(0 0 0 / 0.62) 100%);
+}
+
+@keyframes panorama-drift {
+  from { background-position: 30% 50%; }
+  to { background-position: 70% 50%; }
+}
+
+/* --------------------------------------------------------------- avatars */
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  background: var(--mc-slot);
+  border: 2px solid var(--mc-outline);
+  box-shadow: var(--bevel-in);
+  overflow: hidden;
+}
+.avatar img { width: 100%; height: 100%; display: block; image-rendering: pixelated; object-fit: cover; }
+.avatar__letter {
+  font-size: 15px;
+  line-height: 1;
+  color: var(--mc-white);
+  text-shadow: 2px 2px 0 #2b2b2b;
+}
+.avatar--28 { width: 28px; height: 28px; }
+.avatar--32 { width: 32px; height: 32px; }
+.avatar--40 { width: 40px; height: 40px; }
+.avatar--48 { width: 48px; height: 48px; }
+.avatar--28 .avatar__letter { font-size: 13px; }
+.avatar--40 .avatar__letter,
+.avatar--48 .avatar__letter { font-size: 18px; }
+
+.world-picker__avatar { display: inline-grid; align-self: flex-end; padding-bottom: 1px; }
+.world-picker__field { min-width: 0; }
+
+/* ------------------------------------------------------- identity in rows */
+.build-entry__identity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.build-entry__identity .build-entry__name { min-width: 0; }
+
+.world-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.world-card__head .world-card__name { min-width: 0; }
+
+.detail__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.detail__avatar {
+  appearance: none;
+  cursor: pointer;
+  padding: 0;
+  border: 0;
+  background: none;
+  line-height: 0;
+  transition: transform var(--motion);
+}
+.detail__avatar:hover { transform: translateY(-1px); }
+.detail__avatar img { width: 100%; height: 100%; }
+
+/* ---------------------------------------------------------- icon fields */
+.icon-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.icon-field__preview,
+.icon-upload__preview { display: inline-grid; }
+
+/* -------------------------------------------------------------- picker */
+.mc-dialog--wide { width: min(720px, calc(100% - 32px)); }
+
+.picker-tabs {
+  display: flex;
+  gap: var(--space-1);
+  margin-bottom: var(--space-3);
+}
+.picker-tab {
+  appearance: none;
+  cursor: pointer;
+  padding: 6px 20px;
+  min-height: 34px;
+  font-size: 14px;
+  background: #6f6f6f;
+  color: var(--mc-text-on-dark);
+  text-shadow: 2px 2px 0 var(--mc-text-shadow);
+  border: var(--border-hard);
+  box-shadow: inset 2px 2px 0 #9a9a9a, inset -2px -2px 0 var(--mc-lo-deep);
+}
+.picker-tab:hover { background: #7c7c7c; }
+.picker-tab[aria-selected='true'] {
+  background: var(--mc-panel);
+  color: var(--mc-text);
+  text-shadow: none;
+  box-shadow: var(--bevel-in);
+}
+
+.picker-pane { display: grid; gap: var(--space-2); }
+
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: var(--space-1);
+  max-height: 280px;
+  overflow: auto;
+  padding: var(--space-1);
+  background: var(--mc-row-line);
+  border: var(--border-hard);
+}
+.icon-tile {
+  appearance: none;
+  cursor: pointer;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 6px 4px;
+  background: var(--mc-row);
+  color: var(--mc-text-on-dark);
+  border: 2px solid transparent;
+  box-shadow: var(--bevel-row);
+}
+.icon-tile:hover { background: var(--mc-row-hover); }
+.icon-tile[aria-selected='true'] {
+  background: #4a4a4a;
+  border-color: var(--mc-white);
+}
+.icon-tile__name {
+  font-size: 12px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 1px 1px 0 #2b2b2b;
+}
+.icon-hint { font-size: 13px; color: var(--mc-text-muted); }
+.icon-upload { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.icon-upload__actions { display: grid; gap: var(--space-1); justify-items: start; }
+
+@media (max-width: 640px) {
+  :root.has-panorama .backdrop::before {
+    background-size: cover;
+    filter: blur(3px) brightness(0.92) saturate(1);
+  }
+  .world-picker__avatar { display: none; }
+  .icon-grid { grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); max-height: 220px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root.has-panorama .backdrop::before {
+    animation: none;
+    background-position: 35% 50%;
+  }
+}
 
 /* ------------------------------------------------------------ responsive */
 @media (max-width: 900px) {

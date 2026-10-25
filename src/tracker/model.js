@@ -13,9 +13,15 @@
  *   worlds: [{
  *     id, name, edition: 'java'|'bedrock', version, notes, createdAt,
  *     builds: [{ id, name, status: 'planned'|'building'|'done', coords, notes,
- *                materials: [{ id, item, needed, collected }] }]
+ *                icon?, materials: [{ id, item, needed, collected }] }],
+ *     icon?
  *   }]
  * }
+ *
+ * `icon` is optional and additive (EDICT-0010): either
+ *   { kind: 'item',  slug: 'stone_bricks' }   // a locally extracted Minecraft icon
+ *   { kind: 'image', dataUrl: 'data:image/webp;base64,...' }  // an uploaded image
+ * so schema version 1 stays valid and older backups keep importing.
  */
 (function (root) {
   'use strict';
@@ -23,6 +29,34 @@
   var SCHEMA = 1;
   var STORAGE_KEY = 'mc-build-tracker:v1';
   var STATUSES = ['planned', 'building', 'done'];
+
+  /* ---------------------------------- icons --------------------------------- */
+  /* Identity for worlds and builds (EDICT-0010). Images are stored inline so that
+     a backup export stays self-contained; the size cap keeps localStorage sane. */
+  var ICON_KINDS = ['item', 'image'];
+  var ICON_SLUG_RE = /^[a-z0-9_]{1,64}$/;
+  var ICON_DATA_URL_RE = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/;
+  var ICON_DATA_URL_MAX = 120000;
+
+  function normalizeIcon(input) {
+    if (input === null || input === undefined || input === '') return { icon: null };
+    if (typeof input !== 'object') return { error: 'Icon must be an object.' };
+    var kind = cleanText(input.kind, 8);
+    if (ICON_KINDS.indexOf(kind) < 0) return { error: 'Unknown icon kind.' };
+    if (kind === 'item') {
+      var slug = cleanText(input.slug, 64);
+      if (!ICON_SLUG_RE.test(slug)) return { error: 'Item icon slug is not valid.' };
+      return { icon: { kind: 'item', slug: slug } };
+    }
+    var dataUrl = String(input.dataUrl == null ? '' : input.dataUrl);
+    if (!ICON_DATA_URL_RE.test(dataUrl)) {
+      return { error: 'Image icon must be a PNG, JPEG or WebP data URL.' };
+    }
+    if (dataUrl.length > ICON_DATA_URL_MAX) {
+      return { error: 'Image icon is too large after resizing.' };
+    }
+    return { icon: { kind: 'image', dataUrl: dataUrl } };
+  }
 
   function uid(prefix) {
     return prefix + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
@@ -77,6 +111,8 @@
     var next = clone(state);
     var name = cleanText(input && input.name, 48);
     if (!name) return { error: 'A world needs a name.', state: state };
+    var normalizedIcon = normalizeIcon(input && input.icon);
+    if (normalizedIcon.error) return { error: normalizedIcon.error, state: state };
     var world = {
       id: uid('world'),
       name: name,
@@ -86,6 +122,7 @@
       createdAt: nowIso(),
       builds: []
     };
+    if (normalizedIcon.icon) world.icon = normalizedIcon.icon;
     next.worlds.push(world);
     if (!next.activeWorldId) next.activeWorldId = world.id;
     return { state: next, world: world };
@@ -103,6 +140,12 @@
     if (patch.edition !== undefined) world.edition = patch.edition === 'bedrock' ? 'bedrock' : 'java';
     if (patch.version !== undefined) world.version = cleanText(patch.version, 24);
     if (patch.notes !== undefined) world.notes = cleanText(patch.notes, 240);
+    if (patch.icon !== undefined) {
+      var normalizedWorldIcon = normalizeIcon(patch.icon);
+      if (normalizedWorldIcon.error) return { error: normalizedWorldIcon.error, state: state };
+      if (normalizedWorldIcon.icon) world.icon = normalizedWorldIcon.icon;
+      else delete world.icon;
+    }
     return { state: next, world: world };
   }
 
@@ -130,6 +173,8 @@
     if (!world) return { error: 'Unknown world.', state: state };
     var name = cleanText(input && input.name, 64);
     if (!name) return { error: 'A build needs a name.', state: state };
+    var normalizedBuildIcon = normalizeIcon(input && input.icon);
+    if (normalizedBuildIcon.error) return { error: normalizedBuildIcon.error, state: state };
     var build = {
       id: uid('build'),
       name: name,
@@ -138,6 +183,7 @@
       notes: cleanText(input && input.notes, 400),
       materials: []
     };
+    if (normalizedBuildIcon.icon) build.icon = normalizedBuildIcon.icon;
     world.builds.push(build);
     return { state: next, build: build };
   }
@@ -154,6 +200,34 @@
     if (patch.status !== undefined && STATUSES.indexOf(patch.status) >= 0) build.status = patch.status;
     if (patch.coords !== undefined) build.coords = cleanText(patch.coords, 32);
     if (patch.notes !== undefined) build.notes = cleanText(patch.notes, 400);
+    if (patch.icon !== undefined) {
+      var normalizedBuildIconPatch = normalizeIcon(patch.icon);
+      if (normalizedBuildIconPatch.error) return { error: normalizedBuildIconPatch.error, state: state };
+      if (normalizedBuildIconPatch.icon) build.icon = normalizedBuildIconPatch.icon;
+      else delete build.icon;
+    }
+    return { state: next, build: build };
+  }
+
+  function setWorldIcon(state, worldId, iconInput) {
+    var next = clone(state);
+    var world = findWorld(next, worldId);
+    if (!world) return { error: 'Unknown world.', state: state };
+    var normalized = normalizeIcon(iconInput);
+    if (normalized.error) return { error: normalized.error, state: state };
+    if (normalized.icon) world.icon = normalized.icon;
+    else delete world.icon;
+    return { state: next, world: world };
+  }
+
+  function setBuildIcon(state, worldId, buildId, iconInput) {
+    var next = clone(state);
+    var build = findBuild(findWorld(next, worldId), buildId);
+    if (!build) return { error: 'Unknown build.', state: state };
+    var normalized = normalizeIcon(iconInput);
+    if (normalized.error) return { error: normalized.error, state: state };
+    if (normalized.icon) build.icon = normalized.icon;
+    else delete build.icon;
     return { state: next, build: build };
   }
 
@@ -316,16 +390,43 @@
 
   /* ----------------------------- persistence ------------------------------ */
 
+  function validateIcon(icon, label, errors) {
+    if (icon === undefined || icon === null) return;
+    if (typeof icon !== 'object') {
+      errors.push('Icon for ' + label + ' is malformed.');
+      return;
+    }
+    if (ICON_KINDS.indexOf(icon.kind) < 0) {
+      errors.push('Icon for ' + label + ' has an unknown kind.');
+      return;
+    }
+    if (icon.kind === 'item') {
+      if (typeof icon.slug !== 'string' || !ICON_SLUG_RE.test(icon.slug)) {
+        errors.push('Icon for ' + label + ' has an invalid item slug.');
+      }
+      return;
+    }
+    if (typeof icon.dataUrl !== 'string' || !ICON_DATA_URL_RE.test(icon.dataUrl)) {
+      errors.push('Icon for ' + label + ' is not a valid image data URL.');
+      return;
+    }
+    if (icon.dataUrl.length > ICON_DATA_URL_MAX) {
+      errors.push('Icon for ' + label + ' exceeds the size limit.');
+    }
+  }
+
   function validate(state) {
     var errors = [];
     if (!state || state.version !== SCHEMA) errors.push('Unsupported data version.');
     if (!state || !Array.isArray(state.worlds)) return errors.concat('worlds must be an array');
     state.worlds.forEach(function (world) {
       if (!world.id || !world.name) errors.push('A world is missing id or name.');
+      validateIcon(world.icon, 'world "' + world.name + '"', errors);
       if (!Array.isArray(world.builds)) errors.push('World ' + world.name + ' has no builds array.');
       (world.builds || []).forEach(function (build) {
         if (!build.id || !build.name) errors.push('A build in ' + world.name + ' is missing id or name.');
         if (STATUSES.indexOf(build.status) < 0) errors.push('Build ' + build.name + ' has an unknown status.');
+        validateIcon(build.icon, 'build "' + build.name + '"', errors);
         (build.materials || []).forEach(function (material) {
           if (!material.id || !material.item) errors.push('A material in ' + build.name + ' is missing id or item.');
           if (!(material.needed >= 1)) errors.push('Material ' + material.item + ' needs at least 1.');
@@ -397,28 +498,32 @@
       name: 'Survival SMP',
       edition: 'java',
       version: '1.21.4',
-      notes: 'Main long-term survival world. Keep the base at spawn tidy.'
+      notes: 'Main long-term survival world. Keep the base at spawn tidy.',
+      icon: { kind: 'item', slug: 'grass_block' }
     }).state;
     var survival = state.worlds[0];
     var ironFarm = createBuild(state, survival.id, {
       name: 'Iron Farm (spawn)',
       status: 'building',
       coords: '120 / 64 / -40',
-      notes: 'Village-based farm, 3 modules. Needs to be roofed before the next storm.'
+      notes: 'Village-based farm, 3 modules. Needs to be roofed before the next storm.',
+      icon: { kind: 'item', slug: 'iron_ingot' }
     });
     state = ironFarm.state;
     var storageRoom = createBuild(state, survival.id, {
       name: 'Storage Hall',
       status: 'planned',
       coords: '0 / 62 / 30',
-      notes: 'Double chest wall, sorting for 20 item types.'
+      notes: 'Double chest wall, sorting for 20 item types.',
+      icon: { kind: 'item', slug: 'crafting_table' }
     });
     state = storageRoom.state;
     var netherHub = createBuild(state, survival.id, {
       name: 'Nether Hub',
       status: 'planned',
       coords: '8 / 70 / 8',
-      notes: 'Four tunnels + ice road later; start with the portal room.'
+      notes: 'Four tunnels + ice road later; start with the portal room.',
+      icon: { kind: 'item', slug: 'obsidian' }
     });
     state = netherHub.state;
 
@@ -436,14 +541,16 @@
       name: 'Creative Flat',
       edition: 'bedrock',
       version: '1.21',
-      notes: 'Testing redstone contraptions on a flat world.'
+      notes: 'Testing redstone contraptions on a flat world.',
+      icon: { kind: 'item', slug: 'glass' }
     });
     state = creative.state;
     var castle = createBuild(state, state.worlds[1].id, {
       name: 'Castle Wall',
       status: 'done',
       coords: '-200 / 70 / 0',
-      notes: 'Wall is finished; towers are a separate build later.'
+      notes: 'Wall is finished; towers are a separate build later.',
+      icon: { kind: 'item', slug: 'stone_bricks' }
     });
     state = castle.state;
     state = addMaterial(state, state.worlds[1].id, castle.build.id, { item: 'Stone Bricks', needed: 1024, collected: 1024 }).state;
@@ -456,6 +563,11 @@
     SCHEMA: SCHEMA,
     STORAGE_KEY: STORAGE_KEY,
     STATUSES: STATUSES,
+    ICON_KINDS: ICON_KINDS,
+    ICON_DATA_URL_MAX: ICON_DATA_URL_MAX,
+    normalizeIcon: normalizeIcon,
+    setWorldIcon: setWorldIcon,
+    setBuildIcon: setBuildIcon,
     uid: uid,
     emptyState: emptyState,
     seedState: seedState,

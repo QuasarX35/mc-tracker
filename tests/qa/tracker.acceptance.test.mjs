@@ -217,8 +217,9 @@ test('AC-13 the UI is a single-screen app with tabs, one h1 and a skip link', ()
   assert.equal((HTML.match(/<h1\b/g) || []).length, 1, 'exactly one h1');
   assert.match(HTML, /<html lang="en"/);
   assert.match(HTML, /role="tablist"/);
-  assert.equal((HTML.match(/role="tab"/g) || []).length, 3, 'three tabs');
-  assert.equal((HTML.match(/role="tabpanel"/g) || []).length, 3, 'three panels');
+  assert.equal((HTML.match(/class="tab"/g) || []).length, 3, 'three section tabs');
+  assert.equal((HTML.match(/id="view-/g) || []).length, 3, 'three section panels');
+  assert.equal((HTML.match(/class="picker-tab"/g) || []).length, 2, 'two picker tabs');
   assert.match(HTML, /class="skip-link" href="#main"/);
   assert.match(HTML, /<main[^>]*id="main"/);
   for (const match of HTML.matchAll(/<(img)\b([^>]*)>/g)) {

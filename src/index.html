@@ -30,8 +30,11 @@
   <main class="panel" id="main" tabindex="-1">
     <div class="panel__topbar">
       <div class="world-picker">
-        <label class="world-picker__label" for="world-select">World</label>
-        <select class="mc-select" id="world-select"></select>
+        <span class="world-picker__avatar" id="world-avatar" aria-hidden="true"></span>
+        <div class="world-picker__field">
+          <label class="world-picker__label" for="world-select">World</label>
+          <select class="mc-select" id="world-select"></select>
+        </div>
       </div>
       <p class="world-meta" id="world-meta"></p>
       <div class="topbar__actions">
@@ -70,7 +73,10 @@
           </div>
           <div class="detail" id="detail-body" hidden>
             <div class="section-head">
-              <h2 class="section-head__title" id="detail-heading">Build</h2>
+              <div class="detail__head">
+                <button class="detail__avatar" id="detail-avatar" type="button" aria-label="Change icon for this build"></button>
+                <h2 class="section-head__title" id="detail-heading">Build</h2>
+              </div>
               <button class="mc-btn mc-btn--sm mc-btn--danger" id="build-delete" type="button">Delete</button>
             </div>
 
@@ -231,6 +237,14 @@
       </div>
     </div>
     <div class="field">
+      <span class="field__label" id="world-icon-label">World icon</span>
+      <div class="icon-field" role="group" aria-labelledby="world-icon-label">
+        <span class="icon-field__preview" id="world-icon" aria-hidden="true"></span>
+        <button class="mc-btn mc-btn--sm" type="button" id="world-icon-change">Choose…</button>
+        <button class="mc-btn mc-btn--sm" type="button" id="world-icon-remove">Remove</button>
+      </div>
+    </div>
+    <div class="field">
       <label class="field__label" for="world-notes">Notes</label>
       <textarea class="mc-input mc-input--area" id="world-notes" rows="2" maxlength="240"></textarea>
     </div>
@@ -263,10 +277,50 @@
         <input class="mc-input" id="build-dlg-coords" type="text" maxlength="32" placeholder="x / y / z" autocomplete="off">
       </div>
     </div>
+    <div class="field">
+      <span class="field__label" id="build-icon-label">Build icon</span>
+      <div class="icon-field" role="group" aria-labelledby="build-icon-label">
+        <span class="icon-field__preview" id="build-dlg-icon" aria-hidden="true"></span>
+        <button class="mc-btn mc-btn--sm" type="button" id="build-dlg-icon-change">Choose…</button>
+        <button class="mc-btn mc-btn--sm" type="button" id="build-dlg-icon-remove">Remove</button>
+      </div>
+    </div>
     <p class="form-error" id="build-error" role="alert" hidden></p>
     <div class="mc-dialog__actions">
       <button class="mc-btn" value="cancel" type="submit" formnovalidate>Cancel</button>
       <button class="mc-btn mc-btn--primary" value="save" type="submit">Create build</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="mc-dialog mc-dialog--wide" id="icon-dialog">
+  <form method="dialog" id="icon-form">
+    <h2 class="mc-dialog__title">Choose an icon</h2>
+    <div class="picker-tabs" role="tablist" aria-label="Icon type">
+      <button class="picker-tab" type="button" role="tab" id="icon-tab-item" aria-selected="true" aria-controls="icon-pane-item" data-mode="item">Item</button>
+      <button class="picker-tab" type="button" role="tab" id="icon-tab-image" aria-selected="false" aria-controls="icon-pane-image" data-mode="image">Image</button>
+    </div>
+    <div class="picker-pane" id="icon-pane-item" role="tabpanel" aria-labelledby="icon-tab-item">
+      <label class="field__label" for="icon-search">Search items</label>
+      <input class="mc-input" id="icon-search" type="search" placeholder="Search Minecraft items" autocomplete="off">
+      <div class="icon-grid" id="icon-grid" role="listbox" aria-label="Minecraft item icons"></div>
+      <p class="icon-hint">Icons come from your installed game. Items without a texture fall back to a letter.</p>
+    </div>
+    <div class="picker-pane" id="icon-pane-image" role="tabpanel" aria-labelledby="icon-tab-image" hidden>
+      <span class="field__label" id="icon-image-label">Upload an image</span>
+      <div class="icon-upload" role="group" aria-labelledby="icon-image-label">
+        <span class="icon-upload__preview" id="icon-preview" aria-hidden="true"></span>
+        <div class="icon-upload__actions">
+          <input type="file" id="icon-file" accept="image/png,image/jpeg,image/webp" hidden>
+          <button class="mc-btn mc-btn--sm" type="button" id="icon-img-choose">Choose image…</button>
+          <p class="icon-hint" id="icon-hint">Square images look best. Resized to 128×128 and stored in this browser.</p>
+        </div>
+      </div>
+    </div>
+    <p class="form-error" id="icon-error" role="alert" hidden></p>
+    <div class="mc-dialog__actions">
+      <button class="mc-btn" value="cancel" type="submit" formnovalidate id="icon-cancel">Cancel</button>
+      <button class="mc-btn mc-btn--primary" value="use" type="submit" id="icon-use">Use icon</button>
     </div>
   </form>
 </dialog>

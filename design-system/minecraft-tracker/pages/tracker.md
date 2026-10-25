@@ -19,10 +19,11 @@ is opened repeatedly while playing.
 | Masthead | "Minecraft" eyebrow (aqua), "Build Tracker" title, tagline | Title uses the vanilla 4px hard shadow; sits directly on the dirt backdrop |
 | Tab strip | 3 tabs, `role="tablist"`, arrow-key navigation | Selected tab merges into the panel |
 | Panel top bar | World `<select>`, world meta (edition/version/builds/percent), New World / Import / Export | Wraps at ≤640px |
-| Builds view | Build list (left) + build detail (right) | Stacks to one column at ≤900px |
+| Builds view | Build list (left, each row with its 28px avatar) + build detail (right, 40px avatar button that opens the icon picker) | Stacks to one column at ≤900px |
 | Detail | Name, status segmented control, coords, notes, XP progress, material table, add-material form | Inline editing commits on `change`, so typing never re-renders |
 | Materials view | Aggregated shopping list with per-item XP bars, search, filter, copy-list | "Used by" column collapses at ≤900px; got-column at ≤640px |
-| Worlds view | World cards with per-world roll-up and select/edit/delete | Auto-fill grid, min 280px |
+| Worlds view | World cards with a 40px avatar beside the name plus per-world roll-up and select/edit/delete | Auto-fill grid, min 280px |
+| Icon picker | Dialog: item grid (searchable) or image upload; shared by world dialog, build dialog and the detail avatar | Keyboard reachable, Escape clears search then closes |
 | Status | `aria-live="polite"` line + toast | Announces saves, imports, errors |
 
 ## 3. Interaction rules
@@ -50,18 +51,24 @@ is opened repeatedly while playing.
 - `AC-7` Every control is labelled; no inline handlers; visible focus; reduced-motion honoured.
 - `AC-8` Pixel contract: square corners, 2px bevels, `image-rendering: pixelated`, bundled
   bitmap font, no CDN.
+- `AC-9` Identity: every world and build can carry an item icon or an uploaded image; it appears
+  in the topbar, world cards, build rows and the detail header; clearing it restores the letter;
+  uploads are 128×128 data URLs and survive reload/export/import.
+- `AC-10` Backdrop: with the generated panorama present, the menu scene is blurred, slowly
+  panning and behind a scrim; blocked/absent files fall back to dirt without console errors;
+  `prefers-reduced-motion` stops the pan.
 
 ## 5. Verification record (2026-10-25)
 
 | Check | Command | Result |
 |-------|---------|--------|
-| Unit (model) | `node tests/unit/tracker-model.test.mjs` | 15/15 |
-| Acceptance | `node tests/qa/tracker.acceptance.test.mjs` | 16/16 |
-| UI audit | `python tests/qa/mc_ui_audit.py` | 41/41 (incl. icon provenance + git-ignore contract) |
-| Desktop render | headless Chrome, 1280×1250 | `?tab=builds` verified visually |
-| Materials view | headless Chrome, 1280×1000 | progress bars, icons, filters verified |
-| Worlds view | headless Chrome, 1280×1000 | active chip, card actions verified |
-| Mobile 390px | iframe harness (`Chrome` min window width ≥500px) | no horizontal overflow |
+| Unit (model) | `node tests/unit/tracker-model.test.mjs` + `tracker-icons.test.mjs` | 15/15 + 9/9 |
+| Acceptance | `tracker.acceptance.test.mjs` + `tracker-icons.acceptance.test.mjs` | 16/16 + 8/8 |
+| Browser UI suite | `node tests/qa/ui.e2e.test.mjs` | 36/36 (identity + backdrop added) |
+| UI audit | `python tests/qa/mc_ui_audit.py` | 65/65 (contrast, structure, pixel, identity/backdrop contract) |
+| Desktop render | headless Chrome, 1280×1100 | avatars, panorama, picker verified visually |
+| Mobile 390px | CDP viewport override | no horizontal overflow, panorama covers |
+| Evidence | `reports/qa/evidence/edict-0010/` | 5 screenshots (identity, picker, image upload, mobile) |
 
 ## 6. Known gaps (deliberate)
 
@@ -69,4 +76,8 @@ is opened repeatedly while playing.
 - Storage is per-browser only: the footer says so and Export exists for backups; there is no
   server sync.
 - No image/screenshot attachments on builds; no sharing links; no multi-user.
+- Avatar uploads are capped at 128×128 WebP/PNG data URLs (≤120 000 chars) inside the saved
+  state; many uploads grow backups and count against browser storage.
+- The menu backdrop is generated locally from the owner's client; without extraction the dirt
+  texture remains. Pan speed/blur are taste, tuned against screenshots.
 

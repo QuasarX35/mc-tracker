@@ -37,8 +37,15 @@
 
   var els = {};
   var state = null;
-  var ui = { view: 'builds', selectedBuildId: null, filter: 'remaining', query: '' };
+  var ui = { view: 'builds', selectedBuildId: null, filter: 'remaining', query: '', iconMode: 'item' };
   var editingWorldId = null;
+  var dialogIcon = { world: null, build: null };
+  var draftIcon = null;
+  var iconTarget = null;
+  var lastIconTrigger = null;
+  var ICON_CATALOG = (window.MC_ICON_NAMES || [])
+    .map(function (name) { return { name: name, slug: slugifyItem(name) }; })
+    .filter(function (entry) { return ICON_SET.indexOf(entry.slug) >= 0; });
   var pendingConfirm = null;
 
   /* ------------------------------------------------------------------ util */
@@ -69,16 +76,162 @@
    */
   function wireIconFallbacks(scope) {
     var root = scope || document;
-    Array.prototype.forEach.call(root.querySelectorAll('.slot img'), function (img) {
+    Array.prototype.forEach.call(root.querySelectorAll('.slot img, .avatar img'), function (img) {
       if (img.dataset.wired === '1') return;
       img.dataset.wired = '1';
       img.addEventListener('error', function () {
+        var isAvatar = !!img.closest('.avatar');
         var span = document.createElement('span');
-        span.className = 'slot__letter';
+        span.className = isAvatar ? 'avatar__letter' : 'slot__letter';
         span.textContent = img.getAttribute('data-letter') || '?';
         img.replaceWith(span);
       });
     });
+  }
+
+  /* ------------------------------------------------------------- identity */
+
+  /** Avatar markup for an icon ({kind:'item'|'image'}), with a lettered fallback. */
+  function avatarHtml(icon, size, label) {
+    var letter = String(label == null ? '' : label).trim().charAt(0).toUpperCase() || '?';
+    var inner;
+    if (icon && icon.kind === 'item') {
+      inner = '<img src="assets/icons/' + escapeHtml(icon.slug) + '.png" alt="" data-letter="' + escapeHtml(letter) + '">';
+    } else if (icon && icon.kind === 'image') {
+      inner = '<img src="' + escapeHtml(icon.dataUrl) + '" alt="" data-letter="' + escapeHtml(letter) + '">';
+    } else {
+      inner = '<span class="avatar__letter">' + escapeHtml(letter) + '</span>';
+    }
+    return '<span class="avatar avatar--' + size + '" aria-hidden="true">' + inner + '</span>';
+  }
+
+  /** Decode an uploaded file, centre-crop to square, downscale to 128px, encode small. */
+  function processImageFile(file) {
+    return new Promise(function (resolve) {
+      if (!file) { resolve({ error: 'No file selected.' }); return; }
+      if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
+        resolve({ error: 'Use a PNG, JPEG or WebP image.' });
+        return;
+      }
+      if (file.size > 8 * 1024 * 1024) { resolve({ error: 'Image is larger than 8 MB.' }); return; }
+      var url = URL.createObjectURL(file);
+      var image = new Image();
+      image.onload = function () {
+        try {
+          var size = 128;
+          var canvas = document.createElement('canvas');
+          canvas.width = size;
+          canvas.height = size;
+          var context = canvas.getContext('2d');
+          var scale = Math.max(size / image.width, size / image.height);
+          var width = Math.round(image.width * scale);
+          var height = Math.round(image.height * scale);
+          context.drawImage(image, Math.round((size - width) / 2), Math.round((size - height) / 2), width, height);
+          var dataUrl = canvas.toDataURL('image/webp', 0.82);
+          if (dataUrl.indexOf('data:image/webp') !== 0) dataUrl = canvas.toDataURL('image/png');
+          URL.revokeObjectURL(url);
+          if (dataUrl.length > M.ICON_DATA_URL_MAX) {
+            resolve({ error: 'Image is too detailed to store; try a smaller picture.' });
+            return;
+          }
+          resolve({ icon: { kind: 'image', dataUrl: dataUrl } });
+        } catch (error) {
+          URL.revokeObjectURL(url);
+          resolve({ error: 'Could not process that image.' });
+        }
+      };
+      image.onerror = function () {
+        URL.revokeObjectURL(url);
+        resolve({ error: 'That file is not an image.' });
+      };
+      image.src = url;
+    });
+  }
+
+  function renderIconPreview(scope) {
+    var icon = dialogIcon[scope];
+    var label = scope === 'world' ? els['world-name'].value : els['build-dlg-name'].value;
+    var preview = scope === 'world' ? els['world-icon'] : els['build-dlg-icon'];
+    var remove = scope === 'world' ? els['world-icon-remove'] : els['build-dlg-icon-remove'];
+    preview.innerHTML = avatarHtml(icon, 40, label || '?');
+    wireIconFallbacks(preview);
+    remove.disabled = !icon;
+  }
+
+  function openIconPicker(target) {
+    iconTarget = target;
+    lastIconTrigger = document.activeElement;
+    if (target.scope === 'world') draftIcon = dialogIcon.world;
+    else if (target.scope === 'build') draftIcon = dialogIcon.build;
+    else draftIcon = (selectedBuild() && selectedBuild().icon) || null;
+    ui.iconMode = draftIcon && draftIcon.kind === 'image' ? 'image' : 'item';
+    els['icon-search'].value = '';
+    els['icon-file'].value = '';
+    els['icon-error'].hidden = true;
+    renderIconPicker();
+    els['icon-dialog'].showModal();
+    els['icon-search'].focus();
+  }
+
+  function renderIconPicker() {
+    var imageTab = ui.iconMode === 'image';
+    els['icon-tab-item'].setAttribute('aria-selected', imageTab ? 'false' : 'true');
+    els['icon-tab-image'].setAttribute('aria-selected', imageTab ? 'true' : 'false');
+    els['icon-pane-item'].hidden = imageTab;
+    els['icon-pane-image'].hidden = !imageTab;
+
+    var query = els['icon-search'].value.trim().toLowerCase();
+    var tiles = ['<button type="button" class="icon-tile" role="option" data-icon-none="1" aria-selected="' +
+      (!draftIcon ? 'true' : 'false') + '"><span class="slot" aria-hidden="true"><span class="slot__letter">–</span></span>' +
+      '<span class="icon-tile__name">None</span></button>'];
+    ICON_CATALOG.forEach(function (entry) {
+      if (query && entry.name.toLowerCase().indexOf(query) < 0) return;
+      var selected = draftIcon && draftIcon.kind === 'item' && draftIcon.slug === entry.slug;
+      tiles.push('<button type="button" class="icon-tile" role="option" data-icon-slug="' + escapeHtml(entry.slug) +
+        '" aria-selected="' + (selected ? 'true' : 'false') + '">' + slotHtml(entry.name) +
+        '<span class="icon-tile__name">' + escapeHtml(entry.name) + '</span></button>');
+    });
+    els['icon-grid'].innerHTML = tiles.join('');
+    wireIconFallbacks(els['icon-grid']);
+
+    els['icon-preview'].innerHTML = avatarHtml(draftIcon, 48, '?');
+    wireIconFallbacks(els['icon-preview']);
+  }
+
+  function useIconDraft() {
+    if (!iconTarget) { els['icon-dialog'].close(); return; }
+    if (iconTarget.scope === 'world') {
+      dialogIcon.world = draftIcon;
+      renderIconPreview('world');
+    } else if (iconTarget.scope === 'build') {
+      dialogIcon.build = draftIcon;
+      renderIconPreview('build');
+    } else {
+      var world = activeWorld();
+      var build = selectedBuild();
+      if (!world || !build) { els['icon-dialog'].close(); return; }
+      var result = M.setBuildIcon(state, world.id, build.id, draftIcon);
+      if (result.error) { toast(result.error, true); return; }
+      commit(result.state);
+    }
+    els['icon-dialog'].close();
+    toast(draftIcon ? 'Icon updated.' : 'Icon removed.');
+  }
+
+  /** Reveal the locally generated panorama when it exists; dirt stays otherwise. */
+  function probeBackdrop() {
+    try {
+      var probe = new Image();
+      probe.onload = function () {
+        document.documentElement.classList.add('has-panorama');
+        document.documentElement.style.setProperty('--panorama-image', 'url("assets/panorama/backdrop.webp")');
+        window.__backdrop = 'panorama';
+      };
+      probe.onerror = function () { window.__backdrop = 'dirt'; };
+      probe.src = 'assets/panorama/backdrop.webp';
+    } catch (error) {
+      window.__backdrop = 'dirt';
+    }
   }
 
   function toast(message, isError) {
@@ -114,7 +267,12 @@
       'world-dialog', 'world-form', 'world-dialog-title', 'world-name', 'world-edition',
       'world-version', 'world-notes', 'world-error', 'world-save',
       'build-dialog', 'build-form', 'build-dlg-name', 'build-dlg-status', 'build-dlg-coords',
-      'build-error', 'confirm-dialog', 'confirm-title', 'confirm-text', 'confirm-ok'
+      'build-error', 'confirm-dialog', 'confirm-title', 'confirm-text', 'confirm-ok',
+      'world-avatar', 'world-icon', 'world-icon-change', 'world-icon-remove',
+      'build-dlg-icon', 'build-dlg-icon-change', 'build-dlg-icon-remove', 'detail-avatar',
+      'icon-dialog', 'icon-form', 'icon-tab-item', 'icon-tab-image', 'icon-pane-item',
+      'icon-pane-image', 'icon-search', 'icon-grid', 'icon-file', 'icon-img-choose',
+      'icon-preview', 'icon-hint', 'icon-error', 'icon-use', 'icon-cancel'
     ];
     ids.forEach(function (id) { els[id] = $(id); });
     // map dashed ids to camelCase keys for readability below
@@ -137,6 +295,7 @@
     var tabParam = (window.location.search.match(/[?&]tab=([a-z]+)/) || [])[1];
     if (tabParam && els.views[tabParam]) ui.view = tabParam;
     renderAll();
+    probeBackdrop();
     setStatus(state.worlds.length ? 'Loaded from this browser.' : 'Start by creating a world.');
   }
 
@@ -303,7 +462,8 @@
         name: els['world-name'].value,
         edition: els['world-edition'].value,
         version: els['world-version'].value,
-        notes: els['world-notes'].value
+        notes: els['world-notes'].value,
+        icon: dialogIcon.world
       };
       var result = editingWorldId
         ? M.updateWorld(state, editingWorldId, input)
@@ -336,7 +496,8 @@
       var result = M.createBuild(state, world.id, {
         name: els['build-dlg-name'].value,
         status: els['build-dlg-status'].value,
-        coords: els['build-dlg-coords'].value
+        coords: els['build-dlg-coords'].value,
+        icon: dialogIcon.build
       });
       if (result.error) {
         els['build-error'].textContent = result.error;
@@ -355,6 +516,74 @@
       var action = pendingConfirm;
       pendingConfirm = null;
       if (els['confirm-dialog'].returnValue === 'confirm' && typeof action === 'function') action();
+    });
+
+    els['world-icon-change'].addEventListener('click', function () { openIconPicker({ scope: 'world' }); });
+    els['world-icon-remove'].addEventListener('click', function () { dialogIcon.world = null; renderIconPreview('world'); });
+    els['build-dlg-icon-change'].addEventListener('click', function () { openIconPicker({ scope: 'build' }); });
+    els['build-dlg-icon-remove'].addEventListener('click', function () { dialogIcon.build = null; renderIconPreview('build'); });
+    els['detail-avatar'].addEventListener('click', function () {
+      if (selectedBuild()) openIconPicker({ scope: 'build-detail' });
+    });
+
+    els['icon-tab-item'].addEventListener('click', function () { ui.iconMode = 'item'; renderIconPicker(); });
+    els['icon-tab-image'].addEventListener('click', function () { ui.iconMode = 'image'; renderIconPicker(); });
+    els['icon-search'].addEventListener('input', renderIconPicker);
+    els['icon-grid'].addEventListener('click', function (event) {
+      var tile = event.target.closest('.icon-tile');
+      if (!tile) return;
+      if (tile.dataset.iconNone) {
+        draftIcon = null;
+      } else {
+        var slug = tile.dataset.iconSlug;
+        if (!slug || ICON_SET.indexOf(slug) < 0) return;
+        draftIcon = { kind: 'item', slug: slug };
+      }
+      renderIconPicker();
+    });
+    els['icon-img-choose'].addEventListener('click', function () { els['icon-file'].click(); });
+    els['icon-file'].addEventListener('change', function () {
+      var file = els['icon-file'].files && els['icon-file'].files[0];
+      if (!file) return;
+      els['icon-error'].hidden = true;
+      processImageFile(file).then(function (result) {
+        els['icon-file'].value = '';
+        if (result.error) {
+          els['icon-error'].textContent = result.error;
+          els['icon-error'].hidden = false;
+          toast(result.error, true);
+          return;
+        }
+        draftIcon = result.icon;
+        ui.iconMode = 'image';
+        renderIconPicker();
+      });
+    });
+    els['icon-form'].addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (event.submitter && event.submitter.value === 'cancel') {
+        els['icon-dialog'].close();
+        return;
+      }
+      useIconDraft();
+    });
+    els['icon-dialog'].addEventListener('keydown', function (event) {
+      if (event.key !== 'Escape') return;
+      // A focused <input type="search"> swallows Escape to clear itself, which would trap
+      // the user inside the dialog. First Escape clears the query, the next one closes.
+      if (document.activeElement === els['icon-search'] && els['icon-search'].value) {
+        event.preventDefault();
+        els['icon-search'].value = '';
+        renderIconPicker();
+        return;
+      }
+      event.preventDefault();
+      els['icon-dialog'].close();
+    });
+    els['icon-dialog'].addEventListener('close', function () {
+      iconTarget = null;
+      if (lastIconTrigger && typeof lastIconTrigger.focus === 'function') lastIconTrigger.focus();
+      lastIconTrigger = null;
     });
 
     document.addEventListener('keydown', function (event) {
@@ -385,6 +614,8 @@
     els['world-edition'].value = world ? world.edition : 'java';
     els['world-version'].value = world ? world.version : '';
     els['world-notes'].value = world ? world.notes : '';
+    dialogIcon.world = world ? world.icon || null : null;
+    renderIconPreview('world');
     els['world-error'].hidden = true;
     els['world-dialog'].showModal();
     els['world-name'].focus();
@@ -399,6 +630,8 @@
     els['build-dlg-name'].value = '';
     els['build-dlg-status'].value = 'planned';
     els['build-dlg-coords'].value = '';
+    dialogIcon.build = null;
+    renderIconPreview('build');
     els['build-error'].hidden = true;
     els['build-dialog'].showModal();
     els['build-dlg-name'].focus();
@@ -449,6 +682,8 @@
     });
     els['world-select'].innerHTML = options.join('') || '<option value="">No worlds yet</option>';
     els['world-select'].disabled = !state.worlds.length;
+    els['world-avatar'].innerHTML = avatarHtml(world ? world.icon : null, 32, world ? world.name : 'World');
+    wireIconFallbacks(els['world-avatar']);
 
     if (!world) {
       els['world-meta'].textContent = 'No world selected';
@@ -480,7 +715,10 @@
           '<li><button type="button" class="build-entry" data-build="' + escapeHtml(entry.id) + '"' +
           (selected ? ' aria-current="true"' : '') + '>' +
           '<span class="build-entry__top">' +
-            '<span class="build-entry__name">' + escapeHtml(entry.name) + '</span>' +
+            '<span class="build-entry__identity">' +
+              avatarHtml(entry.icon, 28, entry.name) +
+              '<span class="build-entry__name">' + escapeHtml(entry.name) + '</span>' +
+            '</span>' +
             '<span class="chip chip--' + escapeHtml(entry.status) + '">' + escapeHtml(STATUS_LABEL[entry.status] || entry.status) + '</span>' +
           '</span>' +
           '<span class="build-entry__meta">' +
@@ -509,6 +747,9 @@
     if (!hasBuild) return;
 
     els['detail-heading'].textContent = build.name;
+    els['detail-avatar'].innerHTML = avatarHtml(build.icon, 40, build.name);
+    els['detail-avatar'].setAttribute('aria-label', 'Change icon for ' + build.name);
+    wireIconFallbacks(els['detail-avatar']);
     els['build-name'].value = build.name;
     els['build-coords'].value = build.coords;
     els['build-notes'].value = build.notes;
@@ -591,7 +832,9 @@
       var summary = M.worldSummary(world);
       var active = state.activeWorldId === world.id;
       return '<article class="world-card' + (active ? ' world-card--active' : '') + '">' +
-        '<h3 class="world-card__name">' + escapeHtml(world.name) + (active ? ' <span class="chip chip--done">Active</span>' : '') + '</h3>' +
+        '<div class="world-card__head">' + avatarHtml(world.icon, 40, world.name) +
+          '<h3 class="world-card__name">' + escapeHtml(world.name) + (active ? ' <span class="chip chip--done">Active</span>' : '') + '</h3>' +
+        '</div>' +
         '<p class="world-card__meta">' + (world.edition === 'bedrock' ? 'Bedrock' : 'Java') + ' ' + escapeHtml(world.version) +
           ' · ' + summary.builds + ' builds · ' + summary.materials + ' materials</p>' +
         '<p class="world-card__meta">' + summary.pct + '% gathered · ' + summary.remaining + ' items to go</p>' +
@@ -604,6 +847,7 @@
         '</article>';
     }).join('');
 
+    wireIconFallbacks(els['world-cards']);
     els['world-empty'].hidden = state.worlds.length > 0;
     els['worlds-lede'].textContent = state.worlds.length
       ? state.worlds.length + (state.worlds.length === 1 ? ' world' : ' worlds') + ' in this browser. Click Select to make one active.'

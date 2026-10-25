@@ -197,6 +197,26 @@ class Page {
     await sleep(30);
   }
 
+  /** Emulate prefers-reduced-motion (needed for the panorama pan assertion). */
+  async emulateReducedMotion(reduce) {
+    await this.cdp.send('Emulation.setEmulatedMedia', {
+      features: [{ name: 'prefers-reduced-motion', value: reduce ? 'reduce' : 'no-preference' }],
+    });
+    await sleep(40);
+  }
+
+  /** Block URL patterns at the network layer (used to prove graceful degradation). */
+  async blockUrls(patterns) {
+    await this.cdp.send('Network.enable');
+    await this.cdp.send('Network.setBlockedURLs', { urls: patterns });
+    await sleep(40);
+  }
+
+  async unblockUrls() {
+    await this.cdp.send('Network.setBlockedURLs', { urls: [] });
+    await sleep(40);
+  }
+
   async screenshot(file) {
     const { data } = await this.cdp.send('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -248,8 +268,12 @@ class Page {
 
   /** Attach a file to <input type="file"> the way the OS picker would. */
   async upload(selector, filePath) {
+    // CDP needs an absolute path; a relative one is accepted but attaches nothing,
+    // which is a nasty silent failure for tests.
+    const absolute = path.isAbsolute(filePath) ? filePath : path.resolve(process.cwd(), filePath);
+    if (!fs.existsSync(absolute)) throw new Error(`upload file not found: ${absolute}`);
     const objectId = await this.evaluateHandle(`return document.querySelector(${JSON.stringify(selector)});`);
-    await this.cdp.send('DOM.setFileInputFiles', { files: [filePath], objectId });
+    await this.cdp.send('DOM.setFileInputFiles', { files: [absolute], objectId });
     await sleep(120);
   }
 

@@ -58,8 +58,20 @@ cobblestone cube is what makes a slot read instantly. The shipped set therefore 
 game's own 16×16 textures, with the legal and technical machinery documented separately
 ([[Vanilla assets without redistribution]]).
 
+## Panorama backdrop
+
+The menu's atmosphere is not the GUI chrome — it is the panorama behind it: six cube-face
+screenshots of a world, blurred and slowly rotating. The app reproduces the treatment with four
+stitched side faces, a baked Gaussian blur, a 120 s ping-pong pan and a scrim for text contrast,
+and it freezes under `prefers-reduced-motion`. Crucially, the source is odd: the version jar's
+`panorama_*.png` files are 1×1 placeholders; the real 1024×1024 faces live in the asset store and
+are resolved through the asset index. Identity avatars sit at the other end of the same idea:
+small, square, bevelled slots that make a world or build recognisable at a glance
+([[Atmosphere and identity without shipping assets]]).
+
 ## Relations
 
 - Implemented in the [[Minecraft Build Tracker]]; specified in the design system snapshot above.
 - Depends on [[Local-first tracking]] only for shipping (bundled font, no CDN), not conceptually.
 - Replaced the previous dashboard aesthetic — see [[Vanilla GUI over a neon dashboard]].
+- Extended into atmosphere and identity by [[Atmosphere and identity without shipping assets]].

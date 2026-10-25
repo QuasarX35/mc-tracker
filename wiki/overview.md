@@ -35,9 +35,10 @@ The live product is the [[Minecraft Build Tracker]] — worlds → builds → ma
 summed shopping list. Its visual language is [[In-game GUI design]] (grey panels, 2px bevels,
 square corners, slots, XP bars), chosen over the inherited violet dashboard in
 [[Vanilla GUI over a neon dashboard]]. Its persistence model is [[Local-first tracking]]:
-`localStorage` plus validated JSON export/import, no server. Its icons are the game's own
-textures, extracted locally and never committed
-([[Vanilla assets without redistribution]]).
+`localStorage` plus validated JSON export/import, no server. Its icons and title-screen backdrop are the game's own
+assets, extracted locally and never committed ([[Vanilla assets without redistribution]]), and
+worlds/builds take item icons or uploaded pictures as their faces
+([[Atmosphere and identity without shipping assets]]).
 
 Standing rule since EDICT-0006: **every piece of work updates this wiki** before it is
 reported — pages, index, log, raw seal, lint. Work that is not ingested is work that will be

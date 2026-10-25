@@ -116,3 +116,21 @@ change.
   the headless-only limits.
 - Updated [[Minecraft Build Tracker]] verification entry and [[Open questions]] (mobile now
   emulated properly; QA independence flagged).
+
+## [2026-10-25] ingest | identity avatars + the real menu panorama backdrop (EDICT-0010)
+
+The tracker gained the two things that make it feel personal and atmospheric, without shipping
+a single Mojang pixel.
+
+- New raw source `raw/sources/2026-10-25-minecraft-panorama-provenance.md`: the decoy discovery
+  (jar panorama files are 1×1; real 1024×1024 faces live behind the asset index), the composition
+  and blur spec, the identity-image caps, and the licensing/fallback rules.
+- New synthesis [[Atmosphere and identity without shipping assets]]: extractor + runtime probe +
+  measurable "menu-like" properties; identity as item icon or inline uploaded image.
+- Updated [[Minecraft Build Tracker]] (Identity + Atmosphere sections, new verification numbers:
+  24 unit, 24 acceptance, 65 audit, 36 browser flows), [[In-game GUI design]] (panorama
+  treatment), [[Local-first tracking]] (upload storage economics) and [[Open questions]]
+  (storage economics, taste, physical device).
+- Evidence: `reports/qa/evidence/edict-0010/` (5 screenshots); QA found and the cycle fixed a
+  black-letterbox backdrop, an Escape keyboard trap in the picker, and a silently-failing upload
+  harness.

@@ -43,6 +43,14 @@ question that a future source or a future session could close.
 - **QA independence is structural, not organisational.** 测试部 writes and runs the suite it
   grades. Assertions recompute expectations from the DOM and read only persisted state, but a
   reviewer should treat suite quality as the thing to audit.
+- **Avatar storage economics.** 128×128 WebP at ≤120 000 chars keeps single images tiny, but the
+  point where several uploads start hurting `localStorage` and backup size is untested
+  ([[Atmosphere and identity without shipping assets]]).
+- **Menu atmosphere is taste.** Pan speed (120 s), blur radius and scrim alpha were tuned against
+  screenshots; nobody has compared it side-by-side with the real title screen on a physical
+  display ([[In-game GUI design]]).
+- **Physical device + real OS motion preference.** Both mobile layout and reduced-motion are
+  emulated in headless Chrome, not observed on hardware ([[Testing a UI like a user]]).
 - **Corpus domain.** The wiki now covers its own pattern plus one product. A third domain
   (reading, research, team knowledge) would test whether the page taxonomy holds
   ([[Implementation decisions]] D1).

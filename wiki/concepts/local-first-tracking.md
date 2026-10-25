@@ -68,6 +68,15 @@ different in kind — they are the game's assets, generated on the owner's machi
 without that step runs fine with lettered slots: absence is a documented state, not a
 broken image.
 
+## Uploaded identity images
+
+An uploaded avatar is decoded, centre-cropped to 128×128, encoded WebP (PNG fallback) and stored
+**inside the saved state** as a data URL capped at 120 000 characters. That keeps exports
+self-contained — one file restores avatars too — but it moves storage into the quota that
+`localStorage` gives the origin, so many uploads shrink the headroom left for the rest of the
+tracker. The model validates the MIME prefix and the cap on load/import, so a hostile or broken
+backup cannot smuggle a huge blob past validation.
+
 ## Relations
 
 - Chosen for the [[Minecraft Build Tracker]].

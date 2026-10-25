@@ -75,6 +75,16 @@ function tmpFile(name, content) {
   return file;
 }
 
+/** Poll a page predicate (waitFor takes expressions, this takes statements). */
+async function poll(check, timeout = 6000) {
+  const started = Date.now();
+  while (Date.now() - started < timeout) {
+    if (await check()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 60));
+  }
+  throw new Error('poll timed out');
+}
+
 /* ------------------------------------------------------------- 1. empty state */
 
 test('01 empty state: no worlds, guidance shown, nothing crashes', async () => {
@@ -522,7 +532,8 @@ test('23 a11y: skip link, labelled controls, dialog semantics, live regions', as
       skipHref: document.querySelector('.skip-link').getAttribute('href'),
       liveRegions: document.querySelectorAll('[aria-live="polite"]').length,
       progressbars: document.querySelectorAll('[role="progressbar"][aria-valuenow]').length,
-      tablist: document.querySelectorAll('[role="tablist"] [role="tab"]').length,
+      tablist: document.querySelectorAll('[role="tablist"][aria-label="Sections"] [role="tab"]').length,
+      pickerTablist: document.querySelectorAll('[role="tablist"][aria-label="Icon type"] [role="tab"]').length,
       invalidControl: invalidControl ? (invalidControl.id || invalidControl.outerHTML.slice(0, 80)) : null,
     };
   `);
@@ -532,6 +543,7 @@ test('23 a11y: skip link, labelled controls, dialog semantics, live regions', as
   assert.ok(audit.liveRegions >= 2, 'toast + status line');
   assert.ok(audit.progressbars >= 2, 'build + world progress bars');
   assert.equal(audit.tablist, 3);
+  assert.equal(audit.pickerTablist, 2, 'icon picker tabs also expose the tab pattern');
 
   await page().click('#btn-new-world');
   await page().waitFor('document.querySelector("#world-dialog").open === true');
@@ -610,6 +622,212 @@ test('26 visual contract: Minecraft GUI tokens, square corners, pixel font, pixe
 });
 
 /* ---------------------------------------------------------------- 13. hygiene */
-test('27 no console errors or uncaught exceptions across the whole suite', async () => {
+test('27 identity: a world can take an item icon from the picker', async () => {
+  await reset();
+  await page().click('#btn-new-world');
+  await page().waitFor('document.querySelector("#world-dialog").open === true');
+  await page().fill('#world-name', 'Icon World');
+  await page().click('#world-icon-change');
+  await page().waitFor('document.querySelector("#icon-dialog").open === true');
+  await page().fill('#icon-search', 'oak log');
+  await page().waitFor('document.querySelectorAll("#icon-grid .icon-tile").length === 2');
+  await page().click('#icon-grid [data-icon-slug="oak_log"]');
+  await page().click('#icon-use');
+  await page().waitFor('document.querySelector("#icon-dialog").open === false');
+  assert.equal(await page().attr('#world-icon img', 'src'), 'assets/icons/oak_log.png', 'dialog preview');
+  await page().click('#world-save');
+  await page().waitFor('document.querySelector("#world-dialog").open === false');
+  await page().waitFor('document.querySelector("#world-avatar img") !== null');
+  assert.equal(await page().attr('#world-avatar img', 'src'), 'assets/icons/oak_log.png', 'topbar avatar');
+  await page().reload();
+  await page().waitFor('document.querySelector("#world-avatar img") !== null');
+  assert.equal(await page().attr('#world-avatar img', 'src'), 'assets/icons/oak_log.png', 'persists');
+  const state = await appState();
+  assert.deepEqual(state.worlds.find((world) => world.name === 'Icon World').icon, { kind: 'item', slug: 'oak_log' });
+});
+
+test('28 identity: a build created with an icon shows it in the list and the detail', async () => {
+  await reset();
+  await page().click('#btn-new-build');
+  await page().waitFor('document.querySelector("#build-dialog").open === true');
+  await page().fill('#build-dlg-name', 'Icon Tower');
+  await page().click('#build-dlg-icon-change');
+  await page().waitFor('document.querySelector("#icon-dialog").open === true');
+  await page().fill('#icon-search', 'diamond');
+  await page().click('#icon-grid [data-icon-slug="diamond"]');
+  await page().click('#icon-use');
+  await page().waitFor('document.querySelector("#icon-dialog").open === false');
+  await page().click('#build-dialog button[type="submit"]:not([formnovalidate])');
+  await page().waitFor('document.querySelector("#detail-heading").textContent === "Icon Tower"');
+  assert.equal(await page().attr('#detail-avatar img', 'src'), 'assets/icons/diamond.png', 'detail avatar');
+  const rowIcon = await page().evaluate(`
+    const row = Array.from(document.querySelectorAll('.build-entry')).find((entry) => entry.textContent.includes('Icon Tower'));
+    return row.querySelector('.avatar img').getAttribute('src');
+  `);
+  assert.equal(rowIcon, 'assets/icons/diamond.png', 'build row avatar');
+  await page().reload();
+  await page().waitFor('document.querySelectorAll(".build-entry").length >= 4');
+  // A reload resets the selection to the first build, so select the new one like a user would.
+  await page().evaluate(`
+    const row = Array.from(document.querySelectorAll('.build-entry')).find((entry) => entry.textContent.includes('Icon Tower'));
+    row.click();
+    return true;
+  `);
+  await page().waitFor('document.querySelector("#detail-heading").textContent === "Icon Tower"');
+  assert.equal(await page().attr('#detail-avatar img', 'src'), 'assets/icons/diamond.png', 'persists');
+});
+
+test('29 identity: the detail avatar changes and removes the build icon', async () => {
+  await reset();
+  await page().click('#detail-avatar');
+  await page().waitFor('document.querySelector("#icon-dialog").open === true');
+  await page().fill('#icon-search', 'glass');
+  await page().click('#icon-grid [data-icon-slug="glass"]');
+  await page().click('#icon-use');
+  await page().waitFor('document.querySelector("#icon-dialog").open === false');
+  await page().waitFor('document.querySelector("#detail-avatar img[src$=\'glass.png\']") !== null');
+  await page().click('#detail-avatar');
+  await page().waitFor('document.querySelector("#icon-dialog").open === true');
+  await page().click('#icon-grid [data-icon-none]');
+  await page().click('#icon-use');
+  await page().waitFor('document.querySelector("#detail-avatar .avatar__letter") !== null');
+  assert.equal(await page().text('#detail-avatar .avatar__letter'), 'I', 'letter fallback');
+  const state = await appState();
+  assert.equal(state.worlds[0].builds[0].icon, undefined, 'icon removed from the model');
+});
+
+test('30 identity: an uploaded image is cropped, stored inline and survives reload', async () => {
+  await reset();
+  await page().click('#detail-avatar');
+  await page().waitFor('document.querySelector("#icon-dialog").open === true');
+  await page().click('#icon-tab-image');
+  await page().upload('#icon-file', path.join(ROOT, 'src', 'assets', 'icons', 'diamond.png'));
+  await poll(async () => page().evaluate(`
+    const img = document.querySelector('#icon-preview img');
+    return !!img && img.getAttribute('src').startsWith('data:image/');
+  `));
+  const preview = await page().evaluate(`
+    const img = document.querySelector('#icon-preview img');
+    return { prefix: img.getAttribute('src').slice(0, 22), width: img.naturalWidth };
+  `);
+  assert.match(preview.prefix, /^data:image\//);
+  assert.equal(preview.width, 128, 'downscaled to 128x128');
+  await page().click('#icon-use');
+  await page().waitFor('document.querySelector("#icon-dialog").open === false');
+  const stored = await appState();
+  const icon = stored.worlds[0].builds[0].icon;
+  assert.equal(icon.kind, 'image');
+  assert.match(icon.dataUrl, /^data:image\//);
+  assert.ok(icon.dataUrl.length <= 120000, 'data URL within the model cap');
+  await page().reload();
+  await poll(async () => page().evaluate(`
+    const img = document.querySelector('#detail-avatar img');
+    return !!img && img.getAttribute('src').startsWith('data:image/') && img.naturalWidth === 128;
+  `));
+});
+
+test('31 identity: a non-image upload is refused and changes nothing', async () => {
+  await reset();
+  await page().click('#detail-avatar');
+  await page().waitFor('document.querySelector("#icon-dialog").open === true');
+  await page().click('#icon-tab-image');
+  const note = tmpFile('note.txt', 'this is not an image');
+  await page().upload('#icon-file', note);
+  await poll(async () => page().evaluate('return !document.querySelector("#icon-error").hidden || !document.querySelector("#toast").hidden;'));
+  assert.match(await page().text('#icon-error'), /Use a PNG, JPEG or WebP image/);
+  const state = await appState();
+  assert.deepEqual(state.worlds[0].builds[0].icon, { kind: 'item', slug: 'iron_ingot' }, 'state untouched');
+  await page().click('#icon-cancel');
+});
+
+test('32 identity: picker search filters and Escape restores focus', async () => {
+  await reset();
+  await page().evaluate('document.querySelector("#detail-avatar").focus(); return true;');
+  await page().click('#detail-avatar');
+  await page().waitFor('document.querySelector("#icon-dialog").open === true');
+  await page().fill('#icon-search', 'stone');
+  await poll(async () => (await page().count('#icon-grid .icon-tile')) >= 2);
+  const names = await page().evaluate(`
+    return Array.from(document.querySelectorAll('#icon-grid .icon-tile[data-icon-slug] .icon-tile__name'))
+      .map((node) => node.textContent.trim());
+  `);
+  assert.ok(names.every((name) => /stone/i.test(name)), names.join(', '));
+  await page().press('Escape', { code: 'Escape', keyCode: 27 });
+  await page().waitFor('document.querySelector("#icon-search").value === ""');
+  assert.equal(await page().exists('#icon-dialog[open]'), true, 'first Escape clears the query');
+  await page().press('Escape', { code: 'Escape', keyCode: 27 });
+  await page().waitFor('document.querySelector("#icon-dialog").open === false');
+  assert.equal(await page().evaluate('return document.activeElement.id;'), 'detail-avatar', 'focus returns to the trigger');
+});
+
+test('33 backdrop: the panorama is used when present and respects reduced motion', async () => {
+  // Headless Chrome reports prefers-reduced-motion: reduce by default; assert the pan
+  // under an explicit no-preference, then verify reduced motion freezes it.
+  await page().emulateReducedMotion(false);
+  await reset();
+  await poll(async () => page().evaluate('return window.__backdrop !== undefined;'));
+  const status = await page().evaluate(`
+    const before = getComputedStyle(document.querySelector('.backdrop'), '::before');
+    return {
+      backdrop: window.__backdrop,
+      hasClass: document.documentElement.classList.contains('has-panorama'),
+      image: before.backgroundImage,
+      animation: before.animationName,
+      dirt: getComputedStyle(document.querySelector('.backdrop')).backgroundImage,
+    };
+  `);
+  assert.ok(['panorama', 'dirt'].includes(status.backdrop));
+  if (status.backdrop === 'dirt') {
+    assert.equal(status.hasClass, false);
+    assert.match(status.dirt, /dirt\.png/);
+    return;
+  }
+  assert.equal(status.hasClass, true);
+  assert.match(status.image, /backdrop\.webp/);
+  assert.equal(status.animation, 'panorama-drift');
+  await page().emulateReducedMotion(true);
+  await page().reload();
+  await poll(async () => page().evaluate('return window.__backdrop !== undefined;'));
+  const reduced = await page().evaluate(`
+    return getComputedStyle(document.querySelector('.backdrop'), '::before').animationName;
+  `);
+  assert.equal(reduced, 'none', 'prefers-reduced-motion stops the pan');
+  await page().emulateReducedMotion(false);
+});
+
+test('34 backdrop: blocking the panorama falls back to dirt without errors', async () => {
+  await reset();
+  await poll(async () => page().evaluate('return window.__backdrop !== undefined;'));
+  const initial = await page().evaluate('return window.__backdrop;');
+  await page().blockUrls(['*assets/panorama/backdrop.webp*']);
+  await page().reload();
+  await poll(async () => page().evaluate('return window.__backdrop === "dirt";'));
+  const state = await page().evaluate(`
+    return {
+      hasClass: document.documentElement.classList.contains('has-panorama'),
+      dirt: getComputedStyle(document.querySelector('.backdrop')).backgroundImage,
+      before: getComputedStyle(document.querySelector('.backdrop'), '::before').backgroundImage,
+    };
+  `);
+  assert.equal(state.hasClass, false);
+  assert.match(state.dirt, /dirt\.png/);
+  assert.ok(state.before === 'none' || state.before === '', 'panorama layer stays off');
+  await page().unblockUrls();
+  await page().reload();
+  await poll(async () => page().evaluate('return window.__backdrop !== undefined;'));
+  assert.equal(await page().evaluate('return window.__backdrop;'), initial, 'restored once reachable again');
+});
+
+test('35 identity: an icon whose texture is missing falls back to a letter', async () => {
+  await reset();
+  const stored = await appState();
+  stored.worlds[0].builds[0].icon = { kind: 'item', slug: 'texture_not_extracted' };
+  await page().evaluate(`localStorage.setItem('mc-build-tracker:v1', ${JSON.stringify(JSON.stringify(stored))}); return true;`);
+  await page().reload();
+  await poll(async () => page().evaluate('return !!document.querySelector(".build-entry__identity .avatar__letter");'));
+  assert.equal(await page().text('.build-entry__identity .avatar__letter'), 'I');
+});
+
+test('36 no console errors or uncaught exceptions across the whole suite', async () => {
   assert.deepEqual(app.consoleErrors, [], app.consoleErrors.join('\n'));
 });

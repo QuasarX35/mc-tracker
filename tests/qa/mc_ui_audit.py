@@ -132,7 +132,14 @@ def audit_structure() -> None:
     check("a11y/single-h1", len(re.findall(r"<h1\b", HTML)) == 1, "exactly one h1")
     check("a11y/main-landmark", '<main class="panel" id="main"' in HTML, "main landmark with focus target")
     check("a11y/skip-link", 'class="skip-link" href="#main"' in HTML, "skip link is the first control")
-    check("a11y/tablist", HTML.count('role="tab"') == 3 and HTML.count('role="tabpanel"') == 3, "3 tabs / 3 panels")
+    section_tabs = len(re.findall(r'class="tab"[^>]*role="tab"', HTML))
+    section_panels = len(re.findall(r'role="tabpanel" aria-labelledby="tab-', HTML))
+    picker_tabs = len(re.findall(r'class="picker-tab"', HTML))
+    check(
+        "a11y/tablist",
+        section_tabs == 3 and section_panels == 3 and picker_tabs == 2,
+        f"{section_tabs} section tabs / {section_panels} panels / {picker_tabs} picker tabs",
+    )
     check(
         "a11y/tab-controls",
         all(
@@ -167,10 +174,40 @@ def audit_structure() -> None:
     )
 
 
+
+# ------------------------------------------------------------------ identity
+def audit_identity() -> None:
+    html_files = {
+        "index": HTML,
+        "css": CSS,
+        "app": APP,
+        "readme": (ROOT / "README.md").read_text(encoding="utf-8"),
+        "gitignore": (ROOT / ".gitignore").read_text(encoding="utf-8"),
+    }
+    for element in ("world-avatar", "icon-dialog", "icon-grid", "icon-file", "detail-avatar", "build-dlg-icon"):
+        check(f"identity/html-{element}", f'id="{element}"' in HTML, f'#{element} exists in the page')
+    for symbol in ("avatarHtml", "processImageFile", "renderIconPicker", "probeBackdrop"):
+        check(f"identity/app-{symbol}", f"function {symbol}" in APP, f"{symbol}() implemented")
+    for selector in (".avatar", ".icon-grid", ".icon-tile", ".picker-tab", ".detail__avatar"):
+        check(f"identity/css-{selector}", selector in CSS, f"{selector} styled")
+    check("identity/panorama-layer", ":root.has-panorama .backdrop::before" in CSS, "panorama layer only when detected")
+    check("identity/panorama-pan", "@keyframes panorama-drift" in CSS, "slow pan keyframes exist")
+    check("identity/reduced-motion", "animation: none" in CSS, "motion can be disabled")
+    check("identity/scrim", "--backdrop-scrim-alpha" in CSS, "text scrim token exists")
+    check("identity/gitignore-pixels", "src/assets/panorama/*.webp" in html_files["gitignore"], "generated backdrop not committed")
+    panorama = ROOT / "src" / "assets" / "panorama"
+    check("identity/panorama-manifest", (panorama / "manifest.json").is_file(), "backdrop manifest committed")
+    provenance = panorama / "PROVENANCE.md"
+    check("identity/panorama-provenance", provenance.is_file() and "Mojang" in provenance.read_text(encoding="utf-8"), "backdrop provenance names the rights holder")
+    check("identity/extractor", (ROOT / "scripts" / "mc-backdrop.py").is_file(), "backdrop extractor shipped")
+    check("identity/readme-setup", "mc-backdrop.py" in html_files["readme"], "setup documented")
+
+
 def main() -> int:
     audit_contrast()
     audit_structure()
     audit_icons()
+    audit_identity()
     for case, ok, detail in results:
         print(f"{'PASS' if ok else 'FAIL'} {case} — {detail}")
     failed = [case for case, ok, _ in results if not ok]

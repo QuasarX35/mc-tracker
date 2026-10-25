@@ -22,4 +22,8 @@ __pycache__/
 # Never committed: Mojang assets are not redistributable (see src/assets/icons/PROVENANCE.md).
 src/assets/icons/*.png
 
+# Panorama generated from the local game (scripts/mc-backdrop.py); never committed.
+src/assets/panorama/*.webp
+src/assets/panorama/*.png
+src/assets/panorama/*.jpg
 
