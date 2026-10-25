@@ -49,30 +49,40 @@ is opened repeatedly while playing.
 - `AC-6` Offline: no remote fonts/scripts/images; all assets resolve locally; works from
   `file://` (classic scripts, no ES modules).
 - `AC-7` Every control is labelled; no inline handlers; visible focus; reduced-motion honoured.
-- `AC-8` Pixel contract: square corners, 2px bevels, `image-rendering: pixelated`, bundled
-  bitmap font, no CDN.
+- `AC-8` Pixel contract: square corners, 2px bevels, tiled block textures stay
+  `image-rendering: pixelated`, bundled bitmap font, no CDN.
 - `AC-9` Identity: every world and build can carry an item icon or an uploaded image; it appears
   in the topbar, world cards, build rows and the detail header; clearing it restores the letter;
   uploads are 128×128 data URLs and survive reload/export/import.
 - `AC-10` Backdrop: with the generated panorama present, the menu scene is blurred, slowly
   panning and behind a scrim; blocked/absent files fall back to dirt without console errors;
   `prefers-reduced-motion` stops the pan.
+- `AC-11` Icon resolution: every material/avatar item icon comes from the game's own **256×256
+  inventory renders** (IconExporter export, `manifest.json` → `mode: hires-exports`, `pixels:
+  256`); the app displays them smoothly downscaled (22 px slot, 28–48 px avatars) and never
+  nearest-neighbour-scales them; the PNGs stay git-ignored and a missing render falls back to a
+  letter. The lower-resolution 16×16 client-jar extraction remains a labelled fallback mode.
 
 ## 5. Verification record (2026-10-25)
 
 | Check | Command | Result |
 |-------|---------|--------|
 | Unit (model) | `node tests/unit/tracker-model.test.mjs` + `tracker-icons.test.mjs` | 15/15 + 9/9 |
-| Acceptance | `tracker.acceptance.test.mjs` + `tracker-icons.acceptance.test.mjs` | 16/16 + 8/8 |
-| Browser UI suite | `node tests/qa/ui.e2e.test.mjs` | 36/36 (identity + backdrop added) |
-| UI audit | `python tests/qa/mc_ui_audit.py` | 65/65 (contrast, structure, pixel, identity/backdrop contract) |
-| Desktop render | headless Chrome, 1280×1100 | avatars, panorama, picker verified visually |
+| Acceptance | `tracker.acceptance.test.mjs` + `tracker-icons.acceptance.test.mjs` + `tracker-icon-resolution.acceptance.test.mjs` | 16/16 + 8/8 + 7/7 |
+| Browser UI suite | `node tests/qa/ui.e2e.test.mjs` | 36/36 (identity + backdrop) |
+| UI audit | `python tests/qa/mc_ui_audit.py` | 70/70 (contrast, structure, pixel, identity/backdrop, 256 px icon contract) |
+| Icon set | `scripts/mc-icons.py` + `manifest.json` | 53 icons, 256×256 RGBA renders, sha256 per icon; zero game pixels tracked |
+| Desktop render | headless Chrome, 1280×1100 | avatars, panorama, picker, high-res slots verified visually |
 | Mobile 390px | CDP viewport override | no horizontal overflow, panorama covers |
-| Evidence | `reports/qa/evidence/edict-0010/` | 5 screenshots (identity, picker, image upload, mobile) |
+| Evidence | `reports/qa/evidence/edict-0010/`, `reports/qa/evidence/edict-0011/` | identity/backdrop screenshots + high-res icon evidence |
 
 ## 6. Known gaps (deliberate)
 
-- Item icons are Minecraft's own textures (53 materials), generated locally by `scripts/mc-icons.py` and git-ignored. Model-only items (chest, doors, fences) have no standalone texture and fall back to a lettered slot.
+- Item icons are Minecraft's own **256×256 inventory renders** (53 materials), exported locally
+  with IconExporter via `scripts/mc-icons.py` and git-ignored; without the export the script
+  falls back to the 16×16 client-jar textures and labels the manifest accordingly. The set is
+  still the curated 53 materials: chests, doors, fences and unknown item names keep the lettered
+  fallback — adding a rendered item is one row in `scripts/mc-icons.py` plus a regenerate.
 - Storage is per-browser only: the footer says so and Export exists for backups; there is no
   server sync.
 - No image/screenshot attachments on builds; no sharing links; no multi-user.

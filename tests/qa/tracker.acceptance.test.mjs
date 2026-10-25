@@ -158,8 +158,23 @@ test('AC-10 icons come from the local client, are git-ignored, and degrade grace
   const manifest = JSON.parse(fs.readFileSync(path.join(iconsDir, 'manifest.json'), 'utf8'));
   assert.equal(manifest.count, slugs.length);
   assert.equal(manifest.source.version, '1.21.4');
-  assert.match(manifest.source.jar, /\.minecraft/, 'provenance must point at the local client jar');
-  assert.match(manifest.source.method, /isometric/i, 'blocks must be composited as isometric cubes');
+  assert.match(manifest.source.jar, /\.minecraft/, 'provenance must point at the local client install');
+  assert.ok(
+    ['hires-exports', 'jar-fallback'].includes(manifest.source.mode),
+    'manifest must record which source mode produced the icons'
+  );
+  const highRes = manifest.source.mode === 'hires-exports';
+  const pixels = highRes ? manifest.pixels : 16;
+  if (highRes) {
+    assert.ok(pixels >= 128, `high-resolution renders expected, got ${pixels}px`);
+    assert.match(manifest.source.renderer, /IconExporter/, 'render provenance must name the exporter');
+    assert.match(manifest.source.exports, /icon-exports/, 'render provenance must name the local export folder');
+    assert.match(
+      manifest.source.method,
+      /256|inventory render/i,
+      'method must describe the high-resolution inventory renders'
+    );
+  }
 
   // Licensing contract: the extractor and the filename manifest are committed; Mojang's
   // pixels are not. If this fails, the repo is redistributing game assets.
@@ -179,8 +194,16 @@ test('AC-10 icons come from the local client, are git-ignored, and degrade grace
 
   for (const icon of manifest.icons) {
     const buffer = fs.readFileSync(path.join(iconsDir, icon.image));
-    assert.equal(buffer.readUInt32BE(16), 16, `${icon.slug}: width`);
-    assert.equal(buffer.readUInt32BE(20), 16, `${icon.slug}: height`);
+    assert.equal(buffer.readUInt32BE(16), pixels, `${icon.slug}: width`);
+    assert.equal(buffer.readUInt32BE(20), pixels, `${icon.slug}: height`);
+    assert.equal(icon.pixels, pixels, `${icon.slug}: per-icon pixel size must match the manifest`);
+    if (highRes) {
+      assert.equal(
+        icon.source,
+        `icon-exports-x256/minecraft__${icon.slug}.png`,
+        `${icon.slug}: source render path must be recorded`
+      );
+    }
     assert.equal(buffer.toString('ascii', 1, 4), 'PNG', `${icon.slug}: PNG signature`);
     const digest = createHash('sha256').update(buffer).digest('hex');
     assert.equal(digest, icon.sha256, `${icon.slug}: hash must match the manifest`);

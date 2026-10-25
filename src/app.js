@@ -9,9 +9,10 @@
   var M = window.TrackerModel;
 
   /**
-   * Icons are the real Minecraft textures, generated from the owner's own Java Edition
-   * client by scripts/mc-icons.py. `assets/icons/icons.js` lists the available slugs; items
-   * without one fall back to a lettered slot instead of a misleading picture.
+   * Item icons are the game's own 256×256 inventory renders (exported from the owner's Java
+   * Edition client with IconExporter and assembled by scripts/mc-icons.py; EDICT-0011).
+   * `assets/icons/icons.js` lists the available slugs; items without one fall back to a
+   * lettered slot instead of a misleading picture.
    */
   var ICON_SET = window.MC_ICON_SET || [];
   var FALLBACK_ITEMS = ['Stone', 'Cobblestone', 'Stone Bricks', 'Dirt', 'Sand', 'Oak Planks',

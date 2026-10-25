@@ -1,0 +1,122 @@
+{
+  "iconSet": {
+    "mcIconSet": 53,
+    "mcIconNames": 53
+  },
+  "visibleSlotsBuildsView": {
+    "visibleCount": 4,
+    "naturalWidths": [
+      256
+    ],
+    "naturalHeights": [
+      256
+    ],
+    "renderings": [
+      "auto"
+    ],
+    "displayWidths": [
+      "22px"
+    ],
+    "sampleSrc": "assets/icons/stone_bricks.png"
+  },
+  "allSlotsInDocument": {
+    "count": 10,
+    "naturalWidths": [
+      256
+    ],
+    "renderings": [
+      "auto"
+    ]
+  },
+  "visibleAvatarsBuildsView": {
+    "visibleCount": 5,
+    "naturalWidths": [
+      256
+    ],
+    "naturalHeights": [
+      256
+    ],
+    "renderings": [
+      "auto"
+    ],
+    "displayWidths": [
+      "24px",
+      "28px",
+      "36px"
+    ],
+    "sampleSrc": "assets/icons/grass_block.png"
+  },
+  "body": {
+    "rendering": "pixelated",
+    "url": "?demo=1&tab=builds"
+  },
+  "materialsSlots": {
+    "visibleCount": 6,
+    "naturalWidths": [
+      256
+    ],
+    "naturalHeights": [
+      256
+    ],
+    "renderings": [
+      "auto"
+    ],
+    "displayWidths": [
+      "22px"
+    ],
+    "sampleSrc": "assets/icons/cobblestone.png"
+  },
+  "zoomSlotA": {
+    "x": 112,
+    "y": 551.578125,
+    "width": 22,
+    "height": 22
+  },
+  "zoomSlotB": {
+    "x": 112,
+    "y": 727.578125,
+    "width": 22,
+    "height": 22
+  },
+  "picker": {
+    "tiles": 54,
+    "images": 53,
+    "naturalWidths": [
+      256
+    ],
+    "renderings": [
+      "auto"
+    ],
+    "sampleSrc": "assets/icons/andesite.png"
+  },
+  "zoomPickerTile": {
+    "x": 671.25,
+    "y": 316.671875,
+    "width": 22,
+    "height": 22
+  },
+  "topbarAvatar": {
+    "src": "assets/icons/grass_block.png",
+    "naturalWidth": 256,
+    "naturalHeight": 256,
+    "rendering": "auto",
+    "displayWidth": "28px",
+    "box": {
+      "width": 28,
+      "height": 28
+    }
+  },
+  "zoomAvatar": {
+    "x": 100,
+    "y": 276.75,
+    "width": 28,
+    "height": 28
+  },
+  "consoleErrors": [],
+  "browser": {
+    "product": "Chrome/155.0.8059.86",
+    "protocol": "1.3"
+  },
+  "capturedAt": "2026-10-25T07:21:55.937Z",
+  "evidenceDir": "reports\\qa\\evidence\\edict-0011"
+}

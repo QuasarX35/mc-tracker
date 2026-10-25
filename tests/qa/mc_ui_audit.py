@@ -94,11 +94,36 @@ def audit_icons() -> None:
     icons_js = (ICONS / "icons.js").read_text(encoding="utf-8")
     match = re.search(r"window\.MC_ICON_SET\s*=\s*(\[[^\]]*\])", icons_js)
     slugs = json.loads(match.group(1)) if match else []
+    source = manifest["source"]
+    pixels = manifest.get("pixels", 0)
     check("icons/count", len(slugs) >= 40, f"{len(slugs)} icons declared")
     check("icons/manifest", manifest["count"] == len(slugs), "manifest matches the generated set")
-    check("icons/source-version", manifest["source"]["version"] == "1.21.4", "source game version recorded")
-    check("icons/isometric", "isometric" in manifest["source"]["method"].lower(), "blocks composited as cubes")
-    check("icons/local-jar", ".minecraft" in manifest["source"]["jar"], "provenance points at the local client")
+    check("icons/source-version", source["version"] == "1.21.4", "source game version recorded")
+    check(
+        "icons/high-resolution",
+        pixels >= 128,
+        f"icons are {pixels}px renders (EDICT-0011 needs >=128)",
+    )
+    check(
+        "icons/render-mode",
+        source.get("mode") == "hires-exports",
+        "the high-resolution inventory-render mode is recorded",
+    )
+    check(
+        "icons/renderer",
+        "IconExporter" in source.get("renderer", ""),
+        f"render provenance names the exporter ({source.get('renderer')})",
+    )
+    check(
+        "icons/local-install",
+        ".minecraft" in source.get("jar", ""),
+        "provenance points at the local client install",
+    )
+    check(
+        "icons/export-source",
+        "icon-exports" in source.get("exports", ""),
+        "provenance names the local IconExporter export folder",
+    )
     provenance = (ICONS / "PROVENANCE.md").read_text(encoding="utf-8")
     check("icons/mojang", "Mojang" in provenance, "rights holder named")
     check(
@@ -109,19 +134,34 @@ def audit_icons() -> None:
     check("icons/fallback", "wireIconFallbacks" in APP, "missing icons degrade to lettered slots")
     gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
     check("icons/gitignored", "src/assets/icons/*.png" in gitignore, "vanilla PNGs are not committed")
+    check(
+        "icons/smooth-rendering",
+        re.search(r"\.slot img\s*\{[^}]*image-rendering:\s*auto", CSS) is not None
+        and re.search(r"\.avatar img\s*\{[^}]*image-rendering:\s*auto", CSS) is not None,
+        "256px item renders are displayed smoothly downscaled, not nearest-neighbour",
+    )
+    check(
+        "icons/textures-pixelated",
+        "image-rendering: pixelated" in CSS,
+        "tiled block textures keep their nearest-neighbour pixel contract",
+    )
     pngs = sorted(ICONS.glob("*.png"))
     if not pngs:
         check("icons/generated", True, "not generated on this machine (manifest-only contract)")
         return
     check("icons/generated", len(pngs) == len(slugs), f"{len(pngs)} PNGs for {len(slugs)} slugs")
-    dimensions_ok = True
+    expected = pixels or 256
+    dimensions_ok = expected >= 128
     for path in pngs:
         head = path.read_bytes()[:24]
         if head[:4] != b"\x89PNG":
             dimensions_ok = False
-        elif int.from_bytes(head[16:20], "big") != 16 or int.from_bytes(head[20:24], "big") != 16:
+        elif (
+            int.from_bytes(head[16:20], "big") != expected
+            or int.from_bytes(head[20:24], "big") != expected
+        ):
             dimensions_ok = False
-    check("icons/16x16", dimensions_ok, "every generated icon is a 16x16 PNG")
+    check("icons/high-resolution-pngs", dimensions_ok, f"every generated icon is a {expected}x{expected} PNG")
 
 
 # ------------------------------------------------------------------ structure

@@ -34,8 +34,8 @@ validation, duplicate merge, inline quantities with over-farming, removal and em
 the cross-build shopping list with attribution, four filters plus search, copy, export, valid
 and refused imports, persistence across reload, deep links, accessibility (labels, skip link,
 dialog modality, live regions, visible focus), a 390 px layout with no horizontal overflow, the
-visual contract (panel grey, square corners, pixel font, pixelated 16×16 icons) and a global
-"no console errors" case.
+visual contract (panel grey, square corners, pixel font, 256 px item renders downscaled
+smoothly, tiled textures pixelated) and a global "no console errors" case.
 
 ## The "always" half: a stamp, not a reminder
 
@@ -53,10 +53,12 @@ green; a modified source file turns it red again and names the file.
 
 ## Tensions
 
-- **Independence is structural, not organisational.** The same ministry writes and runs the
-  suite. Expectations are recomputed from the DOM (e.g. the XP percentage is derived from the
-  inputs, not read from the app) and only persisted state is inspected, but suite quality is
-  what needs reviewing.
+- **Independence is structural by default, organisational when delegated.** The same ministry
+  normally writes and runs the suite. Expectations are recomputed from the DOM (e.g. the XP
+  percentage is derived from the inputs, not read from the app) and only persisted state is
+  inspected, but suite quality is what needs reviewing. EDICT-0011 exercised the delegated
+  mode: a separate 测试部 teammate authored the high-resolution icon acceptance cases from the
+  requirement before the implementation finished and held the QA verdict — author ≠ verifier.
 - **Headless only.** Real devices, touch and OS file pickers are out of scope; the 390 px case
   is viewport emulation.
 - **The stamp says "the suite passed", not "the suite is good".** A weak test suite stamps just

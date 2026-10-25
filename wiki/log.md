@@ -134,3 +134,30 @@ a single Mojang pixel.
 - Evidence: `reports/qa/evidence/edict-0010/` (5 screenshots); QA found and the cycle fixed a
   black-letterbox backdrop, an Escape keyboard trap in the picker, and a silently-failing upload
   harness.
+
+## [2026-10-25] ingest | high-resolution item icons (EDICT-0011)
+
+All 53 item icons became the game's own 256×256 inventory renders instead of the hand-composited
+16×16 textures.
+
+- New raw source `raw/sources/2026-10-25-minecraft-icon-render-provenance.md`: the local
+  IconExporter export (1614 renders at 256×256, 2025-05-06, NeoForge 1.21.4, exporter 1.3.1),
+  why copying the game's render beats re-compositing textures, the smooth-downscale display
+  policy, and the labelled 16×16 jar fallback.
+- Updated [[Minecraft Build Tracker]] (Icons + Verification + Tensions), [[In-game GUI design]]
+  (render-based icons, the scoped smooth-downscale exception), [[Vanilla assets without
+  redistribution]] ("source choice is part of fidelity"; model-only items are excluded by
+  curation, not impossibility), [[Atmosphere and identity without shipping assets]] and
+  [[Open questions]] (icon coverage, fidelity vs. pixel purity).
+- Extractor: `scripts/mc-icons.py` now auto-detects the export, validates and copies renders
+  byte-for-byte, and records `mode`/`pixels`/`source`/`sha256` in the manifest; the jar path
+  survives as `jar-fallback`.
+- App: item icons render with `image-rendering: auto` (256 px source), tiled textures keep
+  `pixelated`; the visual-contract case asserts natural size 256 and smooth rendering.
+- Verification: 24 unit, 31 acceptance (7 new high-resolution cases authored by 测试部),
+  70 audit, 36 browser flows, app-qa restamped; zero game pixels tracked. Wiki: 22 pages,
+  6 sealed raw sources.
+- QA: a separate 测试部 teammate authored and ran the independent resolution suite and filed
+  `QA_PASS` cycle 1 (161/161 cases; 53/53 renders byte-identical to the owner's export). All
+  findings minor: verifier zoom-capture tooling (fixed), the accepted refresh of the hardcoded
+  EDICT-0009 evidence screenshots, and two documentation figures corrected after the verdict.

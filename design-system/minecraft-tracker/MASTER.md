@@ -67,14 +67,14 @@ background/box-shadow/width; `prefers-reduced-motion` zeroes them.
 | **Panel** | `--mc-panel`, 2px black border, `inset 2px 2px 0 #fff, inset -2px -2px 0 #555`, plus a hard offset shadow against the world backdrop. Padding 16px. |
 | **Button** | Panel face + bevel; 2px black border; hover lightens face and adds a pale inner ring; active inverts the bevel and moves 1px down. Variants: `--primary` (grass green), `--danger` (red). Minimum height 38px, 32px for `--sm`. |
 | **Input / select** | Black field (`--mc-field`) with white pixel text and a 2px bevel; focus adds a 3px gold ring. Selects use the dark 6f6f6f face with the vanilla dropdown chevron drawn in CSS. |
-| **Slot** | 30×30, `#8b8b8b` face, 2px black border, inverted bevel (dark top-left, light bottom-right); holds a 22×22 pixel icon **from Minecraft's own textures** (generated locally by `scripts/mc-icons.py`, git-ignored). A missing icon shows the item's initial — never a broken image. |
+| **Slot** | 30×30, `#8b8b8b` face, 2px black border, inverted bevel (dark top-left, light bottom-right); holds a 22×22 icon from the game's own **256×256 inventory renders** (generated locally by `scripts/mc-icons.py`, git-ignored) displayed smoothly downscaled. A missing icon shows the item's initial — never a broken image. |
 | **Chip** | Dark `#1e1e1e` plate, 2px border in the status colour, white label. **Colour is never the only signal** — the word is always present. |
 | **XP bar** | 16px tall (12px in table rows), black border, `#1e1e1e` track, green fill with a lighter top band. Exposed as `role="progressbar"` with `aria-valuenow`. |
 | **Tooltip** | `#100010` plate with a `#5000ff` border, white text, 8px above the item slot; pure CSS on `:hover`/`:focus-visible`. |
 | **Tab** | Folder tab: unselected `#6f6f6f`, selected is the panel face and merges into the panel (no bottom border, −2px overlap). |
 | **List row** | Dark row, 2px seam, tight bevel; hover lightens; selected is `#4a4a4a` with a 2px white inner outline (vanilla list selection). |
 | **Dialog** | Native `<dialog>`, panel face, black border, bevel, scrim `rgb(0 0 0 / 0.6)`, right-aligned Cancel/Confirm. |
-| **Avatar** | Square identity chip: 2px black border, inverted bevel, image `object-fit: cover` with `image-rendering: pixelated`. Sizes 28 / 32 / 40 / 48 px. Items use their 16×16 texture; uploads are 128×128 WebP/PNG data URLs; a missing texture falls back to the subject's initial. |
+| **Avatar** | Square identity chip: 2px black border, inverted bevel, image `object-fit: cover` with smooth downscaling (`image-rendering: auto`). Sizes 28 / 32 / 40 / 48 px. Items use their 256×256 inventory render; uploads are 128×128 WebP/PNG data URLs; a missing render falls back to the subject's initial. |
 | **Icon picker** | Dialog with Item/Image tabs; item grid of 64–72px tiles (slot + label), searchable, `role="listbox"`; upload pane previews the image. “Use icon” commits, Cancel discards, Escape clears the search then closes and returns focus. |
 | **World backdrop** | Fallback: 16×16 dirt tiled at 2× (`image-rendering: pixelated`), brightness 0.88, radial vignette. **Panorama:** a locally generated 2560×640 blurred strip (bake: Gaussian radius ≈ width/320, brightness 0.95) revealed via `:root.has-panorama .backdrop::before`, `background-size: cover`, 120 s ping-pong pan between 30 % and 70 % of the horizontal overflow, `filter: blur(2px)`, plus a `--backdrop-scrim-alpha` (0.12) scrim and vignette. Feature-detected at runtime; absence is a normal state. `prefers-reduced-motion` freezes the pan. |
 
@@ -85,15 +85,17 @@ background/box-shadow/width; `prefers-reduced-motion` zeroes them.
 **Style:** authentic early-2010s game GUI. Flat pixel planes, 2px bevels, hard black
 outlines, bitmap type, chunky hit targets.
 
-**Do:** square everything · keep bevels exactly 2px · show item icons only at integer scale ·
-keep the panel grey unmistakably `#c6c6c6` · put dark text on light panels and shadowed
-white text on dark rows · use 1×1 CSS pixel borders so the result looks like it was drawn at
-16×.
+**Do:** square everything · keep bevels exactly 2px · show item icons from the game's 256 px
+inventory renders, smoothly downscaled (`image-rendering: auto`) so slots and avatars stay
+sharp at every size · keep tiled block textures pixelated and integer-scaled · keep the panel
+grey unmistakably `#c6c6c6` · put dark text on light panels and shadowed white text on dark
+rows · use 1×1 CSS pixel borders so the result looks like it was drawn at 16×.
 
 **Never:** `border-radius` · `backdrop-filter` · gradients other than the 2px bevel, the
 XP fill and the backdrop scrim · drop shadows that blur (use hard offset shadows) · emoji as
 icons · animation that moves layout · colour-only status · web fonts from a CDN · committing
-game pixels (icons, panorama, uploads stay local/git-ignored).
+game pixels (icons, panorama, uploads stay local/git-ignored) · nearest-neighbour-scaling the
+256 px item renders down into a slot (that aliases; they are drawn smoothly instead).
 
 ---
 
@@ -102,7 +104,9 @@ game pixels (icons, panorama, uploads stay local/git-ignored).
 - [ ] `node --check src/app.js` and `node --check src/tracker/model.js` clean
 - [ ] `node tests/unit/tracker-model.test.mjs` green
 - [ ] `node tests/qa/tracker.acceptance.test.mjs` green
-- [ ] `python tests/qa/mc_ui_audit.py` → 30/30, exit 0
+- [ ] `python tests/qa/mc_ui_audit.py` → 70/70, exit 0
+- [ ] Item icons are the game's 256×256 inventory renders (`manifest.json` → `mode:
+      hires-exports`, `pixels: 256`) shown smoothly downscaled; tiled textures still pixelated
 - [ ] Headless Chrome screenshots at 1280 px and at 390 px (iframe harness): no overflow,
       no missing icons, tab state matches the visible panel
 - [ ] Every new colour is a token; every new component has a bevel spec above

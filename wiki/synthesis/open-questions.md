@@ -32,8 +32,13 @@ question that a future source or a future session could close.
   without doing real work — lint proves presence, not quality ([[Wiki schema]]).
 - **Tracker: sync or no sync.** [[Local-first tracking]] refuses accounts and servers; two
   players must exchange JSON. Whether that stays acceptable depends on real use.
-- **Tracker: icon coverage.** 18 item icons with a lettered fallback; expanding to a full block
-  list is mechanical but large. Where is the line?
+- **Tracker: icon coverage.** 53 item icons with a lettered fallback; the render source can now
+  supply model-only items (chest, doors, fences) and hundreds of other items. Where is the line?
+  Expanding the set is mechanical but is a product decision.
+- **Tracker: icon fidelity vs. pixel purity.** Item icons are 256 px renders downscaled smoothly
+  while tiled textures stay nearest-neighbour; nobody has compared the smooth 22 px slots
+  against integer-scaled pixel art on a physical HiDPI display. The design contract has a scoped
+  exception here — is it the right one? ([[In-game GUI design]])
 - **Tracker: is the archive worth keeping?** `legacy/superseded-dashboard/` preserves the v1
   design and its audit; it also doubles the design narrative in the repo
   ([[Vanilla GUI over a neon dashboard]]).

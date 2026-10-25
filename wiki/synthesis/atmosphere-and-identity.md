@@ -6,6 +6,7 @@ updated: 2026-10-25
 sources:
   - 2026-10-25-minecraft-panorama-provenance
   - 2026-10-25-minecraft-asset-provenance
+  - 2026-10-25-minecraft-icon-render-provenance
 tags: [design, provenance, product]
 ---
 
@@ -36,11 +37,12 @@ pattern rather than a one-off.
 
 ## Identity: item icon or upload
 
-Worlds and builds carry one optional icon: a slug from the locally extracted 53-icon set, or
-an uploaded picture centre-cropped to 128×128 and stored as an inline WebP/PNG data URL
-(≤120 000 chars). Uploads therefore travel with backups but count against browser storage;
-the cap is enforced in the model, so a bad import cannot bloat or corrupt the state. A missing
-icon file falls back to the subject's initial rather than a broken image.
+Worlds and builds carry one optional icon: a slug from the locally extracted 53-icon set — now
+the game's 256×256 inventory renders (EDICT-0011) — or an uploaded picture centre-cropped to
+128×128 and stored as an inline WebP/PNG data URL (≤120 000 chars). Uploads therefore travel
+with backups but count against browser storage; the cap is enforced in the model, so a bad
+import cannot bloat or corrupt the state. A missing icon file falls back to the subject's
+initial rather than a broken image.
 
 ## Tensions
 
@@ -54,6 +56,9 @@ icon file falls back to the subject's initial rather than a broken image.
   against screenshots, not measured; "menu-like" remains a judgement.
 - **Emulation is not a device.** 390 px and reduced-motion are emulated in headless Chrome;
   no phone or OS-level motion preference was physically observed.
+- **Resolution is a one-off local upgrade.** The 256 px identity icons depend on an export of
+  the owner's game that the repository cannot regenerate; a fresh machine still gets the
+  lower-resolution fallback or letters ([[Vanilla assets without redistribution]]).
 
 ## Relations
 

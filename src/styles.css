@@ -84,6 +84,9 @@ body {
   image-rendering: pixelated;
 }
 
+/* Tiled block textures stay pixel art (dirt backdrop, favicon textures). Item icons are the
+   opposite: 256×256 inventory renders from the game (EDICT-0011), so they are displayed
+   smoothly scaled down (`image-rendering: auto` below) instead of nearest-neighbour. */
 img,
 svg { image-rendering: pixelated; }
 
@@ -601,7 +604,7 @@ ul { list-style: none; padding: 0; }
   border: 2px solid var(--mc-outline);
   box-shadow: var(--bevel-in);
 }
-.slot img { width: 22px; height: 22px; display: block; }
+.slot img { width: 22px; height: 22px; display: block; image-rendering: auto; }
 .slot__letter { font-size: 16px; color: var(--mc-white); text-shadow: 2px 2px 0 #2b2b2b; }
 
 .slot[data-tip]:hover::after,
@@ -800,7 +803,7 @@ ul { list-style: none; padding: 0; }
   box-shadow: var(--bevel-in);
   overflow: hidden;
 }
-.avatar img { width: 100%; height: 100%; display: block; image-rendering: pixelated; object-fit: cover; }
+.avatar img { width: 100%; height: 100%; display: block; image-rendering: auto; object-fit: cover; }
 .avatar__letter {
   font-size: 15px;
   line-height: 1;

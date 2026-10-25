@@ -595,13 +595,14 @@ test('25 responsive: 390px has no horizontal overflow and collapses columns', as
 });
 
 /* --------------------------------------------------------- 12. visual contract */
-test('26 visual contract: Minecraft GUI tokens, square corners, pixel font, pixelated icons', async () => {
+test('26 visual contract: Minecraft GUI tokens, square corners, pixel font, high-resolution item renders', async () => {
   await reset();
   const style = await page().evaluate(`
     const panel = getComputedStyle(document.querySelector('.panel'));
     const button = getComputedStyle(document.querySelector('.mc-btn'));
     const body = getComputedStyle(document.body);
     const icon = document.querySelector('.slot img');
+    const avatar = document.querySelector('.avatar img');
     return {
       panelBg: panel.backgroundColor,
       panelRadius: panel.borderRadius,
@@ -609,6 +610,10 @@ test('26 visual contract: Minecraft GUI tokens, square corners, pixel font, pixe
       font: body.fontFamily,
       iconRendering: icon ? getComputedStyle(icon).imageRendering : 'no-icon',
       iconWidth: icon ? icon.naturalWidth : 0,
+      iconHeight: icon ? icon.naturalHeight : 0,
+      iconDisplayWidth: icon ? getComputedStyle(icon).width : 'no-icon',
+      avatarRendering: avatar ? getComputedStyle(avatar).imageRendering : 'no-avatar',
+      avatarWidth: avatar ? avatar.naturalWidth : 0,
       masthead: document.querySelector('.masthead__title').textContent,
     };
   `);
@@ -616,8 +621,12 @@ test('26 visual contract: Minecraft GUI tokens, square corners, pixel font, pixe
   assert.equal(style.panelRadius, '0px', 'square corners');
   assert.equal(style.buttonRadius, '0px');
   assert.match(style.font, /Pixelify/);
-  assert.equal(style.iconRendering, 'pixelated');
-  assert.equal(style.iconWidth, 16, 'icons are the real 16x16 textures');
+  assert.equal(style.iconRendering, 'auto', '256px item renders are downscaled smoothly, not pixel-doubled');
+  assert.equal(style.iconWidth, 256, 'icons are the game\'s 256×256 inventory renders');
+  assert.equal(style.iconHeight, 256);
+  assert.equal(style.iconDisplayWidth, '22px', 'material slots still show a 22px icon');
+  assert.equal(style.avatarRendering, 'auto', 'avatar renders are downscaled smoothly');
+  assert.equal(style.avatarWidth, 256, 'avatars use the same high-resolution renders');
   assert.equal(style.masthead, 'Build Tracker');
 });
 
