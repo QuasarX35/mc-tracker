@@ -67,3 +67,19 @@ seeded in one browser run, re-opened in a second, data was read back from `local
 no error. Added a **Running it** section to [[Local-first tracking]] covering the double-click
 path, the `python -m http.server` fallback for browsers that refuse local storage, and the
 recovery caveat (no server-side copy exists).
+
+## [2026-10-25] ingest | Minecraft's real item icons (and the licensing rule that shapes them)
+
+Triggered by *"use the actual Minecraft item icons instead"* and the standing rule that every
+edict updates the wiki.
+
+- New raw source `raw/sources/2026-10-25-minecraft-asset-provenance.md`: usage-guideline
+  reading, jar paths, isometric calibration, animation/tint handling, commit policy.
+- New synthesis [[Vanilla assets without redistribution]]: extractor + filename manifest +
+  git-ignore + graceful fallback, and why the first attempt (committing the PNGs) was wrong.
+- Updated [[Minecraft Build Tracker]]: icon pipeline, provenance, and the three model-only
+  items that cannot have flat icons.
+- Updated [[In-game GUI design]] (real assets vs drawn ones) and
+  [[Local-first tracking]] (icons are generated locally, absence is survivable).
+- [[LLM Wiki]] overview now names the asset policy alongside the product and storage notes.
+- 53 icons; 4 sealed raw sources; index regenerated.

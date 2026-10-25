@@ -15,3 +15,8 @@ coverage/
 *.tap
 __pycache__/
 *.pyc
+
+# Generated from Minecraft's own assets at build time (scripts/mc-icons.py).
+# Never committed: Mojang assets are not redistributable (see src/assets/icons/PROVENANCE.md).
+src/assets/icons/*.png
+

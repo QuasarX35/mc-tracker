@@ -67,7 +67,7 @@ background/box-shadow/width; `prefers-reduced-motion` zeroes them.
 | **Panel** | `--mc-panel`, 2px black border, `inset 2px 2px 0 #fff, inset -2px -2px 0 #555`, plus a hard offset shadow against the world backdrop. Padding 16px. |
 | **Button** | Panel face + bevel; 2px black border; hover lightens face and adds a pale inner ring; active inverts the bevel and moves 1px down. Variants: `--primary` (grass green), `--danger` (red). Minimum height 38px, 32px for `--sm`. |
 | **Input / select** | Black field (`--mc-field`) with white pixel text and a 2px bevel; focus adds a 3px gold ring. Selects use the dark 6f6f6f face with the vanilla dropdown chevron drawn in CSS. |
-| **Slot** | 30×30, `#8b8b8b` face, 2px black border, inverted bevel (dark top-left, light bottom-right); holds a 22×22 pixel icon. |
+| **Slot** | 30×30, `#8b8b8b` face, 2px black border, inverted bevel (dark top-left, light bottom-right); holds a 22×22 pixel icon **from Minecraft's own textures** (generated locally by `scripts/mc-icons.py`, git-ignored). A missing icon shows the item's initial — never a broken image. |
 | **Chip** | Dark `#1e1e1e` plate, 2px border in the status colour, white label. **Colour is never the only signal** — the word is always present. |
 | **XP bar** | 16px tall (12px in table rows), black border, `#1e1e1e` track, green fill with a lighter top band. Exposed as `role="progressbar"` with `aria-valuenow`. |
 | **Tooltip** | `#100010` plate with a `#5000ff` border, white text, 8px above the item slot; pure CSS on `:hover`/`:focus-visible`. |
@@ -104,3 +104,4 @@ moves layout · colour-only status · web fonts from a CDN.
       no missing icons, tab state matches the visible panel
 - [ ] Every new colour is a token; every new component has a bevel spec above
 - [ ] `prefers-reduced-motion` still honoured; focus ring visible on every control
+

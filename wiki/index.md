@@ -2,7 +2,7 @@
 
 # Index
 
-Catalogue of 19 pages, regenerated 2026-10-25. Read this first when answering a
+Catalogue of 20 pages, regenerated 2026-10-25. Read this first when answering a
 query; it is the map, the pages are the territory.
 
 ## Overview (1)
@@ -40,7 +40,7 @@ query; it is the map, the pages are the territory.
 |------|---------|---------|
 | [[LLM Wiki pattern]] | Summary of the pattern document that defines this wiki — compiled persistent pages instead of query-time retrieval, maintained by an LLM. | 2026-10-25 |
 
-## Synthesis (4)
+## Synthesis (5)
 
 | Page | Summary | Updated |
 |------|---------|---------|
@@ -48,3 +48,4 @@ query; it is the map, the pages are the territory.
 | [[Open questions]] | What this wiki still does not know or has not decided — lint findings, untested claims from the source, and next sources worth ingesting. | 2026-10-25 |
 | [[RAG and LLM Wiki compared]] | Side-by-side comparison of query-time retrieval and a compiled maintained wiki, including where each actually wins. | 2026-10-25 |
 | [[Vanilla GUI over a neon dashboard]] | Case study in overriding an inherited design system — the violet dashboard was replaced by an in-game GUI because explicit direction outweighs an artifact. | 2026-10-25 |
+| [[Vanilla assets without redistribution]] | How to use a game's real artwork in a personal tool without shipping it — extractor, filename manifest, git-ignore, graceful fallback. | 2026-10-25 |

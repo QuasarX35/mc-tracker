@@ -8,33 +8,30 @@
 
   var M = window.TrackerModel;
 
-  /* Items that have a generated 16x16 icon; everything else gets a lettered slot. */
-  var ICONS = {
-    'dirt': 'dirt',
-    'grass block': 'grass_block',
-    'cobblestone': 'cobblestone',
-    'stone': 'stone',
-    'stone bricks': 'stone_bricks',
-    'oak log': 'oak_log',
-    'oak planks': 'oak_planks',
-    'glass': 'glass',
-    'iron ingot': 'iron_ingot',
-    'gold ingot': 'gold_ingot',
-    'diamond': 'diamond',
-    'torch': 'torch',
-    'water bucket': 'water_bucket',
-    'chest': 'chest',
-    'crafting table': 'crafting_table',
-    'coal': 'coal',
-    'redstone': 'redstone',
-    'bread': 'bread'
-  };
+  /**
+   * Icons are the real Minecraft textures, generated from the owner's own Java Edition
+   * client by scripts/mc-icons.py. `assets/icons/icons.js` lists the available slugs; items
+   * without one fall back to a lettered slot instead of a misleading picture.
+   */
+  var ICON_SET = window.MC_ICON_SET || [];
+  var FALLBACK_ITEMS = ['Stone', 'Cobblestone', 'Stone Bricks', 'Dirt', 'Sand', 'Oak Planks',
+    'Oak Log', 'Glass', 'Torch', 'Chest', 'Iron Ingot', 'Coal'];
+  var COMMON_ITEMS = (window.MC_ICON_NAMES && window.MC_ICON_NAMES.length)
+    ? window.MC_ICON_NAMES.slice()
+    : FALLBACK_ITEMS.slice();
 
-  var COMMON_ITEMS = [
-    'Stone Bricks', 'Stone', 'Cobblestone', 'Oak Planks', 'Oak Log', 'Dirt', 'Sand',
-    'Glass', 'Iron Ingot', 'Gold Ingot', 'Diamond', 'Coal', 'Redstone', 'Torch',
-    'Chest', 'Crafting Table', 'Water Bucket', 'Wool', 'Concrete', 'Ladder'
-  ];
+  function slugifyItem(name) {
+    return String(name == null ? '' : name)
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+  }
+
+  function iconFor(item) {
+    var slug = slugifyItem(item);
+    return ICON_SET.indexOf(slug) >= 0 ? slug : null;
+  }
 
   var STATUS_LABEL = { planned: 'Planned', building: 'Building', done: 'Done' };
 
@@ -57,16 +54,31 @@
       .replace(/'/g, '&#39;');
   }
 
-  function iconFor(item) {
-    return ICONS[String(item).trim().toLowerCase()] || null;
-  }
-
   function slotHtml(item) {
     var icon = iconFor(item);
+    var letter = String(item).trim().charAt(0).toUpperCase() || '?';
     var inner = icon
-      ? '<img src="assets/icons/' + icon + '.png" alt="" width="22" height="22">'
-      : '<span class="slot__letter">' + escapeHtml(String(item).trim().charAt(0).toUpperCase() || '?') + '</span>';
+      ? '<img src="assets/icons/' + icon + '.png" alt="" width="22" height="22" data-letter="' + escapeHtml(letter) + '">'
+      : '<span class="slot__letter">' + escapeHtml(letter) + '</span>';
     return '<span class="slot" data-tip="' + escapeHtml(item) + '" aria-hidden="true">' + inner + '</span>';
+  }
+
+  /**
+   * Vanilla icon PNGs are generated locally and git-ignored, so a fresh clone has none.
+   * When an icon is missing, fall back to the lettered slot instead of a broken image.
+   */
+  function wireIconFallbacks(scope) {
+    var root = scope || document;
+    Array.prototype.forEach.call(root.querySelectorAll('.slot img'), function (img) {
+      if (img.dataset.wired === '1') return;
+      img.dataset.wired = '1';
+      img.addEventListener('error', function () {
+        var span = document.createElement('span');
+        span.className = 'slot__letter';
+        span.textContent = img.getAttribute('data-letter') || '?';
+        img.replaceWith(span);
+      });
+    });
   }
 
   function toast(message, isError) {
@@ -482,6 +494,7 @@
       });
     }
     els['build-list'].innerHTML = items.join('');
+    wireIconFallbacks(els['build-list']);
     var empty = !world || !world.builds.length;
     els['build-empty'].hidden = !empty;
     els['build-list'].hidden = empty;
@@ -533,6 +546,7 @@
         '</div>';
     });
     els['material-body'].innerHTML = rows.join('');
+    wireIconFallbacks(els['material-body']);
     els['material-empty'].hidden = build.materials.length > 0;
   }
 
@@ -563,6 +577,7 @@
         '</div>';
     }).join('');
 
+    wireIconFallbacks(els['world-material-body']);
     els['world-material-empty'].hidden = filtered.length > 0;
     var summary = M.worldSummary(world);
     els['mat-totals'].textContent = world
@@ -704,3 +719,4 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
+

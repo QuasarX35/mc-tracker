@@ -1,0 +1,583 @@
+{
+  "source": {
+    "game": "Minecraft Java Edition",
+    "version": "1.21.4",
+    "jar": "C:\\Users\\KZ\\AppData\\Roaming\\.minecraft\\versions\\1.21.4\\1.21.4.jar",
+    "extracted": "2026-10-25",
+    "method": "flat sprites copied; cube blocks composited 2:1 isometric (top 100%, left 80%, right 60%)"
+  },
+  "count": 53,
+  "icons": [
+    {
+      "name": "Andesite",
+      "slug": "andesite",
+      "kind": "cube",
+      "textures": [
+        "block/andesite.png",
+        "block/andesite.png"
+      ],
+      "image": "andesite.png",
+      "sha256": "1e55c8864fcc2361ae9deb9190ee455a77d78b25f8939971909307010d1ad3f0"
+    },
+    {
+      "name": "Birch Planks",
+      "slug": "birch_planks",
+      "kind": "cube",
+      "textures": [
+        "block/birch_planks.png",
+        "block/birch_planks.png"
+      ],
+      "image": "birch_planks.png",
+      "sha256": "3d78f504c8906ef4b4071f7643d12a9bb96f4bcc8ae09264a329c679454136ce"
+    },
+    {
+      "name": "Blue Concrete",
+      "slug": "blue_concrete",
+      "kind": "cube",
+      "textures": [
+        "block/blue_concrete.png",
+        "block/blue_concrete.png"
+      ],
+      "image": "blue_concrete.png",
+      "sha256": "955de3e99864a0f5d0d18d2e1abc3d5ccf69d6347d6310b280cbbbeecae2e670"
+    },
+    {
+      "name": "Bookshelf",
+      "slug": "bookshelf",
+      "kind": "cube",
+      "textures": [
+        "block/oak_planks.png",
+        "block/bookshelf.png"
+      ],
+      "image": "bookshelf.png",
+      "sha256": "955d266c81f46c881d53d1dcda799d9643626d185fb63bad20a41d0c102f2df1"
+    },
+    {
+      "name": "Bread",
+      "slug": "bread",
+      "kind": "sprite",
+      "textures": [
+        "item/bread.png"
+      ],
+      "image": "bread.png",
+      "sha256": "5df1be31ed3b1eadec7909805ba99b9685fc7f4f2e1cfc0fc990aebe6d30103a"
+    },
+    {
+      "name": "Charcoal",
+      "slug": "charcoal",
+      "kind": "sprite",
+      "textures": [
+        "item/charcoal.png"
+      ],
+      "image": "charcoal.png",
+      "sha256": "a42914f5ff4993723ce0fe7db0afdcb2814ed8e8c1568deca125cde0cc63ee56"
+    },
+    {
+      "name": "Coal",
+      "slug": "coal",
+      "kind": "sprite",
+      "textures": [
+        "item/coal.png"
+      ],
+      "image": "coal.png",
+      "sha256": "8e70e722302093c02c9b57da8926464b8227cb9cf8b54ed5e0314870cee2ca43"
+    },
+    {
+      "name": "Cobbled Deepslate",
+      "slug": "cobbled_deepslate",
+      "kind": "cube",
+      "textures": [
+        "block/cobbled_deepslate.png",
+        "block/cobbled_deepslate.png"
+      ],
+      "image": "cobbled_deepslate.png",
+      "sha256": "9712ff0e4bca1e21181aebc8afde0b7b69734aba1c77d88e089fec6ddc3174fe"
+    },
+    {
+      "name": "Cobblestone",
+      "slug": "cobblestone",
+      "kind": "cube",
+      "textures": [
+        "block/cobblestone.png",
+        "block/cobblestone.png"
+      ],
+      "image": "cobblestone.png",
+      "sha256": "0fba7ea8e108e88b6aa0f5dd6bea25c6dd4eef40d1894eb90c7434c2d1397e9b"
+    },
+    {
+      "name": "Copper Block",
+      "slug": "copper_block",
+      "kind": "cube",
+      "textures": [
+        "block/copper_block.png",
+        "block/copper_block.png"
+      ],
+      "image": "copper_block.png",
+      "sha256": "20d532e36c6266d4d81aed95a1404a54823ed3d582a051e14c57558f3cedc5aa"
+    },
+    {
+      "name": "Copper Ingot",
+      "slug": "copper_ingot",
+      "kind": "sprite",
+      "textures": [
+        "item/copper_ingot.png"
+      ],
+      "image": "copper_ingot.png",
+      "sha256": "07e4ae45079b1ad6fcae6901372403dd24a9139f8493e1e2608ae7af282497c2"
+    },
+    {
+      "name": "Crafting Table",
+      "slug": "crafting_table",
+      "kind": "cube",
+      "textures": [
+        "block/crafting_table_top.png",
+        "block/crafting_table_side.png",
+        "block/crafting_table_front.png"
+      ],
+      "image": "crafting_table.png",
+      "sha256": "1bf3069b9be81a5b6c7d7a6c67a3536748fb92c5716ff96d076e411f93f52cc5"
+    },
+    {
+      "name": "Deepslate",
+      "slug": "deepslate",
+      "kind": "cube",
+      "textures": [
+        "block/deepslate_top.png",
+        "block/deepslate.png"
+      ],
+      "image": "deepslate.png",
+      "sha256": "923c194d8d16dc78b7c73eea68587c66d2d3c4995f5d35ea3545d2cb5b98fbf7"
+    },
+    {
+      "name": "Deepslate Bricks",
+      "slug": "deepslate_bricks",
+      "kind": "cube",
+      "textures": [
+        "block/deepslate_bricks.png",
+        "block/deepslate_bricks.png"
+      ],
+      "image": "deepslate_bricks.png",
+      "sha256": "ff057d724fd1191284b75e652b51075f6347f4a9efb588963d38791d8315a94b"
+    },
+    {
+      "name": "Diamond",
+      "slug": "diamond",
+      "kind": "sprite",
+      "textures": [
+        "item/diamond.png"
+      ],
+      "image": "diamond.png",
+      "sha256": "fd782b6b5f3fd1a430abc0e6433dc40d79ae9869b53d6e8df162bce633f6c27d"
+    },
+    {
+      "name": "Diamond Block",
+      "slug": "diamond_block",
+      "kind": "cube",
+      "textures": [
+        "block/diamond_block.png",
+        "block/diamond_block.png"
+      ],
+      "image": "diamond_block.png",
+      "sha256": "323bd8c2830868ae482e92211670d3794eb53a18431ba3cdfd52c1740a8a5598"
+    },
+    {
+      "name": "Diorite",
+      "slug": "diorite",
+      "kind": "cube",
+      "textures": [
+        "block/diorite.png",
+        "block/diorite.png"
+      ],
+      "image": "diorite.png",
+      "sha256": "7a5031002ee2b2cc22c9dbe5269d1623737d6152224019e1639436aabb7f6a0e"
+    },
+    {
+      "name": "Dirt",
+      "slug": "dirt",
+      "kind": "cube",
+      "textures": [
+        "block/dirt.png",
+        "block/dirt.png"
+      ],
+      "image": "dirt.png",
+      "sha256": "9cba21fdc7500a20d07fc511f55d69438c291a8e83e6ebf19bbba6b7f84559b1"
+    },
+    {
+      "name": "Emerald",
+      "slug": "emerald",
+      "kind": "sprite",
+      "textures": [
+        "item/emerald.png"
+      ],
+      "image": "emerald.png",
+      "sha256": "f76fe278318e85b71b90eabd8c7a5e65ed7729770efe6db875fb8009fc738d10"
+    },
+    {
+      "name": "Emerald Block",
+      "slug": "emerald_block",
+      "kind": "cube",
+      "textures": [
+        "block/emerald_block.png",
+        "block/emerald_block.png"
+      ],
+      "image": "emerald_block.png",
+      "sha256": "a0c2ce2ede6f187a2f91d73f77b1a915827a02cc5872f14aa6fe4ee2ea453481"
+    },
+    {
+      "name": "Furnace",
+      "slug": "furnace",
+      "kind": "cube",
+      "textures": [
+        "block/furnace_top.png",
+        "block/furnace_side.png",
+        "block/furnace_front.png"
+      ],
+      "image": "furnace.png",
+      "sha256": "6ae65b8e729443e7ea0b03a2e81a19452cebf8128da401b7847348b646c9bf8a"
+    },
+    {
+      "name": "Glass",
+      "slug": "glass",
+      "kind": "cube",
+      "textures": [
+        "block/glass.png",
+        "block/glass.png"
+      ],
+      "image": "glass.png",
+      "sha256": "026ac9987600c51174c17cf94af1e5a36f1f313951e2df55ea5e4d7880167838"
+    },
+    {
+      "name": "Glowstone",
+      "slug": "glowstone",
+      "kind": "cube",
+      "textures": [
+        "block/glowstone.png",
+        "block/glowstone.png"
+      ],
+      "image": "glowstone.png",
+      "sha256": "ab9b738716f3c6bbbbecf61dfd7324ee07d877cbb109610d3c0c06f22f2d6ad6"
+    },
+    {
+      "name": "Gold Block",
+      "slug": "gold_block",
+      "kind": "cube",
+      "textures": [
+        "block/gold_block.png",
+        "block/gold_block.png"
+      ],
+      "image": "gold_block.png",
+      "sha256": "f5ae9b2cdeadf5d9bc6624b3c18239194d4c6bacea164da45bfbd5ee1015c503"
+    },
+    {
+      "name": "Gold Ingot",
+      "slug": "gold_ingot",
+      "kind": "sprite",
+      "textures": [
+        "item/gold_ingot.png"
+      ],
+      "image": "gold_ingot.png",
+      "sha256": "7c2e4812480b539ba8609abab3a2e78918a0b6c6726f3bebbecdd55e25a7e485"
+    },
+    {
+      "name": "Granite",
+      "slug": "granite",
+      "kind": "cube",
+      "textures": [
+        "block/granite.png",
+        "block/granite.png"
+      ],
+      "image": "granite.png",
+      "sha256": "fd01a80f83f6c3c7162adbe71eb5982a289a2db8576837d312c616888a0fcf4c"
+    },
+    {
+      "name": "Grass Block",
+      "slug": "grass_block",
+      "kind": "cube",
+      "textures": [
+        "block/grass_block_top.png",
+        "block/grass_block_side.png"
+      ],
+      "image": "grass_block.png",
+      "sha256": "8827ec856de1d89bdbdcad2dd0dc8030ffc7f01c83763349bbe64665b07b52b2"
+    },
+    {
+      "name": "Gravel",
+      "slug": "gravel",
+      "kind": "cube",
+      "textures": [
+        "block/gravel.png",
+        "block/gravel.png"
+      ],
+      "image": "gravel.png",
+      "sha256": "05b73ca39739130f02ccc5e6862e99f3210f73bfd84a5411830f6b0a6f6c73ce"
+    },
+    {
+      "name": "Iron Block",
+      "slug": "iron_block",
+      "kind": "cube",
+      "textures": [
+        "block/iron_block.png",
+        "block/iron_block.png"
+      ],
+      "image": "iron_block.png",
+      "sha256": "3c8fddbdd3b921d342095e6ae0f5cd491311376433098d7ac043a2df1f93be9b"
+    },
+    {
+      "name": "Iron Ingot",
+      "slug": "iron_ingot",
+      "kind": "sprite",
+      "textures": [
+        "item/iron_ingot.png"
+      ],
+      "image": "iron_ingot.png",
+      "sha256": "b0b2bf13ef532efed70005a8fe966fc4db0199402aa273f98709434168f338a8"
+    },
+    {
+      "name": "Ladder",
+      "slug": "ladder",
+      "kind": "flat-block",
+      "textures": [
+        "block/ladder.png"
+      ],
+      "image": "ladder.png",
+      "sha256": "8852dd251bf22200844da0068fea2e6a0fddf005c3effe1c87482d931deda602"
+    },
+    {
+      "name": "Lantern",
+      "slug": "lantern",
+      "kind": "flat-block",
+      "textures": [
+        "block/lantern.png"
+      ],
+      "image": "lantern.png",
+      "sha256": "ca454ca6897d90698f3aa3a7e67ae780da7d5407e9634593ca3a28c7a4230ab2"
+    },
+    {
+      "name": "Nether Bricks",
+      "slug": "nether_bricks",
+      "kind": "cube",
+      "textures": [
+        "block/nether_bricks.png",
+        "block/nether_bricks.png"
+      ],
+      "image": "nether_bricks.png",
+      "sha256": "485e68c9344e270fb0799af4476c9225539a2a06f21d46fdfe3c247557c79f29"
+    },
+    {
+      "name": "Netherrack",
+      "slug": "netherrack",
+      "kind": "cube",
+      "textures": [
+        "block/netherrack.png",
+        "block/netherrack.png"
+      ],
+      "image": "netherrack.png",
+      "sha256": "07b482a548ac4672b34927cec8876dc7a2abefb8f3113188b13f9c5ee3605ed0"
+    },
+    {
+      "name": "Oak Log",
+      "slug": "oak_log",
+      "kind": "cube",
+      "textures": [
+        "block/oak_log_top.png",
+        "block/oak_log.png"
+      ],
+      "image": "oak_log.png",
+      "sha256": "9b4f2695d0c902dfaf3d9dcc362d5196cbcff0b062272b3418878ac42c1c040b"
+    },
+    {
+      "name": "Oak Planks",
+      "slug": "oak_planks",
+      "kind": "cube",
+      "textures": [
+        "block/oak_planks.png",
+        "block/oak_planks.png"
+      ],
+      "image": "oak_planks.png",
+      "sha256": "db52a0ce3243c0853b4ee89add802963dacd7377ac377ca32ba9cf0286222d5e"
+    },
+    {
+      "name": "Obsidian",
+      "slug": "obsidian",
+      "kind": "cube",
+      "textures": [
+        "block/obsidian.png",
+        "block/obsidian.png"
+      ],
+      "image": "obsidian.png",
+      "sha256": "6fda74348500a9f8c1ca230f123836695c8445248d0c9be5209c2448388ac941"
+    },
+    {
+      "name": "Quartz Block",
+      "slug": "quartz_block",
+      "kind": "cube",
+      "textures": [
+        "block/quartz_block_top.png",
+        "block/quartz_block_side.png"
+      ],
+      "image": "quartz_block.png",
+      "sha256": "3bd305589624a1d1be4853819cc24b84f6aa2a0bd19a4a13cdb1ee1b9423f976"
+    },
+    {
+      "name": "Red Wool",
+      "slug": "red_wool",
+      "kind": "cube",
+      "textures": [
+        "block/red_wool.png",
+        "block/red_wool.png"
+      ],
+      "image": "red_wool.png",
+      "sha256": "85af9e3a6772c1b7d298df3131c00cf3421bf18165a0827f0f8c859805288740"
+    },
+    {
+      "name": "Redstone",
+      "slug": "redstone",
+      "kind": "sprite",
+      "textures": [
+        "item/redstone.png"
+      ],
+      "image": "redstone.png",
+      "sha256": "f22a669013369854486ad7ebd931f5986b33a75a409c0c33abe26fb2e8b770ba"
+    },
+    {
+      "name": "Sand",
+      "slug": "sand",
+      "kind": "cube",
+      "textures": [
+        "block/sand.png",
+        "block/sand.png"
+      ],
+      "image": "sand.png",
+      "sha256": "814cc1050bdfc3bc89278b373396bd6da9b45414b49d3f754696909e5d2ecd4f"
+    },
+    {
+      "name": "Sandstone",
+      "slug": "sandstone",
+      "kind": "cube",
+      "textures": [
+        "block/sandstone_top.png",
+        "block/sandstone.png"
+      ],
+      "image": "sandstone.png",
+      "sha256": "e3af65ca409baa4cf11b339c305a05588c383e4b964bf91e3eac564192e9f25f"
+    },
+    {
+      "name": "Sea Lantern",
+      "slug": "sea_lantern",
+      "kind": "cube",
+      "textures": [
+        "block/sea_lantern.png",
+        "block/sea_lantern.png"
+      ],
+      "image": "sea_lantern.png",
+      "sha256": "3429773a0e21d1a2af8a8fcfbc336c126caac19a6bf6f15d300a19de10f53e80"
+    },
+    {
+      "name": "Spruce Log",
+      "slug": "spruce_log",
+      "kind": "cube",
+      "textures": [
+        "block/spruce_log_top.png",
+        "block/spruce_log.png"
+      ],
+      "image": "spruce_log.png",
+      "sha256": "9618bf503ec6bd4058c471e485d5dc8612fbc8f064ff66e13b88eebe7be03f01"
+    },
+    {
+      "name": "Spruce Planks",
+      "slug": "spruce_planks",
+      "kind": "cube",
+      "textures": [
+        "block/spruce_planks.png",
+        "block/spruce_planks.png"
+      ],
+      "image": "spruce_planks.png",
+      "sha256": "efae0407abba9ce4665826029f232f402c0b4d6601a0a8764af7970494d89820"
+    },
+    {
+      "name": "Stick",
+      "slug": "stick",
+      "kind": "sprite",
+      "textures": [
+        "item/stick.png"
+      ],
+      "image": "stick.png",
+      "sha256": "3494e091c49bd73ac600575d12dff08b73db8bd07c3ae387c67c199129bca0b8"
+    },
+    {
+      "name": "Stone",
+      "slug": "stone",
+      "kind": "cube",
+      "textures": [
+        "block/stone.png",
+        "block/stone.png"
+      ],
+      "image": "stone.png",
+      "sha256": "58b5e3fd8e91ac40cfcb232f512a7ff49d8809a4091fc7f6dfe267a2af8c3cd0"
+    },
+    {
+      "name": "Stone Bricks",
+      "slug": "stone_bricks",
+      "kind": "cube",
+      "textures": [
+        "block/stone_bricks.png",
+        "block/stone_bricks.png"
+      ],
+      "image": "stone_bricks.png",
+      "sha256": "eea4b1a907d95fe4468e617948b0314150d9114aed9e6fe8763f9e87b93df09a"
+    },
+    {
+      "name": "Terracotta",
+      "slug": "terracotta",
+      "kind": "cube",
+      "textures": [
+        "block/terracotta.png",
+        "block/terracotta.png"
+      ],
+      "image": "terracotta.png",
+      "sha256": "a847bef5671c71852946d36fc63c541f3c74457c1093e6c47559268caf5264c0"
+    },
+    {
+      "name": "Torch",
+      "slug": "torch",
+      "kind": "flat-block",
+      "textures": [
+        "block/torch.png"
+      ],
+      "image": "torch.png",
+      "sha256": "61711d6381a3f45cf729a72f0326a239a497aa6b6ef2a08f81e2efb2d74a0a09"
+    },
+    {
+      "name": "Water Bucket",
+      "slug": "water_bucket",
+      "kind": "sprite",
+      "textures": [
+        "item/water_bucket.png"
+      ],
+      "image": "water_bucket.png",
+      "sha256": "27a074649051a5b02c2062ab058673e045c8cb7a396df9e287183cc4d05aadbc"
+    },
+    {
+      "name": "White Concrete",
+      "slug": "white_concrete",
+      "kind": "cube",
+      "textures": [
+        "block/white_concrete.png",
+        "block/white_concrete.png"
+      ],
+      "image": "white_concrete.png",
+      "sha256": "9b64958e1f977e8568d795c36ef33f595dbf51c4b7c8f844196c54c79791099d"
+    },
+    {
+      "name": "White Wool",
+      "slug": "white_wool",
+      "kind": "cube",
+      "textures": [
+        "block/white_wool.png",
+        "block/white_wool.png"
+      ],
+      "image": "white_wool.png",
+      "sha256": "20ffa80f5a026882f77009c3a1d9b5b7d538458f7afd04a3677318efc3678da7"
+    }
+  ]
+}

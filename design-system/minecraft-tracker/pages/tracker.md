@@ -57,7 +57,7 @@ is opened repeatedly while playing.
 |-------|---------|--------|
 | Unit (model) | `node tests/unit/tracker-model.test.mjs` | 15/15 |
 | Acceptance | `node tests/qa/tracker.acceptance.test.mjs` | 16/16 |
-| UI audit | `python tests/qa/mc_ui_audit.py` | 30/30 |
+| UI audit | `python tests/qa/mc_ui_audit.py` | 41/41 (incl. icon provenance + git-ignore contract) |
 | Desktop render | headless Chrome, 1280×1250 | `?tab=builds` verified visually |
 | Materials view | headless Chrome, 1280×1000 | progress bars, icons, filters verified |
 | Worlds view | headless Chrome, 1280×1000 | active chip, card actions verified |
@@ -65,8 +65,8 @@ is opened repeatedly while playing.
 
 ## 6. Known gaps (deliberate)
 
-- Item icons cover 18 items; anything else falls back to a lettered slot rather than a
-  misleading icon.
+- Item icons are Minecraft's own textures (53 materials), generated locally by `scripts/mc-icons.py` and git-ignored. Model-only items (chest, doors, fences) have no standalone texture and fall back to a lettered slot.
 - Storage is per-browser only: the footer says so and Export exists for backups; there is no
   server sync.
 - No image/screenshot attachments on builds; no sharing links; no multi-user.
+

@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import vm from 'node:vm';
+import { createHash } from 'node:crypto';
 
 const ROOT = path.resolve(import.meta.dirname, '..', '..');
 const SRC = path.join(ROOT, 'src');
@@ -143,14 +144,47 @@ test('AC-9 every local asset referenced by the page exists on disk', () => {
   }
 });
 
-test('AC-10 every item icon the app maps to exists, and the slot fallback is wired', () => {
-  const block = APP.split('var ICONS = {')[1].split('};')[0];
-  const slugs = [...block.matchAll(/:\s*'([a-z_]+)'/g)].map((match) => match[1]);
-  assert.ok(slugs.length >= 15, `expected a useful icon set, found ${slugs.length}`);
-  for (const slug of slugs) {
-    assert.ok(fs.existsSync(path.join(SRC, 'assets', 'icons', `${slug}.png`)), `missing icon ${slug}.png`);
+test('AC-10 icons come from the local client, are git-ignored, and degrade gracefully', () => {
+  const iconsDir = path.join(SRC, 'assets', 'icons');
+  const iconsJs = fs.readFileSync(path.join(iconsDir, 'icons.js'), 'utf8');
+  const setMatch = /window\.MC_ICON_SET\s*=\s*(\[[^\]]*\])/.exec(iconsJs);
+  assert.ok(setMatch, 'icons.js must declare window.MC_ICON_SET');
+  const slugs = JSON.parse(setMatch[1]);
+  assert.ok(slugs.length >= 40, `expected the real vanilla set, found ${slugs.length} icons`);
+  const namesMatch = /window\.MC_ICON_NAMES\s*=\s*(\[[^\]]*\])/.exec(iconsJs);
+  const names = JSON.parse(namesMatch[1]);
+  assert.equal(names.length, slugs.length, 'one display name per icon');
+
+  const manifest = JSON.parse(fs.readFileSync(path.join(iconsDir, 'manifest.json'), 'utf8'));
+  assert.equal(manifest.count, slugs.length);
+  assert.equal(manifest.source.version, '1.21.4');
+  assert.match(manifest.source.jar, /\.minecraft/, 'provenance must point at the local client jar');
+  assert.match(manifest.source.method, /isometric/i, 'blocks must be composited as isometric cubes');
+
+  // Licensing contract: the extractor and the filename manifest are committed; Mojang's
+  // pixels are not. If this fails, the repo is redistributing game assets.
+  const gitignore = fs.readFileSync(path.join(ROOT, '.gitignore'), 'utf8');
+  assert.match(gitignore, /src\/assets\/icons\/\*\.png/, 'generated vanilla PNGs must be git-ignored');
+  const provenance = fs.readFileSync(path.join(iconsDir, 'PROVENANCE.md'), 'utf8');
+  assert.match(provenance, /Mojang/, 'licensing notice must name the rights holder');
+  assert.match(provenance, /not[\s\S]{0,80}redistribut/i, 'notice must state no redistribution');
+  assert.match(provenance, /NOT AN OFFICIAL MINECRAFT PRODUCT/);
+  assert.match(HTML, /assets\/icons\/icons\.js/, 'the page must load the generated icon set');
+  assert.match(APP, /MC_ICON_SET/, 'the app must use the generated icon set');
+  assert.match(APP, /wireIconFallbacks/, 'missing icons must degrade to lettered slots, not broken images');
+
+  const pngs = fs.readdirSync(iconsDir).filter((file) => file.endsWith('.png')).sort();
+  if (!pngs.length) return; // fresh clone without the game: the manifest-only contract applies
+  assert.equal(pngs.length, slugs.length, 'exactly one PNG per declared icon, no stale files');
+
+  for (const icon of manifest.icons) {
+    const buffer = fs.readFileSync(path.join(iconsDir, icon.image));
+    assert.equal(buffer.readUInt32BE(16), 16, `${icon.slug}: width`);
+    assert.equal(buffer.readUInt32BE(20), 16, `${icon.slug}: height`);
+    assert.equal(buffer.toString('ascii', 1, 4), 'PNG', `${icon.slug}: PNG signature`);
+    const digest = createHash('sha256').update(buffer).digest('hex');
+    assert.equal(digest, icon.sha256, `${icon.slug}: hash must match the manifest`);
   }
-  assert.match(APP, /slot__letter/, 'items without an icon must fall back to a lettered slot');
 });
 
 test('AC-11 every control is labelled and no inline event handler ships', () => {
@@ -221,3 +255,4 @@ test('AC-16 seed regression: the Iron Farm keeps all four materials including St
   assert.equal(bricks.needed, 384);
   assert.equal(bricks.collected, 200);
 });
+

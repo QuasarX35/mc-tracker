@@ -11,6 +11,7 @@ Exit: 0 = all cases passed, 1 = at least one failure.
 """
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -83,6 +84,46 @@ def audit_contrast() -> None:
         )
 
 
+
+# ------------------------------------------------------------------ icons
+ICONS = ROOT / "src" / "assets" / "icons"
+
+
+def audit_icons() -> None:
+    manifest = json.loads((ICONS / "manifest.json").read_text(encoding="utf-8"))
+    icons_js = (ICONS / "icons.js").read_text(encoding="utf-8")
+    match = re.search(r"window\.MC_ICON_SET\s*=\s*(\[[^\]]*\])", icons_js)
+    slugs = json.loads(match.group(1)) if match else []
+    check("icons/count", len(slugs) >= 40, f"{len(slugs)} icons declared")
+    check("icons/manifest", manifest["count"] == len(slugs), "manifest matches the generated set")
+    check("icons/source-version", manifest["source"]["version"] == "1.21.4", "source game version recorded")
+    check("icons/isometric", "isometric" in manifest["source"]["method"].lower(), "blocks composited as cubes")
+    check("icons/local-jar", ".minecraft" in manifest["source"]["jar"], "provenance points at the local client")
+    provenance = (ICONS / "PROVENANCE.md").read_text(encoding="utf-8")
+    check("icons/mojang", "Mojang" in provenance, "rights holder named")
+    check(
+        "icons/no-redistribution",
+        re.search(r"not[\s\S]{0,80}redistribut", provenance, re.IGNORECASE) is not None,
+        "notice states the assets are not redistributed",
+    )
+    check("icons/fallback", "wireIconFallbacks" in APP, "missing icons degrade to lettered slots")
+    gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
+    check("icons/gitignored", "src/assets/icons/*.png" in gitignore, "vanilla PNGs are not committed")
+    pngs = sorted(ICONS.glob("*.png"))
+    if not pngs:
+        check("icons/generated", True, "not generated on this machine (manifest-only contract)")
+        return
+    check("icons/generated", len(pngs) == len(slugs), f"{len(pngs)} PNGs for {len(slugs)} slugs")
+    dimensions_ok = True
+    for path in pngs:
+        head = path.read_bytes()[:24]
+        if head[:4] != b"\x89PNG":
+            dimensions_ok = False
+        elif int.from_bytes(head[16:20], "big") != 16 or int.from_bytes(head[20:24], "big") != 16:
+            dimensions_ok = False
+    check("icons/16x16", dimensions_ok, "every generated icon is a 16x16 PNG")
+
+
 # ------------------------------------------------------------------ structure
 def audit_structure() -> None:
     check("html/lang", 'lang="en"' in HTML, "document language declared")
@@ -129,6 +170,7 @@ def audit_structure() -> None:
 def main() -> int:
     audit_contrast()
     audit_structure()
+    audit_icons()
     for case, ok, detail in results:
         print(f"{'PASS' if ok else 'FAIL'} {case} — {detail}")
     failed = [case for case, ok, _ in results if not ok]

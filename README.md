@@ -20,6 +20,25 @@ a backup and **Import** to restore it.
 - **Sample data** — `src/index.html?demo=1` seeds two example worlds if storage is empty.
   Deep links: `?tab=builds|materials|worlds`.
 
+
+## Icons (run once)
+
+The repository ships **no Minecraft artwork** — Mojang's assets are not redistributable. Icons
+are generated locally from your own installed Java Edition client:
+
+```powershell
+<python with Pillow> scripts/mc-icons.py          # default: %APPDATA%\.minecraft, 1.21.4
+<python with Pillow> scripts/mc-icons.py --version 1.21.5
+```
+
+That writes `src/assets/icons/*.png` (git-ignored), plus the committed artefacts
+`manifest.json` (source textures + SHA-256), `icons.js` (slugs/names for `file://` loading) and
+`PROVENANCE.md` (licensing). Flat items are copied; cube blocks are composited as the game's
+2:1 isometric icon (top 100 %, left 80 %, right 60 %); animated textures use frame 1; grass is
+plains-tinted. **Without this step the app still works** — every slot falls back to a letter.
+
+Licensing: personal, non-commercial use of textures from your own purchase; not affiliated with
+Mojang or Microsoft; do not publish a clone containing the generated PNGs.
 ## Layout
 
 | Path | What it is |
@@ -28,7 +47,7 @@ a backup and **Import** to restore it.
 | `src/styles.css` | Minecraft GUI design system — tokens first, no rounded corners |
 | `src/app.js` | Rendering and event binding; all state goes through the model |
 | `src/tracker/model.js` | Pure domain model: worlds → builds → materials, aggregation, validation, storage |
-| `src/assets/` | 9 tiling textures, 18 item icons, favicon, Pixelify Sans (OFL) |
+| `src/assets/` | 9 tiling textures, favicon, Pixelify Sans (OFL); **item icons are generated locally, not committed** |
 | `scripts/gen-assets.py` | Deterministic generator for every pixel asset |
 | `design-system/minecraft-tracker/` | `MASTER.md` (v2 in-game GUI) + `pages/tracker.md` (page rules & ACs) |
 | `tests/unit/`, `tests/qa/` | Model unit tests, independent acceptance tests, UI audit |
@@ -44,7 +63,7 @@ seal, lint — before it is reported. See [`AGENTS.md`](AGENTS.md) §6.5.
 node --check src/app.js && node --check src/tracker/model.js
 node tests/unit/tracker-model.test.mjs          # 15 model cases
 node tests/qa/tracker.acceptance.test.mjs       # 16 acceptance + static contract cases
-python tests/qa/mc_ui_audit.py                  # 30 contrast/structure/pixel cases
+python tests/qa/mc_ui_audit.py                  # 41 contrast/structure/pixel/icon cases
 ```
 
 Current status: **15/15**, **16/16**, **30/30**, and screenshots verified at 1280 px and
@@ -53,6 +72,7 @@ Current status: **15/15**, **16/16**, **30/30**, and screenshots verified at 128
 ## Scope and honesty
 
 - Local-only: no accounts, no sync, no server. One browser = one dataset.
-- 18 items have pixel icons; anything else gets a lettered slot rather than a wrong icon.
+- Icons are **Minecraft's own textures** (53 of them), extracted from your installed game at 16×16 with isometric block composition; items without a standalone vanilla texture (chest, doors, fences) get a lettered slot rather than a wrong icon.
 - Text notes only — no screenshots or blueprint uploads on builds (yet).
 - Import replaces the current data set, and only after validation; a bad file changes nothing.
+

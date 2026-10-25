@@ -370,39 +370,46 @@ def main() -> None:
     for name, im in textures.items():
         write(name, im, TEX)
 
-    icons = {
-        "dirt.png": dirt(41),
-        "grass_block.png": grass_side(43),
-        "cobblestone.png": cobblestone(47),
-        "stone.png": stone(53),
-        "stone_bricks.png": bricks(59),
-        "oak_log.png": log(61),
-        "oak_planks.png": planks(67),
-        "glass.png": glass(),
-        "iron_ingot.png": from_ascii(INGOT),
-        "diamond.png": from_ascii(DIAMOND),
-        "torch.png": from_ascii(TORCH),
-        "water_bucket.png": from_ascii(BUCKET),
-        "chest.png": from_ascii(CHEST),
-        "crafting_table.png": from_ascii(CRAFTING),
-        "coal.png": from_ascii(COAL),
-        "redstone.png": from_ascii(REDSTONE),
-        "bread.png": from_ascii(BREAD),
-    }
-    # recolour a copy of the ingot so gold is visibly distinct from iron
-    gold_icon = Image.new("RGBA", (S, S), (0, 0, 0, 0))
-    src = from_ascii(INGOT)
-    mapping = {
-        (200, 200, 200, 255): (250, 214, 90, 255),
-        (160, 160, 160, 255): (214, 166, 48, 255),
-        (110, 110, 110, 255): (170, 120, 30, 255),
-    }
-    for y in range(S):
-        for x in range(S):
-            gold_icon.putpixel((x, y), mapping.get(src.getpixel((x, y)), src.getpixel((x, y))))
-    icons["gold_ingot.png"] = gold_icon
-    for name, im in icons.items():
-        write(name, im)
+    # Real Minecraft icons (scripts/mc-icons.py) take precedence: never overwrite them
+    # with generated approximations, or the app silently loses its vanilla look.
+    if (ICONS / "manifest.json").exists() or (ICONS / "icons.js").exists():
+        print("refusing to generate placeholder icons: vanilla icons are installed in src/assets/icons")
+        print("(delete src/assets/icons/manifest.json and icons.js first if you really want placeholders)")
+        icons = {}
+    else:
+        icons = {
+            "dirt.png": dirt(41),
+            "grass_block.png": grass_side(43),
+            "cobblestone.png": cobblestone(47),
+            "stone.png": stone(53),
+            "stone_bricks.png": bricks(59),
+            "oak_log.png": log(61),
+            "oak_planks.png": planks(67),
+            "glass.png": glass(),
+            "iron_ingot.png": from_ascii(INGOT),
+            "diamond.png": from_ascii(DIAMOND),
+            "torch.png": from_ascii(TORCH),
+            "water_bucket.png": from_ascii(BUCKET),
+            "chest.png": from_ascii(CHEST),
+            "crafting_table.png": from_ascii(CRAFTING),
+            "coal.png": from_ascii(COAL),
+            "redstone.png": from_ascii(REDSTONE),
+            "bread.png": from_ascii(BREAD),
+        }
+        # recolour a copy of the ingot so gold is visibly distinct from iron
+        gold_icon = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+        src = from_ascii(INGOT)
+        mapping = {
+            (200, 200, 200, 255): (250, 214, 90, 255),
+            (160, 160, 160, 255): (214, 166, 48, 255),
+            (110, 110, 110, 255): (170, 120, 30, 255),
+        }
+        for y in range(S):
+            for x in range(S):
+                gold_icon.putpixel((x, y), mapping.get(src.getpixel((x, y)), src.getpixel((x, y))))
+        icons["gold_ingot.png"] = gold_icon
+        for name, im in icons.items():
+            write(name, im)
 
     # favicon: a tiny grass block side, 16x16 (browsers scale it)
     write("favicon.png", grass_side(71), ROOT / "src" / "assets")

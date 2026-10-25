@@ -60,6 +60,14 @@ runtime — the page is a folder of files that works from `file://`.
 - **Recovery:** delete worlds in-app or clear the site's storage — export first. There is no
   server-side copy to restore from.
 
+## Icons are local too
+
+The bundled bitmap font and tiling textures keep the UI offline; the item icons are
+different in kind — they are the game's assets, generated on the owner's machine by
+`scripts/mc-icons.py` and git-ignored ([[Vanilla assets without redistribution]]). A clone
+without that step runs fine with lettered slots: absence is a documented state, not a
+broken image.
+
 ## Relations
 
 - Chosen for the [[Minecraft Build Tracker]].

@@ -427,7 +427,7 @@
     state = addMaterial(state, survival.id, ironFarm.build.id, { item: 'Glass', needed: 96, collected: 96 }).state;
     state = addMaterial(state, survival.id, ironFarm.build.id, { item: 'Torch', needed: 32, collected: 12 }).state;
     state = addMaterial(state, survival.id, storageRoom.build.id, { item: 'Oak Planks', needed: 512, collected: 64 }).state;
-    state = addMaterial(state, survival.id, storageRoom.build.id, { item: 'Chest', needed: 40, collected: 0 }).state;
+    state = addMaterial(state, survival.id, storageRoom.build.id, { item: 'Crafting Table', needed: 12, collected: 0 }).state;
     state = addMaterial(state, survival.id, storageRoom.build.id, { item: 'Stone Bricks', needed: 256, collected: 0 }).state;
     state = addMaterial(state, survival.id, netherHub.build.id, { item: 'Cobblestone', needed: 768, collected: 300 }).state;
     state = addMaterial(state, survival.id, netherHub.build.id, { item: 'Coal', needed: 128, collected: 128 }).state;
@@ -487,3 +487,4 @@
   root.TrackerModel = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
+
