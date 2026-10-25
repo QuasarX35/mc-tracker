@@ -59,9 +59,11 @@ and stay lettered.
 
 ## Verification
 
-15 model unit tests, 16 independent acceptance tests (including static offline/accessibility/
-pixel-contract checks), a 30-case contrast and structure audit, and headless-Chrome renders at
-1280 px and 390 px. The QA gate failed the first submission for a seed that silently dropped a
+15 model unit tests, 16 independent acceptance tests (static offline/accessibility/pixel
+contract), a 41-case contrast and structure audit, and a **27-case browser UI suite** that drives
+real Chrome through every flow, failure path, accessibility expectation, responsive breakpoint
+and the visual contract. A passing UI run stamps the app source hashes in
+`docs/governance/app-qa.json`; `lint` refuses a stale stamp, so UI coverage cannot silently rot. The QA gate failed the first submission for a seed that silently dropped a
 material and a 4.07:1 muted-text token; both are now covered by regression checks.
 
 ## Tensions
@@ -73,5 +75,5 @@ material and a 4.07:1 muted-text token; both are now covered by regression check
   Unknown items get the same honest fallback rather than a misleading picture.
 - **Authenticity vs. legibility.** A pixel-faithful clone of vanilla's white-on-grey text
   fails WCAG AA; the shipped compromise favours reading ([[In-game GUI design]]).
-- **Mobile verified in an iframe harness**, because headless Chrome on Windows refuses windows
-  narrower than ~500 px; a real 390 px window was never directly observed.
+- **Mobile is emulated, not physical.** The 390 px case uses CDP viewport override (a real
+  390 px layout) but no phone, touch or OS file dialog is exercised. See [[Testing a UI like a user]].

@@ -447,6 +447,72 @@ export function checkEdictSync(root = '.') {
   };
 }
 
+
+/* --------------------------- app QA stamp (EDICT-0009) ------------------- */
+/* Any change to the app's sources invalidates the last verified UI run. The
+   stamp is written only by `node scripts/app-qa.mjs run` after the suite exits 0,
+   so a clean lint cannot be claimed for an untested build. */
+
+export const APP_SOURCE_FILES = [
+  'src/index.html',
+  'src/styles.css',
+  'src/app.js',
+  'src/tracker/model.js',
+  'src/assets/icons/icons.js',
+];
+
+export function stampPath(root = '.') {
+  return path.join(root, 'docs', 'governance', 'app-qa.json');
+}
+
+/** SHA-256 per app source file plus a combined hash over (path, hash) pairs. */
+export function appHash(root = '.') {
+  const files = {};
+  for (const relative of APP_SOURCE_FILES) {
+    const absolute = path.join(root, relative);
+    if (!fs.existsSync(absolute)) return { hash: null, files: {}, missing: relative };
+    files[relative] = sha256(absolute);
+  }
+  const combined = Object.keys(files)
+    .sort()
+    .map((key) => `${key}:${files[key]}`)
+    .join('\n');
+  return { hash: crypto.createHash('sha256').update(combined).digest('hex'), files, missing: null };
+}
+
+export function checkAppQaStamp(root = '.') {
+  const current = appHash(root);
+  if (current.missing) {
+    return { ok: true, skipped: true, reason: 'no app sources in this repository', changed: [], current };
+  }
+  const file = stampPath(root);
+  if (!fs.existsSync(file)) {
+    return {
+      ok: false,
+      skipped: false,
+      reason: 'app sources exist but no UI QA stamp',
+      changed: Object.keys(current.files),
+      current,
+      stamp: null,
+    };
+  }
+  let stamp;
+  try {
+    stamp = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch {
+    return { ok: false, skipped: false, reason: 'docs/governance/app-qa.json is not valid JSON', changed: [], current };
+  }
+  const changed = Object.keys(current.files).filter((key) => (stamp.files || {})[key] !== current.files[key]);
+  return {
+    ok: changed.length === 0,
+    skipped: false,
+    reason: changed.length ? 'app changed since the last verified UI test run' : null,
+    changed,
+    current,
+    stamp,
+  };
+}
+
 /* ------------------------------------------------------------------ */
 /* lint                                                                 */
 /* ------------------------------------------------------------------ */
@@ -540,6 +606,16 @@ export function lint(root = '.') {
   findings.push(...verifyRaw(root).findings);
 
   // EDICT-0008: an edict that reached S6 without a wiki log entry fails lint.
+  const appQa = checkAppQaStamp(root);
+  if (!appQa.skipped && !appQa.ok) {
+    findings.push(finding(
+      'error',
+      'app-qa-stamp',
+      'docs/governance/app-qa.json',
+      `${appQa.reason}: ${appQa.changed.join(', ')} — run node scripts/app-qa.mjs run`,
+    ));
+  }
+
   const sync = checkEdictSync(root);
   if (!sync.skipped) {
     if (!sync.ok && !sync.pending.length && sync.reason) {

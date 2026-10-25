@@ -80,6 +80,11 @@ A plan passes only if all of the following are true; each failure is a named fin
     entry cannot pass verification. Since EDICT-0008 that check is mechanical: the
   `edict-sync` lint rule compares completions in `ledger.jsonl` against dated `ingest`/`edit`
   entries in `wiki/log.md` and fails the lint pass when one is missing.
+- `R10` App QA freshness (EDICT-0009) — if the plan touches the app sources
+  (`src/index.html`, `src/styles.css`, `src/app.js`, `src/tracker/model.js`,
+  `src/assets/icons/icons.js`), it must include `node scripts/app-qa.mjs run` and a restamped
+  `docs/governance/app-qa.json`. `S5Q` additionally verifies the stamp matches the sources
+  (`node src/wiki/cli.mjs app-qa`), so "the unit tests pass" cannot stand in for UI coverage.
 
 ## QA Gate Criteria (测试部)
 

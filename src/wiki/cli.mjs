@@ -17,6 +17,7 @@ const USAGE = `llm-wiki CLI
   node src/wiki/cli.mjs raw --seal        seal raw sources into raw/manifest.json
   node src/wiki/cli.mjs raw               verify raw sources against the manifest
   node src/wiki/cli.mjs sync              edict completion vs wiki log ingestion
+  node src/wiki/cli.mjs app-qa            app source hashes vs the last verified UI run
   node src/wiki/cli.mjs stats             page/link/source counts
 
 Exit codes: 0 clean · 1 findings · 2 usage error`;
@@ -128,6 +129,23 @@ export function run(argv, { root = process.cwd(), log = () => {} } = {}) {
     say('');
     say(`sync: ${result.checked.length - missing}/${result.checked.length} completed edicts ingested${missing ? ` — ${missing} missing` : ''}`);
     return { code: missing ? 1 : 0, output: out.join('\n') };
+  }
+
+
+  if (command === 'app-qa') {
+    const result = lib.checkAppQaStamp(root);
+    if (result.skipped) {
+      say(`app-qa: skipped — ${result.reason}`);
+      return { code: 0, output: out.join('\n') };
+    }
+    if (result.ok) {
+      say(`app-qa: verified — ${result.stamp.verified_at} (${result.stamp.cases} UI cases)`);
+      return { code: 0, output: out.join('\n') };
+    }
+    say(`app-qa: STALE — ${result.reason}`);
+    for (const file of result.changed) say(`  changed: ${file}`);
+    say('  run: node scripts/app-qa.mjs run');
+    return { code: 1, output: out.join('\n') };
   }
 
   if (command === 'stats') {

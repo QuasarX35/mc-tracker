@@ -68,6 +68,12 @@ python tests/qa/mc_ui_audit.py                  # 41 contrast/structure/pixel/ic
 node src/wiki/cli.mjs lint                      # incl. the edict-sync rule
 node src/wiki/cli.mjs sync                      # which completed edicts have been ingested
 node src/wiki/cli.mjs index --check             # catalogue freshness
+
+# UI acceptance (real Chrome, driven over the DevTools Protocol — no packages)
+node tests/qa/ui.e2e.test.mjs                   # 27 user-flow cases
+node scripts/app-qa.mjs run                     # run them AND stamp the app sources
+node scripts/app-qa.mjs status                  # verified / STALE
+
 ```
 
 Current status: **15/15**, **16/16**, **30/30**, and screenshots verified at 1280 px and

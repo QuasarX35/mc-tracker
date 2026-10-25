@@ -1,0 +1,14 @@
+{
+  "verified_at": "2026-10-25T05:22:04.970Z",
+  "artifact_hash": "a1fcacb8c0a205b281b02b4c9bfb7716ed79cbb56bf4716d70654d1548a61b07",
+  "files": {
+    "src/index.html": "d31ef68aee00f75737910f4defc70883c366ade6d418bcdd71c74d87038380b4",
+    "src/styles.css": "3a42b560c466e05e53cb26b4a892e12a92b96d94e354c482cabb0ad748211b27",
+    "src/app.js": "6b6c4d643c50df6a3b5a195347c21260d9b8cf30e08df77ebe81c52b2c5da178",
+    "src/tracker/model.js": "35b685f322cc0d516ca3843e8fa1495292ab9e8183f8dab9b682340853de1737",
+    "src/assets/icons/icons.js": "980d92e26d9f484a8dd7cb7721d23c1487fbab424a64c331bf1e81e1b20955b7"
+  },
+  "suite": "tests/qa/ui.e2e.test.mjs",
+  "cases": 27,
+  "note": "Written only by `node scripts/app-qa.mjs run` after the UI suite exits 0. Do not hand-edit: a stamp that does not match the sources fails lint (rule app-qa-stamp)."
+}

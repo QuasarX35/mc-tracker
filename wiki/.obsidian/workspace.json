@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "concepts/local-first-tracking.md",
+                "file": "sources/llm-wiki-pattern.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "local-first-tracking"
+              "title": "llm-wiki-pattern"
             }
           }
         ]
@@ -99,7 +99,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "concepts/local-first-tracking.md",
+                "file": "sources/llm-wiki-pattern.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -118,7 +118,7 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "concepts/local-first-tracking.md",
+                "file": "sources/llm-wiki-pattern.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
@@ -161,7 +161,7 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "concepts/local-first-tracking.md",
+                "file": "sources/llm-wiki-pattern.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
@@ -190,6 +190,13 @@
   },
   "active": "34414d721637478c",
   "lastOpenFiles": [
+    "entities/obsidian.md",
+    "entities/minecraft-build-tracker.md",
+    "entities/marp.md",
+    "entities/dataview.md",
+    "concepts/memex.md",
+    "concepts/maintenance-cost.md",
+    "concepts/local-first-tracking.md",
     "concepts/ingest-query-lint.md",
     "concepts/in-game-gui-design.md",
     "concepts/compiled-knowledge.md"

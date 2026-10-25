@@ -184,6 +184,8 @@ exit non-zero on findings, so they compose with `&&`.
 | `node src/wiki/cli.mjs search "<query>"` | Naive ranked search over page titles, summaries and bodies. |
 | `node src/wiki/cli.mjs raw --seal` | Record SHA-256 of every raw source in `raw/manifest.json`. |
 | `node src/wiki/cli.mjs stats` | Counts by type, links, orphans. |
+| `node scripts/app-qa.mjs run` | Run the comprehensive browser UI suite (27 flows); on success stamp the app source hashes. Failing suite = no stamp. |
+| `node scripts/app-qa.mjs status` / `node src/wiki/cli.mjs app-qa` | `verified` or `STALE` for the current app sources. `lint`'s `app-qa-stamp` rule fails on drift. |
 | `node src/wiki/cli.mjs sync` | Every completed edict (ledger `S6` after the baseline) must be cited by an `ingest`/`edit` log entry dated on/after completion. Also runs inside `lint` as rule `edict-sync`. |
 | `node tests/unit/wiki-core.test.mjs && node tests/unit/wiki-sync.test.mjs && node tests/qa/wiki.acceptance.test.mjs && node tests/qa/wiki-sync.acceptance.test.mjs` | Unit + independent acceptance suites for the wiki **and** the edict-sync rule. **Do not use `node --test`**: it spawns child processes with piped stdio, which the sandbox denies (`spawn EPERM`). Run each test file directly, in one process. |
 

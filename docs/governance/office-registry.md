@@ -20,7 +20,7 @@ Modes](#execution-modes) requires delegation.
 | 7 | Bingbu | 兵部 | Engineering: implementation and algorithmic logic. | Source code, unit tests | May reject a spec it cannot implement, back to 尚书省 |
 | 8 | Xingbu | 刑部 | Compliance, security scanning, vulnerability and policy audit. | Findings report, severity table | May block a release on a critical finding |
 | 9 | Gongbu | 工部 | Infrastructure, DevOps, CI/CD, deployment scripts, containerisation. | Build/run scripts, CI config | — |
-| 10 | **QA Ministry** | 测试部 | Independently verify delivered artifacts against accepted acceptance criteria and hold a binding verdict. | Test cases, evidence records, `QA_PASS` / `QA_FAIL` | **May block `S6`** on any blocking defect; may not waive, may not fix |
+| 10 | **QA Ministry** | 测试部 | Independently verify delivered artifacts against accepted acceptance criteria and hold a binding verdict. **For the app: run the comprehensive UI suite on every change** (`.e2e`, 27 flows incl. failure paths, a11y, responsive, visual contract) and restamp. | Test cases, evidence records, `QA_PASS` / `QA_FAIL`, `docs/governance/app-qa.json` | **May block `S6`** on any blocking defect **or a stale/missing app-qa stamp**; may not waive, may not fix |
 | 11 | Libu-HR | 吏部 | Permission scope, office health, this registry. | Registry revision, permission audit | May revoke an office's write scope |
 | 12 | Briefing Desk | 早朝 | Digest of completed edicts; scheduled reports. | Digest entry | — |
 | 13 | Emperor | 皇帝 | Issue edicts, resolve escalations, approve irreversible actions. | Edicts, approvals | Final authority |
@@ -35,6 +35,25 @@ Modes](#execution-modes) requires delegation.
 
 Full rationale: [EDICT-0002 §4](EDICT-0002.md). Gate criteria and the `S5Q` state:
 [state-machine.md](state-machine.md). Evidence format: [qa-evidence-template.md](../../qa/qa-evidence-template.md).
+
+## App QA doctrine (EDICT-0009)
+
+The app is not "done" because its unit tests pass. Before any app change can reach `S6`:
+
+1. **Run the browser suite** — `node scripts/app-qa.mjs run`. It drives real Chrome over the
+   DevTools Protocol through every user flow, failure path, accessibility expectation,
+   responsive breakpoint and the visual contract. A failing suite writes no stamp.
+2. **The stamp is the proof** — a passing run writes `docs/governance/app-qa.json` with a
+   SHA-256 per app source. `lint`'s `app-qa-stamp` rule fails when those hashes drift, so the
+   next clean pass is impossible without re-testing. `node src/wiki/cli.mjs app-qa` shows
+   `verified` or `STALE`.
+3. **Evidence is regenerated, not remembered** — screenshots land in
+   `reports/qa/evidence/edict-*/` on every run.
+
+Independence caveat, recorded rather than hidden: 测试部 authors and runs this suite, so its
+independence is structural (assertions derive from acceptance criteria and recompute
+expectations independently; internals are reached only through persisted state), not
+organisational.
 
 ## Execution Modes
 

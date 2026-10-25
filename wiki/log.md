@@ -98,3 +98,21 @@ repository rather than on fixtures.
   entry, both `lint` and `sync` pass.
 - Updated [[Wiki schema]] (mechanical enforcement section), [[LLM Wiki]] (the rule is no longer
   a promise) and [[Open questions]] (item resolved, with the remaining quality gap stated).
+
+## [2026-10-25] ingest | comprehensive UI QA, enforced on every app change (EDICT-0009)
+
+The QA ministry now tests the whole app in a real browser, and cannot skip it after an app
+change.
+
+- Harness: `tests/qa/ui/harness.mjs` drives real Chrome over the DevTools Protocol using
+  Node's built-in WebSocket — no packages, works offline, throwaway profile.
+- Suite: `tests/qa/ui.e2e.test.mjs`, 27 cases covering every flow, failure path,
+  accessibility expectation, responsive breakpoint and the visual contract; zero console
+  errors tolerated. Evidence screenshots regenerate on each run.
+- Enforcement: `scripts/app-qa.mjs run` stamps per-file SHA-256 of the app sources only after
+  a green run; `lint`'s `app-qa-stamp` rule fails when they drift. Proven red-before-stamp,
+  green-after on this repository.
+- New synthesis [[Testing a UI like a user]] records the approach, its independence caveat and
+  the headless-only limits.
+- Updated [[Minecraft Build Tracker]] verification entry and [[Open questions]] (mobile now
+  emulated properly; QA independence flagged).

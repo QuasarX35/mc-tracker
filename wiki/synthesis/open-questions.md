@@ -37,8 +37,12 @@ question that a future source or a future session could close.
 - **Tracker: is the archive worth keeping?** `legacy/superseded-dashboard/` preserves the v1
   design and its audit; it also doubles the design narrative in the repo
   ([[Vanilla GUI over a neon dashboard]]).
-- **Mobile verification.** 390 px was checked in an iframe harness, not a real narrow window
-  (headless Chrome's ~500 px minimum). A real device check has not happened.
+- **Mobile verification.** Superseded the iframe workaround: the UI suite now overrides the
+  viewport through the DevTools Protocol, so 390 px is a real layout. Still no physical device,
+  touch input or OS file dialog coverage ([[Testing a UI like a user]]).
+- **QA independence is structural, not organisational.** 测试部 writes and runs the suite it
+  grades. Assertions recompute expectations from the DOM and read only persisted state, but a
+  reviewer should treat suite quality as the thing to audit.
 - **Corpus domain.** The wiki now covers its own pattern plus one product. A third domain
   (reading, research, team knowledge) would test whether the page taxonomy holds
   ([[Implementation decisions]] D1).
