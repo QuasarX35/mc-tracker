@@ -174,3 +174,15 @@ paging/tiles are data-driven (EDICT-0014/0015). Growing the catalogue is a bake-
   — `Invicon_<id>.png` convention (reference only; see §3E).
 - Local oracles: client jar `assets/minecraft/models/item/*.json` (1,076 in 1.21.4) and
   `textures/item/*.png` (644); `icon-exports-x256/` (1,609 renders) from IconExporter 1.3.1.
+
+## Decision (2026-10-26)
+
+- **One canonical icon per item.** Stateful items keep their first catalogue icon (water bucket
+  shows as a bucket, filled map as a map, tipped arrows as arrows, banner/shield patterns as the
+  base item). No state row in the picker; entity `itemstates` are recorded but not exposed.
+- **Hidden items stay out of the picker** unless the game gives them an item form; they remain
+  the declared gap.
+- **Licence policy unchanged:** derived at bake time from the user's own copy; not
+  redistributable.
+- **Coverage gate (Option B)** is still the recommendation but is not approved — recommended,
+  awaiting a round.

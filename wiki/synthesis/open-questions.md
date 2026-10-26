@@ -40,12 +40,13 @@ question that a future source or a future session could close.
   buckets, tools, armour, elytra, potions, boats, minecarts, shulker boxes, beds, cakes/stews,
   books, maps, banner patterns, discs). Residual risks have their own entries below
   ([[Vanilla assets without redistribution]]).
-- **Tracker: remaining icon coverage.** The 1,368-icon catalogue still lacks twelve
-  obtainable-or-hidden 1.21.4 items and collapses 246 variant renders to five representatives.
-  Closing the gap is a provenance question — a registry-driven extractor and a bake gate that
-  fails when coverage drops — not a picker feature; the proposal is in the
-  [game-icon coverage note](../../docs/backlog/game-icons.md)
-  ([[Vanilla assets without redistribution]]).
+- ~~**Tracker: remaining icon coverage.**~~ **Decided 2026-10-26.** The catalogue keeps one
+  canonical icon per item; stateful items show their first catalogue icon (water bucket, filled
+  map, tipped arrows, banner/shield patterns as the base item), and item states are not exposed
+  in the picker. The twelve hidden items stay out unless the game gives them an item form — the
+  declared gap. The registry-driven extractor and coverage gate is recommended but not approved:
+  awaiting a round ([[Vanilla assets without redistribution]],
+  [game-icon coverage note](../../docs/backlog/game-icons.md)).
 - **Tracker: icon fidelity vs. pixel purity.** Item icons are 256 px renders downscaled smoothly
   while tiled textures stay nearest-neighbour; nobody has compared the smooth 22 px slots
   against integer-scaled pixel art on a physical HiDPI display. The design contract has a scoped
@@ -174,7 +175,8 @@ adopted, and the rest stay research ([[Material registry]], [[Status-ranked buil
 
 EDICT-0016 (the fourteen-item density and compact-view round) was withdrawn by the founder on
 2026-10-26 before verification; nothing shipped and the density/readability question is back in
-the list above. Remaining icon coverage is tracked in the
+the list above. Remaining icon coverage was decided on 2026-10-26: one canonical icon per item,
+hidden items out, and the coverage gate recommended but awaiting a round; the details are in the
 [game-icon coverage note](../../docs/backlog/game-icons.md).
 
 ## Next sources worth looking for
