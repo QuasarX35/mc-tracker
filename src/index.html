@@ -34,7 +34,7 @@
         <button class="viewswitch__btn" id="view-compact" type="button" aria-pressed="false">Compact</button>
       </div>
       <div class="topbar__actions">
-        <button class="mc-btn mc-btn--sm mc-btn--icon" id="backdrop-pause" type="button" aria-pressed="false" aria-label="Pause scenery"><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><rect x="2" y="1" width="3" height="10"/><rect x="7" y="1" width="3" height="10"/></svg></button>
+        <button class="mc-btn mc-btn--sm mc-btn--icon" id="backdrop-pause" type="button" aria-pressed="false" aria-label="Pause scenery" title="Pause the moving scenery"><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><rect x="2" y="1" width="3" height="10"/><rect x="7" y="1" width="3" height="10"/></svg></button>
         <input type="file" id="file-import" accept=".json" aria-label="Import a tracker backup" hidden>
       </div>
     </div>
@@ -107,7 +107,7 @@
                 <button class="mc-btn mc-btn--sm mc-btn--icon" id="build-name-cancel" type="button" aria-label="Cancel renaming" title="Cancel (Esc)" hidden><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M0 2 2 0 6 4 10 0 12 2 8 6 12 10 10 12 6 8 2 12 0 10 4 6Z"/></svg></button>
                 <div class="build-header__actions">
                   <button class="mc-btn mc-btn--sm mc-btn--icon" id="build-rename" type="button" aria-label="Edit build name" title="Edit name"><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M9 0h3v2L2 12H0V9L9 0Z"/></svg></button>
-                  <button class="mc-btn mc-btn--sm mc-btn--danger" id="build-delete" type="button">Delete</button>
+                  <button class="mc-btn mc-btn--sm mc-btn--icon mc-btn--ghost" id="build-delete" type="button" aria-label="Delete this build" title="Delete build…"><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M4 0h4v1h3v2H1V1h3V0Zm-2 4h8l-1 8H3L2 4Z"/></svg></button>
                 </div>
               </div>
               <div class="build-header__row">
@@ -159,7 +159,11 @@
                     <option value="category">Category</option>
                   </select>
                 </div>
-                <button id="mat-hide-done" type="button" aria-pressed="false">Hide completed</button>
+                <label class="check-field" for="mat-hide-done">
+                  <input type="checkbox" id="mat-hide-done">
+                  <span class="check-field__box" aria-hidden="true"></span>
+                  <span>Hide completed</span>
+                </label>
                 <span class="mat-viewtoggle" role="group" aria-label="Materials view">
                   <button id="mat-view-table" type="button" aria-pressed="true">Table</button>
                   <button id="mat-view-grid" type="button" aria-pressed="false">Grid</button>
@@ -170,8 +174,8 @@
                 <div class="mtable__head" role="row">
                   <span role="columnheader">Item</span>
                   <span role="columnheader" class="num">Needed</span>
-                  <span role="columnheader" class="num">Got</span>
-                  <span role="columnheader" class="num">In</span>
+                  <span role="columnheader" class="num">In world</span>
+                  <span role="columnheader" class="num">Allocated</span>
                   <span role="columnheader" class="num">Left</span>
                   <span role="columnheader" class="num">Surplus</span>
                   <span role="columnheader"><span class="sr-only">Update inventory</span></span>
@@ -241,7 +245,7 @@
         <div class="mtable__head" role="row">
           <span role="columnheader">Item</span>
           <span role="columnheader" class="num">Needed</span>
-          <span role="columnheader" class="num got-col">Got</span>
+          <span role="columnheader" class="num got-col">In world</span>
           <span role="columnheader" class="num">Left</span>
           <span role="columnheader" class="progress-col">Progress</span>
           <span role="columnheader" class="builds-col">Used by</span>
@@ -270,12 +274,9 @@
       </div>
     </section>
 
-    <p class="panel__status" id="status-line" role="status" aria-live="polite"></p>
   </main>
 
-  <footer class="footer">
-    <p>Saved in this browser only. Export to keep a backup.</p>
-  </footer>
+  <footer class="footer"><p class="footer__row"><span id="status-line" role="status" aria-live="polite">Loaded from and saved to this browser only — Export to keep a backup.</span></p></footer>
 </div>
 
 <!-- ------------------------------------------------------------- dialogs -->
@@ -356,15 +357,23 @@
   </form>
 </dialog>
 
-<dialog class="mc-dialog" id="inventory-dialog">
-  <form method="dialog" id="inventory-form">
+<dialog class="mc-dialog mc-dialog--wide" id="inventory-dialog">
+  <form method="dialog" id="inventory-form" novalidate>
     <h2 class="mc-dialog__title" id="inv-title">Update inventory</h2>
-    <p id="inv-context"></p>
+    <div class="inv-head">
+      <span class="inv-head__slot" id="inv-icon" aria-hidden="true"></span>
+      <div class="inv-head__text">
+        <p class="inv-head__item" id="inv-item"></p>
+        <p class="inv-head__context" id="inv-context"></p>
+      </div>
+    </div>
+    <div class="inv-builds" id="inv-builds" role="list" aria-label="Builds using this item"></div>
     <label class="field__label" for="inv-absolute">World inventory (absolute)</label>
     <input class="mc-input num" id="inv-absolute" type="number" inputmode="numeric" min="0" step="1" value="0" autocomplete="off">
     <label class="field__label" for="inv-delta">Add / subtract (relative)</label>
-    <input class="mc-input" id="inv-delta" type="text" inputmode="numeric" value="" placeholder="+64, -32, 2s, 2s+10" spellcheck="false" autocomplete="off">
-    <p class="icon-hint">Type a positive number to add, a leading “-” to subtract. Stack syntax: 2s, 2st, 2s+10.</p>
+    <input class="mc-input" id="inv-delta" type="text" inputmode="numeric" value="" placeholder="+64" spellcheck="false" autocomplete="off">
+    <p class="icon-hint">A positive number adds stock, a leading “-” subtracts. Stack syntax: 2s, 2st, 2s+10 — the syntax belongs here, not in the placeholder. If both fields are filled, the absolute value applies first, then the relative amount.</p>
+    <p class="inv-preview" id="inv-preview" aria-live="polite"></p>
     <p class="form-error" id="inv-error" role="alert" hidden></p>
     <div class="mc-dialog__actions">
       <button class="mc-btn" type="button" id="inv-cancel">Cancel</button>

@@ -127,6 +127,7 @@
      nor Pixelify Sans, so a `✓` character renders as a tofu box. It scales to its container
      (100%/100%) because `.ctile__done` is a border-box 14px badge whose content box is 10px;
      `.mc-btn--icon svg` still wins at 14×14 wherever that rule applies. */
+  var PLUS_ICON = '<svg viewBox="0 0 12 12" width="100%" height="100%" aria-hidden="true" focusable="false"><path d="M5 0h2v5h5v2H7v5H5V7H0V5h5V0Z"/></svg>';
   var CHECK_ICON = '<svg viewBox="0 0 14 14" width="100%" height="100%" aria-hidden="true" ' +
     'focusable="false" style="display:block">' +
     '<path d="M1 7 L4.5 10.5 L12 2 L13 3.5 L4.5 13 L0 8.5 Z" fill="currentColor"/></svg>';
@@ -860,6 +861,8 @@
     els['build-list'].addEventListener('click', function (event) {
       var activate = event.target.closest ? event.target.closest('[data-build-activate]') : null;
       if (activate) { toggleBuildActive(activate.getAttribute('data-build-activate')); return; }
+      var edit = event.target.closest ? event.target.closest('[data-build-edit]') : null;
+      if (edit) { openBuildDialog(edit.getAttribute('data-build-edit')); return; }
       var remove = event.target.closest ? event.target.closest('[data-build-remove]') : null;
       if (remove) { confirmDeleteBuild(remove.getAttribute('data-build-remove')); return; }
       var entry = event.target.closest ? event.target.closest('.build-entry') : null;
@@ -921,13 +924,17 @@
     els['build-coords'].addEventListener('change', function () {
       var context = currentBuild();
       if (!context) return;
-      commit(M.updateBuild(state, context.world.id, context.build.id, { coords: els['build-coords'].value }).state);
+      var typed = String(els['build-coords'].value || '').trim();
+      var parts = parseCoords(typed);
+      var stored = parts ? machineCoords(parts) : typed;
+      commit(M.updateBuild(state, context.world.id, context.build.id, { coords: stored }).state);
     });
     els['copy-coords'].addEventListener('click', function () {
       var context = currentBuild();
       var coords = context ? String(context.build.coords).trim() : '';
       if (!coords) { toast('This build has no coordinates yet.', true); return; }
-      copyText(coords, 'Coordinates copied');
+      var mine = parseCoords(coords);
+      copyText(mine ? formatCoords(mine) : coords, 'Coordinates copied');
     });
 
     /* EDICT-0013 D4: notes read as text; the textarea only exists while editing. */
@@ -992,6 +999,17 @@
       if (input) commitNeeded(input);
     });
 
+    els['material-body'].addEventListener('focusout', function (event) {
+      var input = event.target.closest ? event.target.closest('[data-mat-field="needed"]') : null;
+      if (!input) return;
+      if (input.getAttribute('data-reverted') === '1') {
+        input.removeAttribute('data-reverted');
+        return;
+      }
+      /* Item 24: leaving the field commits the typed count. */
+      commitNeeded(input);
+    });
+
     els['material-body'].addEventListener('focusin', function (event) {
       if (event.target.matches && event.target.matches('[data-mat-field="needed"]')) {
         /* §4: the display may be stacks/shulkers; editing is always a plain item count. */
@@ -1009,7 +1027,7 @@
           return;
         }
         if (event.key === 'Escape') {
-          event.preventDefault();
+          input.setAttribute('data-reverted', '1');
           revertNeeded(input);
           input.blur();
           return;
@@ -1027,6 +1045,8 @@
     els['material-body'].addEventListener('click', function (event) {
       var update = event.target.closest ? event.target.closest('[data-mat-update]') : null;
       if (update) { openRowInventory(update); return; }
+      /* EDICT-0018 item 24: the Needed cell reads as plain text and becomes an input on click. */
+      /* EDICT-0018 item 24: the Needed cell is a plain text input; nothing to swap in. */
       var menu = event.target.closest ? event.target.closest('[data-mat-menu]') : null;
       if (menu) { toggleRowMenu(menu); return; }
       var remove = event.target.closest ? event.target.closest('[data-mat-remove]') : null;
@@ -1484,6 +1504,30 @@
     return fragment;
   }
 
+  /**
+   * EDICT-0018 item 22: "Updated 5 min ago" with the exact UTC slice on the tooltip. One helper so
+   * the detail meta and the world meta can never drift apart.
+   */
+  function updatedFragment(iso) {
+    var fragment = document.createDocumentFragment();
+    fragment.appendChild(document.createTextNode('Updated '));
+    var node = document.createElement('time');
+    node.className = 'stamp';
+    var text = M.formatStamp(iso);
+    if (text === '\u2014') {
+      node.textContent = '\u2014';
+      node.title = 'No timestamp recorded';
+    } else {
+      node.textContent = relativeTime(iso);
+      node.setAttribute('datetime', String(iso));
+      node.setAttribute('title', 'Updated ' + text + ' (' + String(iso) + ')');
+      node.setAttribute('data-iso', String(iso));
+    }
+    node.setAttribute('data-relative', '');
+    fragment.appendChild(node);
+    return fragment;
+  }
+
   function timeHtml(iso, label) {
     var text = M.formatStamp(iso);
     var attrs = text === '\u2014'
@@ -1558,7 +1602,7 @@
     renderCompactWorldLine(world);
     var alloc = world ? M.allocate(world) : null;
     els['compact-grid'].innerHTML = world
-      ? M.sortBuilds(world.builds).map(function (build) {
+      ? buildsForList(world).map(function (build) {
           return compactCardHtml(world, build, alloc);
         }).join('')
       : '';
@@ -1581,7 +1625,7 @@
 
   function compactCardHtml(world, build, alloc) {
     var progress = (alloc.perBuild[build.id]) || { covered: 0, needed: 0 };
-    var pct = progress.needed ? Math.min(100, Math.round((progress.covered / progress.needed) * 100)) : 0;
+    var pct = pctOf(progress.covered, progress.needed);
     var classes = 'ccard' +
       (build.status === 'done' ? ' ccard--done' : '') +
       (build.active === false ? ' ccard--inactive' : '') +
@@ -1606,7 +1650,12 @@
         '<p class="ccard__pct">' + pct + '%</p>' +
       '</div>' +
       '<div class="ccard__matrix">' +
-        (build.materials || []).map(function (material) {
+        /* EDICT-0018 item 3: completed chips dim and sink to the end of the card. */
+        (build.materials || []).slice().sort(function (left, right) {
+          var leftDone = (alloc.perMaterial[left.id] || 0) >= left.needed ? 1 : 0;
+          var rightDone = (alloc.perMaterial[right.id] || 0) >= right.needed ? 1 : 0;
+          return leftDone - rightDone;
+        }).map(function (material) {
           return compactTileHtml(world, build, material, alloc);
         }).join('') +
       '</div>' +
@@ -1622,14 +1671,18 @@
     var needed = Math.max(1, Math.floor(Number(material.needed) || 1));
     var remaining = Math.max(0, needed - covered);
     var stack = stackSizeFor(material.item) || M.DEFAULT_STACK;
-    var tip = material.item + ': ' + M.formatUnits(got, slug, 'items', stack) + ' in the world \u00b7 ' +
-      M.formatUnits(covered, slug, 'items', stack) + ' of ' + M.formatUnits(needed, slug, 'items', stack) +
-      ' covered \u00b7 ' + M.formatUnits(remaining, slug, 'items', stack) + ' left';
+    var stacks = stackMapFor(slug, stack);
+    var notation = M.stackNotation(remaining, slug, stacks, 'stacks');
+    var tip = material.item + ' \u00b7 need ' + M.formatUnits(needed, slug, ui.units, stacks) +
+      ' \u00b7 have ' + M.formatUnits(covered, slug, ui.units, stacks) +
+      ' \u00b7 ' + (remaining === 0 ? 'done' : M.formatUnits(remaining, slug, ui.units, stacks) + ' left') +
+      (ui.units === 'items' && remaining > 0 && remaining >= stack ? ' (' + notation + ')' : '');
     return '<button class="ctile' + (remaining === 0 ? ' ctile--done' : '') + '" type="button"' +
       ' data-build="' + escapeHtml(build.id) + '" data-mat="' + escapeHtml(material.id) + '"' +
-      ' data-tip="' + escapeHtml(tip) + '" aria-label="' + escapeHtml(tip) + '">' +
-      '<span class="ctile__count">' + escapeHtml(M.formatUnits(remaining, slug, ui.units, stack)) + '</span>' +
+      ' data-tip="' + escapeHtml(tip) + '" aria-label="' + escapeHtml(tip) + '" title="' + escapeHtml(tip) + '">' +
+      '<span class="ctile__need" aria-hidden="true">' + escapeHtml(M.formatUnits(needed, slug, ui.units, stacks)) + '</span>' +
       '<span class="slot" aria-hidden="true">' + slotInnerHtml(material.item, true) + '</span>' +
+      '<span class="ctile__count">' + escapeHtml(M.formatUnits(remaining, slug, ui.units, stacks)) + '</span>' +
       (remaining === 0 ? '<span class="ctile__done" aria-hidden="true">' + CHECK_ICON + '</span>' : '') +
       '</button>';
   }
@@ -1735,6 +1788,20 @@
     return true;
   }
 
+  /** EDICT-0018 item 24: the Needed cell is always a text input, styled like plain text until it
+   * is focused; editing it therefore needs no swap step and this helper only normalises the value. */
+  function startNeededEdit(input) {
+    if (!input) return;
+    /* Editing is always a plain item count, even when the display unit is stacks or shulkers. */
+    input.value = String(Math.max(1, Math.floor(Number(input.getAttribute('data-prev')) || 1)));
+    input.focus();
+    if (input.select) input.select();
+  }
+
+  function finishNeededEdit(input) {
+    if (input && input.blur) input.blur();
+  }
+
   function revertNeeded(input) {
     var previous = Math.max(1, Math.floor(Number(input.getAttribute('data-prev')) || 1));
     input.value = neededDisplay(input, previous);
@@ -1770,31 +1837,92 @@
     var slug = slugifyItem(material.item);
     var alloc = M.allocate(world);
     var inventory = M.inventoryOf(world);
+    var stack = resolvedStackFor(material.item, build);
+    var stacks = stackMapFor(slug, stack);
     var covered = Math.max(0, Math.floor(Number(alloc.perMaterial[material.id]) || 0));
     var needed = Math.max(1, Math.floor(Number(material.needed) || 1));
-    ui.invTarget = { buildId: build.id, materialId: material.id, slug: slug, item: material.item };
-    if (els['inv-title']) els['inv-title'].textContent = 'Update ' + material.item;
+    var stock = Math.max(0, Math.floor(Number(inventory[slug]) || 0));
+    ui.invTarget = { buildId: build.id, materialId: material.id, slug: slug, item: material.item, stack: stack };
+    /* EDICT-0018 item 27: the dialog shows the item itself and every build using it, with the
+       same In world / Allocated numbers as the table (item 6). */
+    if (els['inv-title']) els['inv-title'].textContent = 'Update inventory';
+    if (els['inv-icon']) {
+      els['inv-icon'].innerHTML = slotInnerHtml(material.item, true);
+      wireIconFallbacks(els['inv-icon']);
+    }
+    if (els['inv-item']) els['inv-item'].textContent = material.item;
     if (els['inv-context']) {
-      els['inv-context'].textContent = build.name + ' \u00b7 ' +
-        M.formatUnits(needed, slug, 'items', null) + ' needed \u00b7 ' +
-        Math.max(0, Math.floor(Number(inventory[slug]) || 0)) + ' in the world \u00b7 ' +
-        covered + ' covered';
+      els['inv-context'].textContent = (build && build.name ? build.name + ' · ' : '') +
+        M.formatUnits(covered, slug, ui.units, stacks) + ' allocated of ' +
+        M.formatUnits(needed, slug, ui.units, stacks) + ' needed · ' +
+        M.formatUnits(stock, slug, ui.units, stacks) + ' in world';
     }
-    if (els['inv-absolute']) {
-      els['inv-absolute'].value = String(Math.max(0, Math.floor(Number(inventory[slug]) || 0)));
-    }
+    renderInventoryBuilds(world, slug, alloc);
+    ui.invTrigger = trigger && trigger.focus ? trigger : null;
+    if (els['inv-absolute']) els['inv-absolute'].value = String(stock);
     if (els['inv-delta']) els['inv-delta'].value = '';
     showInvError('');
-    /* D14: Escape (or the X) returns focus to whatever opened the dialog. Keep the trigger in
-       the same place `ui.invTarget` lives; it is cleared by the dialog's close handler. */
-    ui.invTrigger = trigger && trigger.focus ? trigger : null;
     if (els['inventory-dialog']) {
       if (typeof els['inventory-dialog'].showModal === 'function') els['inventory-dialog'].showModal();
-      if (els['inv-absolute']) { els['inv-absolute'].focus(); selectAll(els['inv-absolute']); }
     }
+    refreshInvPreview();
+    if (els['inv-absolute']) { els['inv-absolute'].focus(); selectAll(els['inv-absolute']); }
     return trigger || null;
   }
 
+  /** Item 27: every build that needs the item, with its need and the allocated part. */
+  function renderInventoryBuilds(world, slug, alloc) {
+    if (!els['inv-builds']) return;
+    var rows = [];
+    (world.builds || []).forEach(function (build) {
+      (build.materials || []).forEach(function (material) {
+        if (slugifyItem(material.item) !== slug) return;
+        var need = Math.max(1, Math.floor(Number(material.needed) || 1));
+        var gave = Math.max(0, Math.floor(Number(alloc.perMaterial[material.id]) || 0));
+        var stacks = stackMapFor(slug, resolvedStackFor(material.item, build));
+        rows.push('<div class="inv-build" role="listitem" data-inv-build="' + escapeHtml(build.id) + '">' +
+          '<span class="inv-build__name">' + escapeHtml(build.name) +
+            (build.active === false ? ' <em>(paused)</em>' : '') + '</span>' +
+          '<span class="inv-build__need">need ' + escapeHtml(M.formatUnits(need, slug, ui.units, stacks)) + '</span>' +
+          '<span class="inv-build__gave">allocated ' + escapeHtml(M.formatUnits(gave, slug, ui.units, stacks)) + '</span>' +
+          '</div>');
+      });
+    });
+    els['inv-builds'].innerHTML = rows.join('') ||
+      '<p class="inv-builds__empty">No build needs this item yet.</p>';
+  }
+
+  /** Item 28: the "200 -> 264" preview as the fields change; the rule is in the hint. */
+  function refreshInvPreview() {
+    if (!els['inv-preview']) return;
+    var target = ui.invTarget;
+    var world = activeWorld();
+    if (!target || !world) { els['inv-preview'].textContent = ''; return; }
+    var stacks = stackMapFor(target.slug, target.stack || resolvedStackFor(target.item));
+    var current = Math.max(0, Math.floor(Number(M.inventoryOf(world)[target.slug]) || 0));
+    var next = current;
+    var absolute = String(els['inv-absolute'] ? els['inv-absolute'].value : '').trim();
+    var delta = String(els['inv-delta'] ? els['inv-delta'].value : '').trim();
+    if (absolute !== '') {
+      var absValue = Number(absolute);
+      if (!isFinite(absValue) || Math.floor(absValue) !== absValue) {
+        els['inv-preview'].textContent = M.formatUnits(current, target.slug, ui.units, stacks) + ' → ?';
+        return;
+      }
+      next = Math.max(0, absValue);
+    }
+    if (delta !== '') {
+      var parsed = M.parseRelative(delta, target.stack);
+      if (parsed.error) {
+        els['inv-preview'].textContent = M.formatUnits(next, target.slug, ui.units, stacks) + ' → ?';
+        return;
+      }
+      next += parsed.value;
+    }
+    next = Math.max(0, Math.floor(next));
+    els['inv-preview'].textContent = M.formatUnits(current, target.slug, ui.units, stacks) + ' → ' +
+      M.formatUnits(next, target.slug, ui.units, stacks);
+  }
   function openRowInventory(node) {
     var row = node && node.closest ? node.closest('[data-mat]') : null;
     if (!row) return;
@@ -1808,27 +1936,28 @@
     var target = currentInvTarget();
     var world = activeWorld();
     if (!target || !world) return;
-    /* EDICT-0017 case 110: the dialog commit is also an Undoable mutation, exactly like a row
-       removal — one save, one toast, and the pre-action snapshot wired to the toast action. */
     var before = snapshotState();
     var buildId = target.buildId;
+    var absoluteRaw = String((els['inv-absolute'] && els['inv-absolute'].value) || '').trim();
     var deltaRaw = String((els['inv-delta'] && els['inv-delta'].value) || '').trim();
-    var result = null;
-    if (deltaRaw) {
-      /* D7: `2s` is two stacks *of this item*, so the parser gets the material's own stack
-         size rather than falling back to the model's 64 default. */
-      var parsed = M.parseRelative(deltaRaw, resolvedStackFor(target.item, M.findBuild(world, target.buildId)));
-      if (parsed.error) { showInvError(parsed.error); return; }
-      result = M.addInventory(world, target.slug, parsed.value);
-    } else {
-      var absoluteRaw = String((els['inv-absolute'] && els['inv-absolute'].value) || '').trim();
+    /* EDICT-0018 item 29: both fields may be filled — the absolute value applies first, then the
+       relative amount is added on top. Empty fields simply do not participate. */
+    if (absoluteRaw === '' && deltaRaw === '') { showInvError('Enter a number of items.'); return; }
+    var nextValue = Math.max(0, Math.floor(Number(M.inventoryOf(world)[target.slug]) || 0));
+    if (absoluteRaw !== '') {
       var absolute = Number(absoluteRaw);
-      if (absoluteRaw === '' || !isFinite(absolute)) {
+      if (!isFinite(absolute) || Math.floor(absolute) !== absolute) {
         showInvError('Enter a whole number of items.');
         return;
       }
-      result = M.setInventory(world, target.slug, absolute);
+      nextValue = Math.max(0, absolute);
     }
+    if (deltaRaw !== '') {
+      var parsed = M.parseRelative(deltaRaw, resolvedStackFor(target.item, M.findBuild(world, target.buildId)));
+      if (parsed.error) { showInvError(parsed.error); return; }
+      nextValue = Math.max(0, nextValue + parsed.value);
+    }
+    var result = M.setInventory(world, target.slug, nextValue);
     if (!result || result.error) { showInvError((result && result.error) || 'Could not update the inventory.'); return; }
     ui.invTarget = null;
     if (els['inventory-dialog']) els['inventory-dialog'].close();
@@ -2057,8 +2186,8 @@
     });
     els['build-list'].addEventListener('dragend', function (event) {
       var entry = event.target.closest ? event.target.closest('.build-entry') : null;
-      Array.prototype.forEach.call(els['build-list'].querySelectorAll('.is-dragging, .is-drop'), function (node) {
-        node.classList.remove('is-dragging', 'is-drop');
+      Array.prototype.forEach.call(els['build-list'].querySelectorAll('.is-dragging, .is-drop, .is-drop-before, .is-drop-after'), function (node) {
+        node.classList.remove('is-dragging', 'is-drop', 'is-drop-before', 'is-drop-after');
       });
       if (entry) entry.classList.remove('is-dragging');
       ui.dragBuildId = null;
@@ -2068,10 +2197,35 @@
       if (!entry || !ui.dragBuildId) return;
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-      Array.prototype.forEach.call(els['build-list'].querySelectorAll('.is-drop'), function (node) {
-        if (node !== entry) node.classList.remove('is-drop');
+      var rect = entry.getBoundingClientRect();
+      var after = event.clientY > rect.top + rect.height / 2;
+      Array.prototype.forEach.call(els['build-list'].querySelectorAll('.is-drop, .is-drop-before, .is-drop-after'), function (node) {
+        if (node !== entry) node.classList.remove('is-drop', 'is-drop-before', 'is-drop-after');
       });
+      /* EDICT-0018 item 1: an unambiguous insertion line above or below the hovered row. */
       entry.classList.add('is-drop');
+      entry.classList.toggle('is-drop-after', after);
+      entry.classList.toggle('is-drop-before', !after);
+    });
+    /* EDICT-0018 item 1: Alt+ArrowUp/Down reorders the same priority list with the keyboard. */
+    els['build-list'].addEventListener('keydown', function (event) {
+      if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
+      var entry = event.target.closest ? event.target.closest('.build-entry') : null;
+      if (!entry) return;
+      event.preventDefault();
+      var world = activeWorld();
+      if (!world) return;
+      var id = entry.getAttribute('data-build');
+      var from = -1;
+      world.builds.forEach(function (build, index) { if (build.id === id) from = index; });
+      if (from < 0) return;
+      var to = event.key === 'ArrowUp' ? from - 1 : from + 1;
+      if (to < 0 || to >= world.builds.length) return;
+      var result = M.moveBuild(world, id, to);
+      if (result.error) { toast(result.error, true); return; }
+      adoptWorld(result.world || result.state);
+      var moved = document.querySelector('.build-entry[data-build="' + id + '"]');
+      if (moved && moved.focus) moved.focus();
     });
     els['build-list'].addEventListener('drop', function (event) {
       var entry = event.target.closest ? event.target.closest('.build-entry') : null;
@@ -2079,16 +2233,19 @@
       if (!entry || !ui.dragBuildId || !world) return;
       event.preventDefault();
       var targetId = entry.getAttribute('data-build');
+      var afterDrop = entry.classList.contains('is-drop-after');
       var from = -1;
       var to = -1;
       world.builds.forEach(function (build, index) {
         if (build.id === ui.dragBuildId) from = index;
         if (build.id === targetId) to = index;
       });
-      if (from < 0 || to < 0 || from === to) return;
+      if (from < 0 || to < 0) return;
+      if (afterDrop) to += 1;
       if (from < to) to -= 1;
+      if (from === to) return;
       var result = M.moveBuild(world, ui.dragBuildId, to);
-      entry.classList.remove('is-drop');
+      entry.classList.remove('is-drop', 'is-drop-before', 'is-drop-after');
       if (result.error) { toast(result.error, true); return; }
       adoptWorld(result.world || result.state);
     });
@@ -2117,6 +2274,8 @@
         commitInventory();
       });
     }
+    if (els['inv-absolute']) els['inv-absolute'].addEventListener('input', refreshInvPreview);
+    if (els['inv-delta']) els['inv-delta'].addEventListener('input', refreshInvPreview);
     if (els['inv-cancel']) {
       /* Cases 110/111: Cancel is a plain button so Enter inside the fields implicitly submits
          through #inv-ok (the only submit button left in the form) and actually commits. */
@@ -2127,6 +2286,14 @@
       });
     }
     if (els['inventory-dialog']) {
+      /* EDICT-0018 item 30: Escape cancels the dialog (no commit) and returns focus. */
+      els['inventory-dialog'].addEventListener('keydown', function (event) {
+        if (event.key !== 'Escape') return;
+        event.preventDefault();
+        ui.invTarget = null;
+        showInvError('');
+        els['inventory-dialog'].close();
+      });
       /* Escape and the X both close natively; a stale target could otherwise commit next time.
          D14: the close also returns focus to the row/chip that opened the dialog. */
       els['inventory-dialog'].addEventListener('close', function () {
@@ -2176,7 +2343,8 @@
       els['mat-sort'].addEventListener('change', function () { setSortMode(els['mat-sort'].value); });
     }
     if (els['mat-hide-done']) {
-      els['mat-hide-done'].addEventListener('click', function () { setHideDone(!ui.hideDone); });
+      /* EDICT-0018 item 25: a real checkbox, applied to Table and Compact alike. */
+      els['mat-hide-done'].addEventListener('change', function () { setHideDone(els['mat-hide-done'].checked); });
     }
     if (els['mat-view-table']) {
       els['mat-view-table'].addEventListener('click', function () { setMaterialView('table'); });
@@ -2234,17 +2402,21 @@
       return;
     }
     if (els['world-panel-name']) els['world-panel-name'].textContent = world.name;
-    /* EDICT-0016 §7/§8: identity stays identity; the two stamps are appended as <time> nodes. */
+    /* EDICT-0018 item 22: the world meta says when it was last touched in relative words, with
+       the exact timestamp on the tooltip. The "Created" half is gone on purpose. */
     els['world-meta'].textContent =
       (world.edition === 'bedrock' ? 'Bedrock' : 'Java') + ' ' + world.version +
       ' · ' + world.builds.length + (world.builds.length === 1 ? ' build' : ' builds');
     els['world-meta'].appendChild(document.createTextNode(' · '));
-    els['world-meta'].appendChild(stampFragment(world));
+    els['world-meta'].appendChild(updatedFragment(world.updatedAt));
   }
 
   /** The list order: inactive builds in place, at the end, or hidden — the frozen three modes. */
   function buildsForList(world) {
-    var rows = M.sortBuilds(world.builds).slice();
+    /* EDICT-0018 items 5/16: the rendered order *is* the allocation order — world.builds is the
+       priority list, so dragging a build changes which build the shared stock covers first. The
+       inactive preference only re-orders or hides what follows; it never invents a status order. */
+    var rows = world && Array.isArray(world.builds) ? world.builds.slice() : [];
     if (ui.inactiveMode === 'hide') {
       rows = rows.filter(function (build) { return build.active !== false; });
     } else if (ui.inactiveMode === 'end') {
@@ -2272,34 +2444,40 @@
     var alloc = world ? M.allocate(world) : null;
     var items = [];
     if (world) {
-      buildsForList(world).forEach(function (entry, index) {
+      buildsForList(world).forEach(function (entry) {
         var progress = (alloc.perBuild[entry.id]) || { covered: 0, needed: 0 };
-        var pct = progress.needed ? Math.min(100, Math.round((progress.covered / progress.needed) * 100)) : 0;
+        var pct = pctOf(progress.covered, progress.needed);
+        var rank = world.builds.indexOf(entry) + 1;
         var selected = build && build.id === entry.id;
         var classes = 'build-entry' +
-          (index === 0 ? ' build-entry--top' : '') +
+          (rank === 1 ? ' build-entry--top' : '') +
           (entry.active === false ? ' build-entry--inactive' : '') +
           (selected ? ' is-selected' : '');
         items.push(
           '<li role="listitem">' +
-            '<div class="' + classes + '" data-build="' + escapeHtml(entry.id) + '" data-order="' + index + '" draggable="true"' +
+            '<div class="' + classes + '" data-build="' + escapeHtml(entry.id) + '"' +
+            ' data-order="' + (rank - 1) + '" data-rank="' + rank + '" draggable="true" tabindex="0"' +
             (selected ? ' aria-current="true"' : '') + '>' +
-              '<span class="build-entry__grab" aria-hidden="true">' +
+              '<span class="build-entry__grab" title="Drag to change priority" aria-hidden="true">' +
                 '<svg viewBox="0 0 8 14" width="8" height="14" focusable="false"><path d="M0 1h2v2H0zM0 6h2v2H0zM0 11h2v2H0zM6 1h2v2H6zM6 6h2v2H6zM6 11h2v2H6z"/></svg>' +
               '</span>' +
+              '<span class="build-entry__rank" aria-label="Priority ' + rank + '" title="Priority ' + rank + '">' + rank + '</span>' +
               '<span class="build-entry__slot" aria-hidden="true">' + avatarHtml(entry.icon, 24, entry.name) + '</span>' +
-              '<span class="build-entry__name">' + escapeHtml(entry.name) + '</span>' +
+              '<span class="build-entry__name" title="' + escapeHtml(entry.name) + '">' + escapeHtml(entry.name) + '</span>' +
               '<span class="build-entry__badge">' + escapeHtml(STATUS_LABEL[entry.status] || entry.status) + '</span>' +
-              '<span class="build-entry__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '">' +
+              '<span class="build-entry__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '" title="' + pct + '% gathered">' +
                 '<span class="build-entry__fill" style="width:' + pct + '%"></span>' +
               '</span>' +
               '<span class="build-entry__actions">' +
-                '<button class="mc-btn mc-btn--xs" type="button" data-build-activate="' + escapeHtml(entry.id) + '"' +
+                '<button class="mc-btn mc-btn--xs mc-btn--icon" type="button" data-build-edit="' + escapeHtml(entry.id) + '"' +
+                  ' aria-label="Edit ' + escapeHtml(entry.name) + '" title="Edit build">' + PENCIL_ICON + '</button>' +
+                '<button class="mc-btn mc-btn--xs mc-btn--icon" type="button" data-build-activate="' + escapeHtml(entry.id) + '"' +
                   ' aria-pressed="' + (entry.active === false ? 'false' : 'true') + '"' +
-                  ' aria-label="' + escapeHtml((entry.active === false ? 'Resume ' : 'Pause ') + entry.name) + '">' +
+                  ' aria-label="' + escapeHtml((entry.active === false ? 'Resume ' : 'Pause ') + entry.name) + '"' +
+                  ' title="' + escapeHtml(entry.active === false ? 'Resume this build' : 'Pause this build') + '">' +
                   (entry.active === false ? '\u25b6' : '\u23f8') + '</button>' +
-                '<button class="mc-btn mc-btn--xs" type="button" data-build-remove="' + escapeHtml(entry.id) + '"' +
-                  ' aria-label="Delete ' + escapeHtml(entry.name) + '">' + TRASH_ICON + '</button>' +
+                '<button class="mc-btn mc-btn--xs mc-btn--icon" type="button" data-build-remove="' + escapeHtml(entry.id) + '"' +
+                  ' aria-label="Delete ' + escapeHtml(entry.name) + '" title="Delete build">' + TRASH_ICON + '</button>' +
               '</span>' +
             '</div>' +
           '</li>'
@@ -2367,8 +2545,11 @@
     });
 
     if (els['build-coords']) {
-      els['build-coords'].value = build.coords || '';
-      els['build-coords'].placeholder = 'x / y / z';
+      /* EDICT-0018 item 21: coordinates read as "X 120  Y 64  Z -40"; the machine string keeps the
+         old "x / y / z" shape on the way back into the model. */
+      els['build-coords'].value = formatCoords(build.coords) || (build.coords || '');
+      els['build-coords'].placeholder = 'X 120  Y 64  Z -40';
+      els['build-coords'].title = 'Coordinates (X / Y / Z)';
     }
     if (els['copy-coords']) els['copy-coords'].disabled = !build.coords;
     if (els['detail-heading']) {
@@ -2405,7 +2586,12 @@
       wireIconFallbacks(els['material-body']);
     }
     if (els['material-grid']) {
-      els['material-grid'].innerHTML = sorted.map(chipHtml).join('');
+      /* Item 3: finished chips sink to the end of the strip, whatever the sort order. */
+      var chips = sorted.slice().sort(function (a, b) {
+        if (a.complete !== b.complete) return a.complete ? 1 : -1;
+        return 0;
+      });
+      els['material-grid'].innerHTML = chips.map(chipHtml).join('');
       wireIconFallbacks(els['material-grid']);
     }
     if (els['material-empty']) els['material-empty'].hidden = build.materials.length > 0;
@@ -2440,12 +2626,8 @@
     if (!build) return;
     var stamps = M.timestamps(build);
     var updatedIso = stamps.updatedAt !== undefined ? stamps.updatedAt : stamps.createdAt;
-    var node = stampNode(updatedIso, 'Updated');
-    els['detail-meta'].appendChild(node);
-    if (stamps.createdAt !== undefined) {
-      els['detail-meta'].setAttribute('title', 'Created ' + M.formatStamp(stamps.createdAt) +
-        ' (' + stamps.createdAt + ')');
-    }
+    /* EDICT-0018 item 22: relative label, exact timestamp and raw ISO in the tooltip. */
+    els['detail-meta'].appendChild(updatedFragment(updatedIso));
   }
 
   /* --------------------------------------------------------- material rows */
@@ -2478,6 +2660,46 @@
     var n = Math.floor(Number(size) || 0);
     if (n > 0) stacks[String(slug).toLowerCase()] = n;
     return stacks;
+  }
+
+  /** EDICT-0018 items 5/7: one percentage helper so every bar and sentence agrees with the totals. */
+  function pctOf(covered, needed) {
+    var want = Math.max(0, Math.floor(Number(needed) || 0));
+    var have = Math.max(0, Math.floor(Number(covered) || 0));
+    return want ? Math.min(100, Math.round((have / want) * 100)) : 0;
+  }
+
+  /** EDICT-0018 item 22: "5 min ago" for the stamp; the exact ISO lives in the title. */
+  function relativeTime(iso) {
+    var then = Date.parse(iso);
+    if (!isFinite(then)) return '—';
+    var seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
+    if (seconds < 45) return 'just now';
+    var minutes = Math.round(seconds / 60);
+    if (minutes < 60) return minutes + ' min ago';
+    var hours = Math.round(minutes / 60);
+    if (hours < 24) return hours + ' h ago';
+    var days = Math.round(hours / 24);
+    return days + (days === 1 ? ' day ago' : ' days ago');
+  }
+
+  /** EDICT-0018 item 21: coordinates read as "X 120  Y 64  Z -40". */
+  function parseCoords(raw) {
+    var text = String(raw || '').trim();
+    if (!text) return null;
+    var values = text.match(/-?\d+(?:\.\d+)?/g);
+    if (!values || values.length < 3) return null;
+    return { x: Number(values[0]), y: Number(values[1]), z: Number(values[2]) };
+  }
+
+  function formatCoords(raw) {
+    var coords = (raw && typeof raw === 'object') ? raw : parseCoords(raw);
+    return coords ? 'X ' + coords.x + '  Y ' + coords.y + '  Z ' + coords.z : '';
+  }
+
+  function machineCoords(raw) {
+    var coords = parseCoords(raw);
+    return coords ? coords.x + ' / ' + coords.y + ' / ' + coords.z : String(raw || '').trim();
   }
 
   /**
@@ -2548,30 +2770,37 @@
     var material = row.material;
     var matId = escapeHtml(material.id);
     var name = escapeHtml(material.item);
-    var surplusCell = row.surplus > 0
-      ? '<span class="num is-surplus" data-mat-surplus>+' +
-        escapeHtml(rowUnits(row.surplus, row.slug, row.stack)) + ' surplus</span>'
-      : '';
+    /* EDICT-0018 item 8: surplus only when the world holds more than every build needs; a dash
+       otherwise, so the column always says what it means. */
+    var surplusText = row.surplus > 0
+      ? '+' + rowUnits(row.surplus, row.slug, row.stack) + ' surplus'
+      : '\u2013';
+    var neededText = rowUnits(row.needed, row.slug, row.stack);
     return '<div class="mat-row' + (row.complete ? ' mat-row--done' : '') + '" role="row"' +
       ' data-mat="' + matId + '" tabindex="0">' +
       '<span class="mat-row__item">' +
         '<span class="mat-row__slot slot" data-tip="' + escapeHtml(material.item) + '" aria-hidden="true">' + slotInnerHtml(material.item, true) + '</span>' +
-        '<span class="mat-row__name">' + name + '</span>' +
+        '<span class="mat-row__name" title="' + name + '">' + name + '</span>' +
         (row.shared > 1
           ? '<span class="mat-shared" data-mat-shared>shared with ' + row.shared + ' builds</span>'
           : '') +
+        (row.complete ? '<span class="mat-row__check" aria-hidden="true">' + CHECK_ICON + '</span>' : '') +
       '</span>' +
       '<span class="mat-row__needed">' +
-        '<input class="mc-input num" type="text" inputmode="numeric" value="' + escapeHtml(rowUnits(row.needed, row.slug, row.stack)) + '"' +
+        '<input class="mc-input num mat-row__needed-input" type="text" inputmode="numeric" value="' + escapeHtml(neededText) + '"' +
         ' data-mat-field="needed" data-mat="' + matId + '" data-prev="' + row.needed + '"' +
-        ' aria-label="Needed ' + name + '">' +
+        ' title="Click to edit the needed count" aria-label="Needed ' + name + '">' +
       '</span>' +
-      '<span data-mat-got aria-label="' + escapeHtml('Got — world inventory for ' + material.item) + '" title="' + escapeHtml('World inventory for ' + material.item) + '">' +
+      '<span class="num" data-mat-got title="World inventory for ' + escapeHtml(material.item) + '" aria-label="' + escapeHtml('In world: ' + rowUnits(row.got, row.slug, row.stack)) + '">' +
         escapeHtml(rowUnits(row.got, row.slug, row.stack)) + '</span>' +
-      '<span class="num" data-mat-covered>' + escapeHtml(rowUnits(row.covered, row.slug, row.stack)) + '</span>' +
-      '<span class="num" data-mat-remaining>' + escapeHtml(rowUnits(row.remaining, row.slug, row.stack)) + '</span>' +
-      surplusCell +
-      '<button class="mc-btn mc-btn--sm" type="button" data-mat-update="' + matId + '">Update</button>' +
+      '<span class="num" data-mat-covered title="Allocated to this build">' +
+        escapeHtml(rowUnits(row.covered, row.slug, row.stack)) + '</span>' +
+      '<span class="num" data-mat-remaining title="Still to gather">' +
+        escapeHtml(rowUnits(row.remaining, row.slug, row.stack)) + '</span>' +
+      '<span class="num' + (row.surplus > 0 ? ' is-surplus' : '') + '" data-mat-surplus title="Stock beyond every build">' +
+        escapeHtml(surplusText) + '</span>' +
+      '<button class="mc-btn mc-btn--xs mc-btn--icon" type="button" data-mat-update="' + matId + '"' +
+        ' aria-label="Update inventory for ' + name + '" title="Update inventory">' + PLUS_ICON + '</button>' +
       '<span class="mat-row__menu">' +
         '<button type="button" data-mat-menu aria-haspopup="true" aria-expanded="false"' +
           ' aria-label="Row actions for ' + name + '">\u22ef</button>' +
@@ -2584,9 +2813,13 @@
 
   function chipHtml(row) {
     var count = row.remaining > 0 ? row.remaining : row.needed;
-    var tip = row.material.item + ': ' + rowUnits(row.covered, row.slug, row.stack) + ' of ' +
-      rowUnits(row.needed, row.slug, row.stack) + ' \u00b7 left ' +
-      rowUnits(row.remaining, row.slug, row.stack);
+    /* EDICT-0018 item 26: the chip tooltip carries the item name and its stack notation. */
+    var stacks = stackMapFor(row.slug, row.stack);
+    var notation = M.stackNotation(row.remaining, row.slug, stacks, 'stacks');
+    var tip = row.material.item + ' \u00b7 ' + rowUnits(row.covered, row.slug, row.stack) + ' of ' +
+      rowUnits(row.needed, row.slug, row.stack) + ' allocated \u00b7 ' +
+      (row.remaining === 0 ? 'done' : rowUnits(row.remaining, row.slug, row.stack) + ' left') +
+      (row.remaining > 0 && row.remaining >= row.stack ? ' (' + notation + ')' : '');
     return '<button class="mat-chip' + (row.complete ? ' is-done' : '') + '" type="button" role="listitem"' +
       ' data-mat="' + escapeHtml(row.material.id) + '" data-tip="' + escapeHtml(tip) + '"' +
       ' aria-label="' + escapeHtml(row.material.item + ': ' + row.remaining + ' left of ' + row.needed) + '">' +
@@ -2602,7 +2835,7 @@
     if (els['material-grid']) els['material-grid'].hidden = !grid;
     if (els['mat-view-table']) els['mat-view-table'].setAttribute('aria-pressed', grid ? 'false' : 'true');
     if (els['mat-view-grid']) els['mat-view-grid'].setAttribute('aria-pressed', grid ? 'true' : 'false');
-    if (els['mat-hide-done']) els['mat-hide-done'].setAttribute('aria-pressed', ui.hideDone ? 'true' : 'false');
+    if (els['mat-hide-done']) els['mat-hide-done'].checked = !!ui.hideDone;
     if (els['mat-sort'] && els['mat-sort'].value !== ui.sort) els['mat-sort'].value = ui.sort;
   }
   /**
@@ -2623,7 +2856,7 @@
         var updated = stamps.updatedAt !== undefined ? stamps.updatedAt : stamps.createdAt;
         if (updated !== undefined) {
           els['materials-lede'].appendChild(document.createTextNode(' \u00b7 '));
-          els['materials-lede'].appendChild(stampNode(updated, 'Updated'));
+          els['materials-lede'].appendChild(updatedFragment(updated));
         }
       }
     }

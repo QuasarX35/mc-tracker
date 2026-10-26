@@ -1,10 +1,10 @@
 {
-  "verified_at": "2026-10-26T06:37:19.750Z",
-  "artifact_hash": "4bec95d9ba1fc5e45b86c7eabb007fc4e6931b1d822f43ff82c7d9c5aa708b0a",
+  "verified_at": "2026-10-26T08:05:42.834Z",
+  "artifact_hash": "b667495d1e91c66a0971db62b7d012fc64367c39619fac7e9b26952b4b9220c0",
   "files": {
-    "src/index.html": "df605f3ac458fcbdc37ed42efdcabc61314e2b4611728c14806f483b576122fa",
-    "src/styles.css": "9cd069263f1572f2064f6d63c438c2a6e79314b7aee52144b3857cf5c6961f9a",
-    "src/app.js": "0c11018143596acb1ace00fc8da0e8610b25f611a39747f10eac67261342cb23",
+    "src/index.html": "92bb40ca9120833ed2b4a64e424b41a2d7a9289cfdd79019fcc9940f0d56e0cd",
+    "src/styles.css": "3fd8c2f67e32be6f72294c0f7595ade8b0627d51ad9abbfcc52ce631b1805562",
+    "src/app.js": "edf3c220dedc5a2f32c7d6966beda22f4ef4de2571a97dd0d3370e33c99f43c8",
     "src/tracker/model.js": "b4b32f422bc7de79b2f19c5250fd09dae16f46cee27e5a9d21c788b8a7fb0507",
     "src/assets/icons/icons.js": "b9e534668f51e960758c5e7a3a5e5b2d3ed1c73a9fb75e24413e73b019594221",
     "src/assets/fonts/Minecraft.ttf": "bd47314d301e50ff4d109bff28dfcf637cb7eb13945480259878b848875acc65",

@@ -19,6 +19,15 @@
 > paste became a review-ready paste preview, the sidebar gained progress, units and inactive
 > modes, a build can be paused and dragged inside its status group, compact tiles open the same
 > inventory dialog, and storage is schema **v2** with a one-time v1 migration. Where the text
+> **Updated by EDICT-0018** — the 33-item polish round: the build list is the priority order
+> (drag or `Alt+↑/↓`, rank badge, painted fill bar, Edit/Activate/Delete on hover), the material
+> columns read `Needed | In world | Allocated | Left | Surplus` with an always-present dash, a
+> dimmed done row and check, a click-to-edit Needed cell and an icon Update button, the compact
+> tiles carry the total need above the remaining count and dim when done, Table|Grid actually
+> swaps, Hide completed is a checkbox, one progress helper feeds every panel, the shell caps at
+> 1600 px with a one-column ladder below 900, the coords read `X 120  Y 64  Z -40`, stamps read
+> "Updated 5 min ago" with the exact time in the tooltip, and the inventory dialog gained an icon,
+> the builds using the item, a live `200 → 264` preview and absolute-then-relative commits.
 > below still mentions `.stepper` or `#tile-dialog` as live UI, this paragraph wins.
 
 ## 1. Page pattern
@@ -36,8 +45,8 @@ sections, no charts: this is a working tool that is opened repeatedly while play
 | Tab strip | 3 tabs, `role="tablist"`, arrow-key navigation | Selected tab merges into the panel |
 | Top bar | Standard/Compact view switch, pause-scenery button | World picker, identity, progress, units, inactive mode and New World / Import / Export live in the left **World sidebar** (EDICT-0017) |
 | World sidebar | World picker + avatar, name, identity, derived progress line and XP bar, inactive-build select, unit toggle, **Shopping list**, New World / Import / Export, collapse toggle | `aside#world-panel`, 200 px track or 56 px rail, persists in `mbt.sidebar`; hidden on Worlds and in Compact |
-| Builds view | Build list (left, each row with its 28px avatar, drag handle, pause button) + build detail (right, 40px avatar button that opens the icon picker) | Stacks to one column at ≤640px; empty state `#build-empty` offers `#btn-first-build`, which opens the world dialog when there are zero worlds and the build dialog otherwise — never an error toast |
-| Detail | Title with a rename pencil (`#build-rename`) left of Delete, status segmented control, coords with a copy micro-button (`#copy-coords`), notes view/edit (`#notes-text`/`#build-notes`), XP progress, material toolbar (sort / hide done / table-grid), the material table and **Paste list…** (`#bulk-paste`) | Rows read Item / Needed / Got / In / Left / Surplus / Update / menu. Needed is a text cell (Enter or blur commits, Escape reverts); the Update button opens `#inventory-dialog`. Deleting a row offers `#toast-action` **Undo** for 6 s; the empty list offers `#btn-empty-pick-material` |
+| Builds view | Build list (left, each row with its rank badge, 24px avatar, drag handle, painted progress bar and hover Edit / Activate / Delete) + build detail (right, 40px avatar button that opens the icon picker) | Stacks to one column at ≤640px; empty state `#build-empty` offers `#btn-first-build`, which opens the world dialog when there are zero worlds and the build dialog otherwise — never an error toast |
+| Detail | Title with a rename pencil (`#build-rename`) left of Delete, status segmented control, coords with a copy micro-button (`#copy-coords`), notes view/edit (`#notes-text`/`#build-notes`), XP progress, material toolbar (sort / hide done / table-grid), the material table and **Paste list…** (`#bulk-paste`) | Rows read Item / Needed / In world / Allocated / Left / Surplus / Update / menu. Needed is a text cell (Enter or blur commits, Escape reverts); the whole row, Enter or the icon Update button opens `#inventory-dialog`; a finished row is dimmed with a check. Deleting a row offers `#toast-action` **Undo** for 6 s; the empty list offers `#btn-empty-pick-material` |
 | Materials view | Aggregated shopping list with per-item XP bars, search, filter, copy-list | Every row is the world's **allocated** coverage (`M.aggregateWorld`), never a per-build `collected`; "Used by" names the active builds; filter and search still apply; zero matches shows `#world-material-empty` with `#btn-empty-reset-filter` |
 | Worlds view | World cards with a 40px avatar beside the name plus per-world roll-up and select/edit/delete | Auto-fill grid, min 280px |
 | Icon picker | One dialog, no tabs: searchable `.icon-tile` grid with incremental paging (`#icon-sentinel`) and a count hint, wrapped names, recent picks first, **Upload image…** footer, shared by the world dialog, build dialog, detail avatar and the material chooser | First batch 120 tiles, 120 more per sentinel hit, all 1,368 slugs reachable; typing resets; `#icon-count-hint` text frozen; pick-item mode hides upload and Use and one click selects and closes; on a build with a display-only suggestion the dialog shows `#icon-suggest-note` and marks `data-icon-suggested` |
@@ -270,16 +279,17 @@ sections, no charts: this is a working tool that is opened repeatedly while play
   across reload; an unknown stored value falls back to its default without an error toast; units
   change only the displayed numbers, never the stored state.
 
-## 5. Verification record — EDICT-0017 S5Q
+## 5. Verification record — EDICT-0018 S5Q
 
-EDICT-0017 S5Q passed cycle 1 (ledger seq 178): **128/128** browser cases on the frozen list,
-**186/186** audit cases, **152/152** `npm test` across 12 suites (unit 32/32 tracker-0017, 22/22
-tracker-model, 11/11 tracker-0015; acceptance 17/17 + 8/8 + 7/7), and the app-qa stamp
-`2026-10-26T06:37:19.750Z` with `cases 128`, `artifact_hash 4bec95d9…`. The hashed evidence crate
-is `reports/qa/evidence/edict-0017/` (14 §3.5 captures + seven suite shots + `probe.json` + README)
-and the QA report is `reports/qa/edict-0017-qa.md`. The EDICT-0016 record (120/120 `npm test`,
-96/96 browser flows at `2026-10-26T02:59:39.552Z`, 186/186 audit) documents the **superseded** tree.
-
+EDICT-0018 records the 33-item polish round; EDICT-0017 remains the base (S5Q passed at ledger
+seq 178 with 128/128 browser cases and stamp `2026-10-26T06:37:19.750Z`, crate
+`reports/qa/evidence/edict-0017/`). The EDICT-0018 pass re-ran the frozen 128-case list in place:
+**128/128** browser cases, **186/186** audit cases (the ordering rule restated for the registry
+order — still 186 rules), **152/152** `npm test` across 12 suites, and a fresh app-qa stamp for
+the new sources. Evidence lives in `reports/qa/evidence/edict-0018/` (builds table, compact view,
+inventory dialog, allocation view, surplus row, shopping dialog, collapsed rail, mobile table and
+grid, `probe.json`) and the round is recorded in `docs/governance/EDICT-0018.md`. The EDICT-0016
+record (120/120 `npm test`, 96/96 browser flows) documents the **superseded** tree.
 | Check | Where |
 |-------|-------|
 | Model + allocation unit cases | `tests/unit/tracker-0017.test.mjs` |

@@ -389,3 +389,29 @@ The ten-item report changed the app's controls, its typeface, its icon set and i
   [[Open questions]] to drop the now-answered height-cap question, keeping the positional
   allocation, one-way migration and unattributed-write caveats.
 - EDICT-0017 header status is `S5Q QA_VERIFY`; ledger rows 172–178 carry S0–S5Q.
+
+## [2026-10-26] edit | EDICT-0018 — the 33-item polish round
+
+- Recorded `docs/governance/EDICT-0018.md`: the founder's 33 defects grouped as drag/priority,
+  compact, view controls, columns/progress, layout, build list/header, dialog and verification; the
+  changes per file; the deliberate limits (no independent verifier this round, keyboard reorder not
+  drivable through CDP `press`).
+- Build list is now the priority order itself (registry order = allocation order), with a rank
+  badge, painted fill bar, hover Edit/Activate/Delete, `Alt+↑/↓` reordering and a drop indicator.
+- Material columns read `Needed | In world | Allocated | Left | Surplus` with an always-present
+  dash, a dimmed done row plus check, a plain-text Needed cell that becomes an input on click and an
+  icon Update button; one `pctOf`/progress helper feeds every panel.
+- Compact tiles carry the total need above the remaining count, dim when done and sort last; the
+  Table|Grid toggle genuinely swaps (a stray `[hidden]` override removed) and Hide completed is a
+  real checkbox that filters both views.
+- Layout: the shell caps at 1600 px, one-column ladder below 900 px, the collapsed rail loses its
+  stray bar, the world select spans the panel, the footer is one line; coords read
+  `X 120  Y 64  Z -40`; stamps read "Updated 5 min ago" with the exact UTC time in the tooltip.
+- Inventory dialog: icon + item + the builds using it + a live `200 → 264` preview, short
+  placeholder, absolute-then-relative commit, Enter confirms, Escape cancels, one Undo.
+- Verification: browser 128/128, audit 186/186 (ordering rule restated, 186 kept), `npm test`
+  152/152 across 12 suites, app-qa stamped 128 cases at `2026-10-26T08:05:42.834Z`
+  (`artifact_hash b667495d1e91c66a…`); evidence crate `reports/qa/evidence/edict-0018/`.
+- Updated [[Minecraft Build Tracker]] verification wording and the design-system MASTER rows for
+  the material row, compact tile, build-list ordering, inventory dialog, stamps, sidebar progress
+  and the 1600 px layout budget; [[Open questions]] keeps the untouched caveats.

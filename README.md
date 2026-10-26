@@ -186,12 +186,12 @@ node scripts/app-qa.mjs status                  # verified / STALE
 
 ```
 
-Current status: EDICT-0017 (shared inventory, per-build allocation, Standard-view rework) passed its
-S5Q verification cycle 1 — **128/128** browser cases, **186/186** audit, **152/152** `npm test`
-across 12 suites — and the app is stamped at `2026-10-26T06:37:19.750Z` with 128 UI cases
-(`node scripts/app-qa.mjs status`). The hashed evidence crate is
-`reports/qa/evidence/edict-0017/` and the QA report is `reports/qa/edict-0017-qa.md`; the older
-120-test / 96-browser-flow record belongs to the superseded EDICT-0016 tree.
+Current status: EDICT-0018 (the 33-item polish round — priority order, compact tiles, dialog
+preview) re-verified the tree in place: **128/128** browser cases, **186/186** audit, **152/152**
+`npm test` across 12 suites, and the app is stamped with 128 UI cases (`node scripts/app-qa.mjs
+status`). The round is recorded in `docs/governance/EDICT-0018.md`; evidence lives in
+`reports/qa/evidence/edict-0018/`. The EDICT-0017 crate and QA report remain as the base record;
+the older 120-test / 96-browser-flow numbers belong to the superseded EDICT-0016 tree.
 
 ## Scope and honesty
 

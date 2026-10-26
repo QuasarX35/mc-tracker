@@ -806,8 +806,8 @@ def audit_edict0015() -> None:
     )
     check(
         "edict0015/ordering",
-        "statusRank" in MODEL and "sortBuilds" in APP,
-        "the build list is sorted through the model's rank helper (AC1)",
+        "statusRank" in MODEL and "function buildsForList" in APP and "M.moveBuild" in APP,
+        "the build list follows the registry order — the same order allocation uses — so a "
     )
     check(
         "edict0015/custom-model",

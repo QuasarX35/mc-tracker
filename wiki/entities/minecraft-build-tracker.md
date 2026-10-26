@@ -262,17 +262,19 @@ The extractor resolves the client's asset index because the jar's panorama files
 
 ## Verification
 
-**Verification.** EDICT-0017 S5Q passed cycle 1 at ledger seq 178: **128/128** frozen browser
-cases, a **186-case** contrast/structure/identity/icon/interaction audit, **152/152** `npm test`
-cases across 12 suites (unit 32/32 tracker-0017, 22/22 tracker-model, 11/11 tracker-0015;
-acceptance 17/17 + 8/8 + 7/7), and the app-qa stamp `2026-10-26T06:37:19.750Z` with `cases 128`
-and `artifact_hash 4bec95d9…`. The hashed evidence crate is
-[`reports/qa/evidence/edict-0017/`](../../reports/qa/evidence/edict-0017/) (14 §3.5 captures,
-seven matching suite shots, `probe.json`, README) and the QA report is
-[`reports/qa/edict-0017-qa.md`](../../reports/qa/edict-0017-qa.md); the earlier EDICT-0016
-**96-case / 120-test** record at stamp `2026-10-26T02:59:39.552Z` now documents the superseded
-pre-0017 tree. Browser execution stays with the Lead seat (the verifier's sandbox cannot launch
-Chrome) and judgement with 测试部.
+**Verification.** EDICT-0018 (the 33-item polish round) re-verified the same tree in place:
+**128/128** frozen browser cases, a **186-case** contrast/structure/identity/icon/interaction
+audit (the ordering rule restated for the registry priority order — still 186 rules), **152/152**
+`npm test` cases across 12 suites, and a fresh app-qa stamp for the new sources with `cases 128`.
+Evidence is [`reports/qa/evidence/edict-0018/`](../../reports/qa/evidence/edict-0018/) (builds
+table, compact view, inventory dialog, allocation view, surplus row, shopping dialog, collapsed
+rail, mobile table and grid, `probe.json`) and the round is recorded in
+[`docs/governance/EDICT-0018.md`](../../docs/governance/EDICT-0018.md). EDICT-0017 S5Q remains the
+base record (ledger seq 178, stamp `2026-10-26T06:37:19.750Z`, crate
+`reports/qa/evidence/edict-0017/`, QA report `reports/qa/edict-0017-qa.md`); the earlier EDICT-0016
+**96-case / 120-test** record documents the superseded pre-0017 tree. Browser execution stays with
+the Lead seat (the verifier sandbox cannot launch Chrome); EDICT-0018 ran without an independent
+verifier, which its edict body and ledger note disclose.
 
 Historical detail, all still pinned by the suites: the QA gate failed EDICT-0010's first submission
 for a seed that silently dropped a material and a 4.07:1 muted-text token; EDICT-0011's

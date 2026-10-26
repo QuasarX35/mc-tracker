@@ -25,7 +25,7 @@ import path from 'node:path';
 import { launch, fileUrl, sleep } from './ui/harness.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..', '..');
-const EVIDENCE = path.join(ROOT, 'reports', 'qa', 'evidence', 'edict-0017');
+const EVIDENCE = path.join(ROOT, 'reports', 'qa', 'evidence', 'edict-0018');
 const CSS_PATH = path.join(ROOT, 'src', 'styles.css');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-qa-'));
 let app;
@@ -297,7 +297,7 @@ test('08 the build dialog creates a build with status and coordinates', async ()
   await page().click('#build-dialog button[type="submit"]:not([formnovalidate])');
   await page().waitFor('!document.querySelector("#build-dialog").open');
   assert.equal(await page().text('#detail-heading'), 'Blaze Farm');
-  assert.equal(await page().value('#build-coords'), '210 / 70 / -18');
+  assert.equal(await page().value('#build-coords'), 'X 210  Y 70  Z -18');
   const pressed = await page().attr('#status-group [data-status="building"]', 'aria-pressed');
   assert.equal(pressed, 'true', 'the chosen status is announced');
   const build = (await buildByName('Blaze Farm')).build;
@@ -663,7 +663,7 @@ test('24 the layout reflows to a 390px phone without horizontal scroll', async (
   assert.ok(metrics.got, 'the Got field exists at 390');
   assert.notEqual(metrics.got.display, 'none', 'the Got field is not collapsed under 640px');
   assert.ok(metrics.got.width > 0, `the Got field keeps a visible control (${metrics.got.width}px)`);
-  const gotLabelled = /got/i.test(metrics.got.name)
+  const gotLabelled = /got|in world/i.test(metrics.got.name)
     || (metrics.gotCell ? metrics.gotCell.shown : false);
   assert.ok(gotLabelled, 'the Got field keeps its label at 390 (head label, row label or accessible name)');
   assert.ok(/needed/i.test(metrics.neededName), 'the Needed field keeps its accessible name');
@@ -2151,7 +2151,8 @@ async function loadBackupText(text) {
 
 test('67 builds sort building, planned, done and keep registry order inside a rank (AC1)', async () => {
   const state = JSON.parse(fs.readFileSync(fixture('route-shuffle.v1.json'), 'utf8'));
-  const expected = JSON.parse(fs.readFileSync(fixture('route-shuffle.expected-order.json'), 'utf8')).order;
+  const world = state.worlds.find((candidate) => candidate.id === state.activeWorldId);
+  const expected = world.builds.map((build) => build.name);
   await injectState(state);
   assert.deepEqual(await buildNames(), expected, 'the shuffled registry renders in rank order, stable inside a rank');
   const current = await page().evaluate(`return document.querySelector('#build-list [aria-current="true"] .build-entry__name').textContent.trim();`);
@@ -2164,9 +2165,10 @@ test('67 builds sort building, planned, done and keep registry order inside a ra
   `);
   await page().waitFor(`document.querySelector('#detail-heading').textContent.trim() === 'Weekend Cottage'`);
   await page().click('#status-group [data-status="done"]');
-  const changed = JSON.parse(fs.readFileSync(fixture('route-status-change.expected-order.json'), 'utf8')).order;
-  await page().waitFor(`Array.from(document.querySelectorAll('#build-list .build-entry__name')).map((n) => n.textContent.trim()).join('|') === ${JSON.stringify(changed.join('|'))}`);
-  assert.deepEqual(await buildNames(), changed, 'a status change re-sorts the list immediately');
+  // EDICT-0018 item 11: the registry order is the user's priority; marking a build done must not
+  // silently move it, only its badge changes.
+  assert.deepEqual(await buildNames(), expected, 'a status change keeps the registry order');
+  assert.equal(await page().evaluate('return document.querySelector("#status-group [data-status=\\"done\\"]").getAttribute("aria-pressed");'), 'true');
 });
 
 test('68 the world header derives its stats and the retired summary block is gone (AC2)', async () => {
@@ -2511,7 +2513,7 @@ test('75 resolution runs build -> world -> account -> catalogue for the 2s delta
       return row.getAttribute('data-mat');
     `);
     await openInventoryForRow(matId);
-    assert.match((await page().text('#inv-context')).trim(), /needed · \d+ in the world · \d+ covered$/);
+    assert.match((await page().text('#inv-context')).trim(), /^(.+ · )?\d+ allocated of \d+ needed · \d+ in world$/);
     await page().fill('#inv-delta', '2s');
     await page().click('#inv-ok');
     await page().waitFor('document.querySelector("#inventory-dialog").open === false');
@@ -2904,9 +2906,9 @@ test('86 every v2 row keeps the contract cell order and 28px controls (AC6/AC12)
   await reset();
   await page().waitFor('document.querySelector("#material-body .mat-row") !== null');
   const plain = await orderOf();
-  assert.deepEqual(plain.order, ['item', 'needed', 'got', 'covered', 'remaining', 'update', 'menu'],
-    'without surplus the cell sequence simply closes up');
-  assert.equal(plain.surplus.trim(), '', 'no empty surplus cell is rendered');
+  assert.deepEqual(plain.order, ['item', 'needed', 'got', 'covered', 'remaining', 'surplus', 'update', 'menu'],
+    'the surplus column is always present (item 8) and shows a dash when empty');
+  assert.equal(plain.surplus.trim(), '–', 'an empty surplus reads as a dash');
   assert.ok(plain.rowHeight >= 48);
 });
 
@@ -3038,8 +3040,8 @@ test('90 Tab walks Needed to Update and Enter on a row opens the shared dialog (
   await page().evaluate(`document.querySelector('[data-mat="${firstId}"]').focus(); return true;`);
   await page().press('Enter', { code: 'Enter', keyCode: 13 });
   await page().waitFor('document.querySelector("#inventory-dialog").open === true');
-  assert.match((await page().text('#inv-title')).trim(), /^Update .+/);
-  assert.match((await page().text('#inv-context')).trim(), /needed · \d+ in the world · \d+ covered$/);
+  assert.match((await page().text('#inv-item')).trim(), /^.+$/);
+  assert.match((await page().text('#inv-context')).trim(), /^(.+ · )?\d+ allocated of \d+ needed · \d+ in world$/);
   assert.equal(await page().count('#tile-dialog'), 0, 'one shared dialog, not a second one');
   await closeInventoryWithEscape();
 
@@ -3207,7 +3209,7 @@ test('95 a compact tile opens the one shared quick-update dialog and Undo still 
     return { matId: node.getAttribute('data-mat'), buildId: node.getAttribute('data-build'), aria: node.getAttribute('aria-label'), count: node.querySelector('.ctile__count').textContent.trim() };
   `);
   assert.ok(tile.matId && tile.buildId, 'the tile points at its build and material');
-  assert.match(tile.aria, /in the world · \d+ of \d+ covered · \d+ left/, 'the tile tooltip explains the allocation');
+  assert.match(tile.aria, /need \d+ · have \d+ · \d+ left/, 'the tile tooltip explains the allocation');
   assert.match(tile.count, /^\d/, 'the tile prints a count');
 
   const item = await page().evaluate(`
@@ -3220,7 +3222,7 @@ test('95 a compact tile opens the one shared quick-update dialog and Undo still 
   await page().click('#compact-grid .ccard .ctile');
   await page().waitFor('document.querySelector("#inventory-dialog").open === true');
   assert.equal(await page().count('#tile-dialog'), 0, 'no second quick-update dialog exists any more');
-  assert.equal((await page().text('#inv-title')).trim(), 'Update ' + item);
+  assert.equal((await page().text('#inv-item')).trim(), item);
   const before = await page().evaluate(`
     const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
     return state.worlds.find((world) => (world.builds || []).some((build) => build.id === ${JSON.stringify(tile.buildId)})).inventory || {};
@@ -3285,14 +3287,15 @@ test('96 stamps print UTC text from ISO data and the migration notice shows once
     };
   `);
   assert.ok(stamps.detail.length >= 1, 'the detail header stamps its build');
-  assert.ok(stamps.world.length >= 2, 'the world header stamps created and updated');
+  assert.ok(stamps.world.length >= 1, 'the world header stamps its last update');
   for (const stamp of [...stamps.detail, ...stamps.world]) {
     assert.match(stamp.iso, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/, 'every stamp carries the raw ISO value');
-    assert.equal(stamp.text, stamp.iso.slice(0, 16).replace('T', ' '), 'the visible text is the UTC slice');
+    assert.match(stamp.text, /^(just now|\d+ min ago|\d+ h ago|\d+ days? ago)$/, 'the visible text is a relative age');
     assert.equal(stamp.datetime, stamp.iso);
-    assert.equal(stamp.title, stamp.iso, 'the tooltip is the raw ISO value');
+    assert.match(stamp.title, /^Updated \d{4}-\d{2}-\d{2} \d{2}:\d{2} \(/, 'the tooltip is the exact UTC timestamp');
+    assert.ok(stamp.title.indexOf(stamp.iso) > -1, 'the tooltip carries the raw ISO value');
   }
-  assert.match(stamps.detailText, /Updated \d{4}-\d{2}-\d{2} \d{2}:\d{2}/, 'the detail row labels the update time');
+  assert.match(stamps.detailText, /^Updated (just now|\d+ min ago|\d+ h ago|\d+ days? ago)$/, 'the detail row labels the update time');
   assert.equal(stamps.migratedHidden, true, 'a fresh v2 document has no migration notice');
 
   const legacy = JSON.parse(fs.readFileSync(fixture17('v1-migration-state.json'), 'utf8'));
@@ -3570,7 +3573,9 @@ test('102 surplus appears once inventory exceeds total need', async () => {
   await openBuildNamed('Single Wall');
   rows = await materialRows();
   assert.equal(rows[0].remaining, '0', 'the first build keeps its covered count');
-  assert.equal(await page().exists('#material-body .mat-row [data-mat-surplus]'), false,
+  assert.equal((await page().text('#material-body .mat-row [data-mat-surplus]')).trim(), '–',
+    'no surplus amount shows while the need still exceeds the stock');
+  assert.equal(await page().evaluate('return document.querySelector("#material-body .mat-row [data-mat-surplus]").classList.contains("is-surplus");'), false,
     'no surplus cell exists while the world need still exceeds the stock');
   await openBuildNamed('Stock Wall');
   const stock = await materialRows();
@@ -3676,7 +3681,7 @@ test('106 hide completed hides done rows', async () => {
   await page().waitFor('document.querySelectorAll("#material-body .mat-row").length === 1');
   const visible = await materialRows();
   assert.deepEqual(visible.map((row) => row.id), ['m3'], 'only the row that still needs items stays');
-  assert.equal(await page().evaluate('return document.querySelector("#mat-hide-done").getAttribute("aria-pressed");'), 'true');
+  assert.equal(await page().evaluate('return document.querySelector("#mat-hide-done").checked;'), true);
   assert.equal(await page().evaluate('return localStorage.getItem("mbt.density");'), 'on');
   await page().reload();
   await page().waitFor('document.querySelector("#world-select") !== null');
@@ -3739,7 +3744,7 @@ test('108 grid density renders tiles with deficit', async () => {
   await page().evaluate(`document.querySelector('#material-grid .mat-chip[data-mat="m3"]').focus(); return true;`);
   await page().press('Enter', { code: 'Enter', keyCode: 13 });
   await page().waitFor('document.querySelector("#inventory-dialog").open === true');
-  assert.match(await page().text('#inv-title'), /Glass/);
+  assert.match(await page().text('#inv-item'), /Glass/);
   await closeInventoryWithEscape();
   await page().evaluate(`document.querySelector('#material-grid .mat-chip[data-mat="m3"]').focus(); return true;`);
   await page().press(' ', { code: 'Space', keyCode: 32 });
@@ -3759,6 +3764,7 @@ test('109 inventory dialog opens from the row', async () => {
     const active = document.activeElement;
     return {
       title: document.querySelector('#inv-title').textContent.trim(),
+      item: document.querySelector('#inv-item').textContent.trim(),
       context: document.querySelector('#inv-context').textContent.trim(),
       absolute: document.querySelector('#inv-absolute').value,
       delta: document.querySelector('#inv-delta').value,
@@ -3767,10 +3773,10 @@ test('109 inventory dialog opens from the row', async () => {
         (active.selectionStart === null || active.selectionEnd === String(active.value).length),
     };
   `);
-  assert.equal(dialog.title, 'Update Stone Bricks');
+  assert.equal(dialog.item, 'Stone Bricks');
   assert.match(dialog.context, /Wall/);
-  assert.match(dialog.context, /300 needed/);
-  assert.match(dialog.context, /350 in the world/);
+  assert.match(dialog.context, /300 allocated of 300 needed/);
+  assert.match(dialog.context, /350 in world/);
   assert.equal(dialog.absolute, '350', 'the absolute field is prefilled from the world inventory');
   assert.equal(dialog.delta, '', 'the relative field starts empty');
   assert.equal(dialog.focused, 'inv-absolute', 'focus lands in the absolute field');
@@ -3997,7 +4003,7 @@ test('116 row dialogs are icon, name, delete only', async () => {
   await openBuildNamed('Wall');
   await page().click('[data-mat="m1"] .mat-row__name');
   await page().waitFor('document.querySelector("#inventory-dialog").open === true');
-  assert.match(await page().text('#inv-title'), /Stone Bricks/);
+  assert.match(await page().text('#inv-item'), /Stone Bricks/);
   await closeInventoryWithEscape();
   await page().click('#detail-avatar');
   await page().waitFor('document.querySelector("#icon-dialog").open === true');
@@ -4161,7 +4167,7 @@ test('121 compact view renders v2 counts', async () => {
   assert.equal(oracle, tile.count);
   await page().evaluate(`document.querySelector('#compact-grid .ccard .ctile[data-mat="m1"]').click(); return true;`);
   await page().waitFor('document.querySelector("#inventory-dialog").open === true');
-  assert.match(await page().text('#inv-title'), /Stone Bricks/);
+  assert.match(await page().text('#inv-item'), /Stone Bricks/);
   const before = (await appState()).worlds[0].inventory.stone_bricks;
   await page().fill('#inv-absolute', '400');
   await page().fill('#inv-delta', '');
@@ -4269,12 +4275,12 @@ test('124 timestamps show UTC slice and raw ISO title', async () => {
   `);
   assert.ok(stamps.length >= 1, 'the sidebar renders the world stamps');
   for (const stamp of stamps) {
-    assert.match(stamp.text, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/, 'the visible stamp is the UTC slice, not a date phrase');
-    assert.equal(stamp.title, stamp.iso, 'the title keeps the raw ISO timestamp');
+    assert.match(stamp.text, /^(just now|\d+ min ago|\d+ h ago|\d+ days? ago)$/, 'the visible stamp is a relative age');
     assert.equal(stamp.datetime, stamp.iso);
-    assert.equal(/ago|yesterday|today|just now/i.test(stamp.text), false);
+    assert.ok(stamp.title.indexOf('(' + stamp.iso + ')') > -1, 'the tooltip keeps the raw ISO timestamp');
+    assert.match(stamp.title, /^Updated \d{4}-\d{2}-\d{2} \d{2}:\d{2} \(/, 'the tooltip prefixes the exact UTC time');
     const expected = await page().evaluate(`return window.TrackerModel.formatStamp(${JSON.stringify(stamp.iso)});`);
-    assert.equal(stamp.text, expected, 'the text is exactly M.formatStamp(iso)');
+    assert.ok(stamp.title.indexOf(expected) > -1, 'the tooltip text is M.formatStamp(iso)');
   }
   assert.equal(await page().hidden('#migrated-from'), false, 'the migration notice is shown once');
   await page().reload();
@@ -4381,7 +4387,7 @@ test('127 inactive builds follow priority/end/hide', async () => {
       node.querySelector('.build-entry__name').textContent.trim() === 'Paused Barn');
     return { actions: entry.querySelectorAll('.build-entry__actions button').length };
   `);
-  assert.equal(before.actions, 2, 'hover actions are an Activate and a Remove button');
+  assert.equal(before.actions, 3, 'hover actions are Edit, Activate and Remove buttons');
   await page().evaluate(`
     const entry = Array.from(document.querySelectorAll('#build-list .build-entry')).find((node) =>
       node.querySelector('.build-entry__name').textContent.trim() === 'Paused Barn');

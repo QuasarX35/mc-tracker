@@ -1,0 +1,90 @@
+{
+  "desktop": {
+    "main": {
+      "w": 1232,
+      "h": 736,
+      "top": 137
+    },
+    "panel": {
+      "w": 200,
+      "h": 590,
+      "top": 213
+    },
+    "list": {
+      "w": 360,
+      "h": 180,
+      "top": 265
+    },
+    "detail": {
+      "w": 646,
+      "h": 650,
+      "top": 213
+    },
+    "select": {
+      "w": 172,
+      "h": 44,
+      "top": 284
+    },
+    "rows": 4,
+    "rowH": {
+      "w": 642,
+      "h": 59,
+      "top": 566
+    },
+    "head": {
+      "w": 642,
+      "h": 24,
+      "top": 542
+    },
+    "coords": "X 120  Y 64  Z -40",
+    "meta": "Updated just now",
+    "worldMeta": "Java 1.21.4 · 3 builds · Updated just now",
+    "rank": [
+      "1",
+      "2",
+      "3"
+    ]
+  },
+  "compact": {
+    "cards": 3,
+    "tiles": 9,
+    "need": "384",
+    "count": "184",
+    "doneDim": "0.6",
+    "svg": 14
+  },
+  "dialog": {
+    "item": "Stone Bricks",
+    "context": "Wall · 300 allocated of 300 needed · 350 in world",
+    "builds": [
+      "Wallneed 300allocated 300",
+      "Hutneed 200allocated 50",
+      "Old Shed (paused)need 50allocated 0"
+    ],
+    "preview": "350 → 350",
+    "placeholder": "+64",
+    "icon": true
+  },
+  "previewDelta": "350 → 488",
+  "hut": [
+    {
+      "item": "stone bricks",
+      "cells": [
+        "350",
+        "50",
+        "150",
+        "–"
+      ]
+    }
+  ],
+  "surplus": {
+    "text": "+385 surplus",
+    "cls": "num is-surplus"
+  },
+  "rail": 56,
+  "mobile": {
+    "scrollW": 390,
+    "inner": 390
+  },
+  "console": []
+}

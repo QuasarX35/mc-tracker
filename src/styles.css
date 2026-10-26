@@ -1916,7 +1916,7 @@ body { font-size: 18px; }
 #mat-toolbar { margin: 2px 0 2px; }
 #mat-toolbar .field { display: flex; align-items: center; gap: 6px; }
 #mat-toolbar .field > label { margin: 0; white-space: nowrap; }
-#material-table .mtable__head { padding: 2px 6px; }
+#material-table .mtable__head { padding: 1px 6px; }
 @media (max-width: 640px) {
   #main, #main.grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
 }
@@ -1939,4 +1939,264 @@ body { font-size: 18px; }
   #mat-toolbar .mat-viewtoggle { margin-left: 0; }
   #material-table .mat-row { max-width: 100%; }
   #material-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* =====================================================================
+   EDICT-0018 — the 33-item pass. Everything here supersedes the EDICT-0017
+   blocks above: one layout width, one column template, real hover actions,
+   a plain-text Needed cell, a single-line footer and the wide dialog.
+   ===================================================================== */
+[hidden] { display: none !important; }
+
+/* 9/13/14 — the shell stops at 1600px, the detail pane may shrink, nothing empty */
+#main {
+  grid-template-columns: 210px 380px minmax(0, 1fr);
+  max-width: 1600px;
+  column-gap: 16px;
+}
+#main > #world-panel { grid-column: 1; grid-row: 2; }
+#main > #view-builds, #main > #view-materials, #main > #view-worlds { grid-column: 2 / -1; }
+#build-detail, #detail-body, .detail { min-width: 0; max-width: 100%; }
+.builds__list, #build-list { min-width: 0; }
+.is-sidebar-collapsed #main, #main.is-sidebar-collapsed { grid-template-columns: 56px 360px minmax(0, 1fr); }
+
+/* 6/10 — one column template for head and rows; numbers right-aligned, cells clipped */
+.mtable__head,
+.mat-row {
+  grid-template-columns: minmax(120px, 1fr) 84px 76px 72px 68px 84px 36px 30px;
+  column-gap: 8px;
+  align-items: center;
+}
+.mtable__head > .num,
+.mtable__head > [role="columnheader"]:nth-child(n + 2),
+.mat-row > .num,
+.mat-row__needed { justify-self: end; text-align: right; min-width: 0; }
+.mat-row__needed { display: flex; justify-content: flex-end; min-width: 0; }
+.mat-row__needed-input {
+  width: 100%; min-width: 0; text-align: right; font: inherit; color: inherit;
+  background: transparent; border: 1px solid transparent; padding: 2px 4px; cursor: text;
+}
+.mat-row__needed-input:hover { border-color: rgba(255, 255, 255, 0.28); }
+.mat-row__needed-input:focus { border-color: var(--mc-xp); background: #101010; }
+.mat-row > * { min-width: 0; }
+.mat-row__name { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+.mat-row__item { min-width: 0; }
+.mat-row__check { margin-left: auto; color: var(--mc-green); }
+.mat-row__check svg { width: 12px; height: 12px; fill: currentColor; }
+.mat-row--done { color: #a9c9a9; opacity: 0.8; }
+.mat-chip.is-done { opacity: 0.6; filter: grayscale(0.4); }
+
+/* 2/3/12/15 — compact cards: SVG icons at a real size, consistent heights */
+.ccard { height: 100%; }
+.ccard__actions { opacity: 0; }
+.ccard:hover .ccard__actions, .ccard:focus-within .ccard__actions { opacity: 1; }
+.ccard__actions svg { width: 14px; height: 14px; fill: currentColor; }
+.ccard__actions .mc-btn { width: 26px; height: 26px; min-height: 26px; }
+#compact-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); align-items: stretch; }
+.ccard__matrix { align-content: flex-start; }
+.ctile {
+  flex-direction: column; justify-content: center; align-items: center;
+  min-width: 52px; min-height: 56px; padding: 3px 4px; gap: 1px;
+}
+.ctile__need { font-size: var(--fs-tiny); color: #e8e8e8; }
+.ctile__count { font-size: var(--fs-meta); }
+.ctile--done, .ctile[data-state="done"] { opacity: 0.6; filter: grayscale(0.5); }
+
+/* 1/16/17/18 — build entries: drawn bar, rank badge, hover actions that stay focusable */
+.build-entry__bar { overflow: hidden; }
+.build-entry__fill { min-width: 0; }
+.build-entry__rank {
+  font-size: 10px; line-height: 1; padding: 2px 4px;
+  border: var(--border-hard); background: var(--mc-panel-2); color: var(--mc-text);
+}
+.build-entry--top { box-shadow: inset 3px 0 0 var(--mc-xp); }
+.build-entry__actions {
+  display: flex; gap: 2px; opacity: 0;
+  transition: opacity 90ms linear;
+}
+.build-entry:hover .build-entry__actions,
+.build-entry:focus-within .build-entry__actions { opacity: 1; }
+.build-entry__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 11/12 — the rail: no stray rule, the expand button keeps a target */
+#world-panel { overflow-x: hidden; }
+#world-panel .world-picker { flex-wrap: nowrap; }
+#world-panel #world-select { flex: 1 1 auto; width: 100%; min-width: 0; }
+#world-panel > #sidebar-toggle { min-height: 30px; }
+.is-sidebar-collapsed > #world-panel { border-right: var(--border-hard); }
+
+/* 32 — one footer line */
+.footer { padding-top: 4px; }
+.footer__row { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; margin: 0; }
+.footer__note, #status-line { color: #e2e2e2; font-size: var(--fs-meta); }
+#status-line { order: 2; }
+
+/* 27/28/29 — the wide inventory dialog */
+.mc-dialog--wide { width: min(580px, 94vw); }
+.inv-head { display: flex; gap: 12px; align-items: center; margin-bottom: 8px; }
+.inv-head__slot { flex: 0 0 auto; width: 32px; height: 32px; display: inline-flex; }
+.inv-head__slot img { width: 32px; height: 32px; image-rendering: pixelated; }
+.inv-head__item { margin: 0; font-size: 18px; }
+.inv-head__context { margin: 0; color: #e2e2e2; font-size: var(--fs-meta); }
+#inv-builds { display: flex; flex-direction: column; gap: 4px; max-height: 132px; overflow: auto; margin: 6px 0 8px; }
+.inv-build { display: flex; gap: 10px; justify-content: space-between; align-items: baseline; font-size: var(--fs-meta); padding: 2px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
+.inv-build__need, .inv-build__gave { color: #dcdcdc; white-space: nowrap; }
+.inv-builds__empty { margin: 0; color: #cfcfcf; }
+#inv-preview { margin: 6px 0 0; font-size: 16px; min-height: 22px; }
+#inv-preview:empty { min-height: 0; }
+
+/* 26/31 — contrast pass */
+#world-meta, .mat-shared, .build-entry__badge, .ccard__meta, .ccard__time,
+.empty, .muted, .icon-hint, #detail-meta { color: #dedede; }
+.mtable__head { color: #f2f2f2; }
+
+/* 5 — the table stays inside the detail pane at every width */
+#material-table, #material-body, #material-grid, #mat-toolbar { min-width: 0; max-width: 100%; }
+#material-body .mat-row { max-width: 100%; }
+
+/* 10/24 — mobile: two grid rows per material, no inner scroll box, no overflow */
+@media (max-width: 760px) {
+  #main, .is-sidebar-collapsed #main, #main.is-sidebar-collapsed { grid-template-columns: minmax(0, 1fr); }
+  #main > #world-panel { grid-column: 1 / -1; grid-row: auto; }
+  .mtable__head { display: none; }
+  .mat-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-areas: "item item item menu" "need got left surplus";
+    row-gap: 4px;
+  }
+  .mat-row__item { grid-area: item; }
+  .mat-row__needed { grid-area: need; }
+  .mat-row [data-mat-got] { grid-area: got; }
+  .mat-row [data-mat-covered] { display: none; }
+  .mat-row [data-mat-remaining] { grid-area: left; }
+  .mat-row [data-mat-surplus] { grid-area: surplus; }
+  .mat-row [data-mat-update] { display: none; }
+  .mat-row__menu { grid-area: menu; justify-self: end; }
+  .mat-row [data-mat-got]::before, .mat-row [data-mat-remaining]::before,
+  .mat-row [data-mat-surplus]::before, .mat-row__needed::before {
+    content: attr(data-label); font-size: 10px; color: #cfcfcf; display: block;
+  }
+}
+
+/* EDICT-0018 follow-ups measured in probe-0018b: the action SVGs have no intrinsic width in
+   the 26px buttons, and compact cards on a short final row must still match their neighbours. */
+.ccard__actions .mc-btn { padding: 0; display: inline-flex; align-items: center; justify-content: center; }
+.ccard__actions svg { display: block; flex: 0 0 14px; width: 14px; height: 14px; min-width: 14px; }
+.ccard__matrix { min-height: 132px; }
+#compact-grid .ccard { min-height: 100%; }
+
+/* EDICT-0018 measured follow-ups (probe-0018d): the EDICT-0017 budget block wins on specificity,
+   so restate the 8-column template at the same weight, stretch header cells, let the shell reach
+   1600px and give the world select the full panel width. */
+#main, #main.grid { grid-template-columns: 210px 380px minmax(0, 1fr); max-width: 1600px; }
+.screen { width: calc(100vw - 48px); max-width: 1600px; }
+#material-table .mtable__head,
+#material-table .mat-row {
+  grid-template-columns: minmax(120px, 1fr) 96px 88px 84px 76px 92px 40px 32px;
+  column-gap: 8px;
+}
+#material-table .mtable__head > * { justify-self: stretch; min-width: 0; }
+#material-table .mtable__head > :nth-child(n + 2) { text-align: right; }
+#material-table .mtable__head > :nth-child(n + 7) { text-align: center; }
+#world-panel #world-select { display: block; width: 100%; min-width: 0; box-sizing: border-box; }
+
+/* EDICT-0018 final column budget: 200 / 360 / ≥640 keeps the eight-column table inside the
+   detail pane at 1280 without clipping the last cells, and lets the name column breathe. */
+#main, #main.grid { grid-template-columns: 200px 360px minmax(640px, 1fr); }
+.is-sidebar-collapsed #main, #main.is-sidebar-collapsed { grid-template-columns: 56px 360px minmax(640px, 1fr); }
+#material-table .mtable__head,
+#material-table .mat-row {
+  grid-template-columns: minmax(110px, 1fr) 84px 72px 70px 64px 80px 34px 28px;
+}
+
+/* EDICT-0018 item 24: long material names wrap on phones instead of ellipsising. */
+@media (max-width: 760px) {
+  #material-table .mat-row .mat-row__name { white-space: normal; overflow: visible; text-overflow: clip; }
+}
+
+/* EDICT-0018 item 24/52: long material names wrap on phones instead of ellipsising. */
+@media (max-width: 760px) {
+  #material-table .mat-row .mat-row__name { white-space: normal; overflow: visible; text-overflow: clip; }
+}
+
+/* EDICT-0018 responsive ladder: 1280 is the reference width; below 1180 the sidebar keeps its
+   column and the list/detail stack; below 760 everything is one column (already above). */
+@media (max-width: 1180px) {
+  #main, #main.grid { grid-template-columns: 200px minmax(0, 1fr); }
+  #main > #view-builds, #main > #view-materials, #main > #view-worlds { grid-column: 2; }
+  .builds { grid-template-columns: minmax(0, 1fr); }
+  .builds__detail, #build-detail { min-width: 0; }
+}
+@media (max-width: 900px) {
+  #main, #main.grid { grid-template-columns: minmax(0, 1fr); }
+  #main > #world-panel { grid-column: 1 / -1; grid-row: auto; }
+  #main > #view-builds, #main > #view-materials, #main > #view-worlds { grid-column: 1 / -1; }
+}
+
+/* Items 13/14: the world field grows to the panel edge and the world actions stack. */
+#world-panel .world-panel__identity { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; min-width: 0; }
+#world-panel .world-picker__field { flex: 1 1 auto; min-width: 0; }
+#world-panel .world-picker__field .mc-select,
+#world-panel #world-select { width: 100%; min-width: 0; box-sizing: border-box; }
+#world-panel .topbar__actions.world-panel__actions { flex-direction: column; align-items: stretch; gap: 4px; }
+#world-panel .topbar__actions.world-panel__actions .mc-btn { width: 100%; }
+.is-sidebar-collapsed > #world-panel { border-right: 0; }
+.is-sidebar-collapsed > #world-panel > #sidebar-toggle { border-right: 0; }
+
+/* Items 12/13: equal compact cards and a full-width world select. */
+#compact-grid { align-items: stretch; }
+#compact-grid .ccard { height: 100%; }
+#world-panel .world-panel__identity { flex-wrap: wrap; }
+#world-panel .world-picker__field { flex: 1 1 100%; }
+
+/* Item 13: the world label sits above the select, so the select spans the panel width. */
+#world-panel .world-picker__field { display: flex; flex-direction: column; align-items: stretch; gap: 2px; }
+#world-panel .world-picker__field .mc-select { width: 100%; }
+
+/* EDICT-0018 item 1/8/16: two-row build entry (identity row + full-width progress). */
+.build-entry[data-build] {
+  display: grid;
+  grid-template-columns: auto auto auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 6px;
+  row-gap: 3px;
+  padding: 5px 8px;
+}
+.build-entry__rank { grid-column: 1; grid-row: 1; }
+.build-entry__grab { grid-column: 2; grid-row: 1; }
+.build-entry__slot { grid-column: 3; grid-row: 1; }
+.build-entry__name { grid-column: 4; grid-row: 1; }
+.build-entry__badge { grid-column: 5; grid-row: 1; }
+.build-entry__actions { grid-column: 6; grid-row: 1; opacity: 0; }
+.build-entry:hover .build-entry__actions,
+.build-entry:focus-within .build-entry__actions { opacity: 1; }
+.build-entry__bar { grid-column: 3 / -1; grid-row: 2; width: 100%; height: 6px; margin: 0; }
+.build-entry__bar .build-entry__fill { display: block; height: 100%; }
+
+/* Item 3/12: compact cards size to content; matrix wraps in a stable grid. */
+#compact-grid { align-items: stretch; grid-auto-rows: 1fr; }
+#compact-grid .ccard { height: auto; min-height: 100%; }
+.ccard__name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ccard__matrix { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; min-height: 0; align-content: start; }
+.ctile { flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 100%; padding: 4px 4px; }
+.ctile__need { font-size: 10px; line-height: 1; color: var(--mc-text-muted); }
+.ctile .slot { width: 22px; height: 22px; }
+.ctile__count { font-size: var(--fs-meta); line-height: 1.1; }
+
+/* Item 6/9: wider name column; the numeric columns stay right-aligned and never clip. */
+#material-table .mtable__head,
+#material-table .mat-row {
+  grid-template-columns: minmax(96px, 1fr) 78px 66px 64px 58px 74px 32px 26px;
+}
+.mat-row__item { display: grid; grid-template-rows: auto auto; align-items: center; row-gap: 0; min-width: 0; }
+.mat-row__name { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+.mat-shared { font-size: 10px; line-height: 1; color: var(--mc-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mtable__head span[role=columnheader] { justify-self: stretch; }
+
+/* EDICT-0018 item 24/52: the add-form picker label wraps on phones instead of clipping. */
+#mat-choice-name { display: block; min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  #mat-choice-name { white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+  #add-material-form .field { min-width: 0; }
 }
