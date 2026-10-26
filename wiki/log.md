@@ -292,3 +292,17 @@ The ten-item report changed the app's controls, its typeface, its icon set and i
   was withdrawn after the Lead's containment measurement found `.materials` outside the detail
   panel; R7 inverted EDICT-0014's reduce rule (reduce now excludes the scenery rather than
   freezing it); the e2e suite still has no output-directory argument.
+
+## [2026-10-26] ingest | EDICT-0016 withdrawn; game-icon coverage research
+
+- Recorded the withdrawal of EDICT-0016, the fourteen-item visual-density and compact-view
+  round, before S5: the founder withdrew it in full, every `src/` change was discarded, the
+  tree returned to `e1308d6`, and `app-qa` re-verified at 80 cases
+  (`2026-10-26T01:58:43.177Z`). The discarded work is archived outside the repository; no
+  tests, fixtures or evidence from the round remain.
+- Updated [[Minecraft Build Tracker]] with a withdrawal note and the remaining icon-coverage
+  pointer, and [[Open questions]] with the reopened density/readability question and the
+  remaining icon-coverage question.
+- Referenced `docs/backlog/game-icons.md` (research note: 1,368 icons, twelve hidden or stateful
+  1.21.4 items plus collapsed variant states; registry-driven extractor and coverage gate).
+- Design system and `README.md` unchanged: nothing in this round shipped.

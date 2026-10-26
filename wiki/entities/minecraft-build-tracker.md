@@ -2,7 +2,7 @@
 title: Minecraft Build Tracker
 type: entity
 summary: A local, offline web tool for planning Minecraft builds and tracking the materials each one needs, styled after the in-game GUI.
-updated: 2026-10-25
+updated: 2026-10-26
 sources:
   - 2026-10-25-minecraft-build-tracker-spec
   - 2026-10-25-minecraft-gui-design-system
@@ -181,6 +181,18 @@ form, the guide rails and the scenery.
   over 120 s, with `#backdrop-pause` as the WCAG 2.2.2 control; `prefers-reduced-motion: reduce`
   now defaults the layer to **paused** (the OS preference is respected) and the button or a stored
   `motion=play` opts in — the opposite of EDICT-0014's freeze.
+
+## The withdrawn density round (EDICT-0016)
+
+On 2026-10-26 the founder withdrew EDICT-0016, a fourteen-item visual-density and
+compact-view round, before it reached S5: it changed the deliberate small, dense appearance
+the design rests on, so nothing shipped. The app keeps the compact layout and the existing
+controls; the two things the founder asked to keep — the vanilla panorama and the
+Minecraft.ttf typeface — were already shipped by EDICT-0014 and EDICT-0013. The icon
+catalogue is complete for 1.21.4 at 1,368 icons except twelve hidden or stateful items and
+the intentionally collapsed variant states; the
+[game-icon coverage note](../../docs/backlog/game-icons.md) proposes a registry-driven
+extractor and a bake gate.
 
 ## Identity
 

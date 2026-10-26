@@ -1,11 +1,11 @@
 {
-  "verified_at": "2026-10-25T14:39:07.404Z",
-  "artifact_hash": "c36dee7943e435013b3072f13239a4f0ccf85da1ebadecb3656ed023b1cfee31",
+  "verified_at": "2026-10-26T01:58:43.177Z",
+  "artifact_hash": "5748bc0b29fe9f19033c5e053212d4032d109fe52df02c1f8393b37a02568529",
   "files": {
-    "src/index.html": "cd790db92dc65276327d86688ab17dd59e7bcc753cb4a109603b90f09f584b72",
-    "src/styles.css": "491bbb78b8e607147a106a4bf7fbb82d53cda83abe58475f0ec189c24f916978",
-    "src/app.js": "b103ac48fab1e40c94426db9ef689751e9114cce9100ac177b642adf224e08e3",
-    "src/tracker/model.js": "947ee47804cf0156705a7dc86fa88dada0edc0ef5688f02cc89822d188811191",
+    "src/index.html": "4b80440f99f6f6864d3ff5be47eedcdabda1bd8b244e7164bb7ba78586ec0821",
+    "src/styles.css": "f79df5008006b4a63907c28b56f480e9f733a986450ccb0af001d083343364d7",
+    "src/app.js": "5f85c4ec59a3b0f1c910375f7a2add4274071dbecc6f92daa31b97051ac4c4eb",
+    "src/tracker/model.js": "90674ecc72445e91715b83ff5aea82b43ab782e7d3a721d69c5660f291255491",
     "src/assets/icons/icons.js": "b9e534668f51e960758c5e7a3a5e5b2d3ed1c73a9fb75e24413e73b019594221",
     "src/assets/fonts/Minecraft.ttf": "bd47314d301e50ff4d109bff28dfcf637cb7eb13945480259878b848875acc65",
     "src/assets/panorama/backdrop.webp": "331253bd719c08f13ac0eec87088ba71387c2e1e2157438a5aaa1d60358bf1a5",

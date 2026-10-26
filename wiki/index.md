@@ -2,7 +2,7 @@
 
 # Index
 
-Catalogue of 24 pages, regenerated 2026-10-25. Read this first when answering a
+Catalogue of 24 pages, regenerated 2026-10-26. Read this first when answering a
 query; it is the map, the pages are the territory.
 
 ## Overview (1)
@@ -32,7 +32,7 @@ query; it is the map, the pages are the territory.
 |------|---------|---------|
 | [[Dataview]] | Obsidian plugin that queries YAML frontmatter to generate dynamic tables and lists across wiki pages. | 2026-10-25 |
 | [[Marp]] | Markdown-based slide-deck format with an Obsidian plugin, used to turn wiki content into presentations. | 2026-10-25 |
-| [[Minecraft Build Tracker]] | A local, offline web tool for planning Minecraft builds and tracking the materials each one needs, styled after the in-game GUI. | 2026-10-25 |
+| [[Minecraft Build Tracker]] | A local, offline web tool for planning Minecraft builds and tracking the materials each one needs, styled after the in-game GUI. | 2026-10-26 |
 | [[Obsidian]] | Local markdown knowledge-base app used as the human-facing IDE for this wiki — graph view, wikilinks, plugins, Web Clipper. | 2026-10-25 |
 | [[qmd]] | A local markdown search engine with hybrid BM25/vector search and LLM re-ranking, exposed as a CLI and an MCP server. | 2026-10-25 |
 
@@ -48,7 +48,7 @@ query; it is the map, the pages are the territory.
 |------|---------|---------|
 | [[Atmosphere and identity without shipping assets]] | Making a homemade tool feel like the game — real menu scenery and avatars — while committing no game pixels and surviving their absence. | 2026-10-25 |
 | [[Implementation decisions]] | The concrete choices made in instantiating this wiki — directories, frontmatter, wikilinks, zero-dependency tooling, sealed raw sources. | 2026-10-25 |
-| [[Open questions]] | What this wiki still does not know or has not decided — lint findings, untested claims from the source, and next sources worth ingesting. | 2026-10-25 |
+| [[Open questions]] | What this wiki still does not know or has not decided — lint findings, untested claims from the source, and next sources worth ingesting. | 2026-10-26 |
 | [[RAG and LLM Wiki compared]] | Side-by-side comparison of query-time retrieval and a compiled maintained wiki, including where each actually wins. | 2026-10-25 |
 | [[Testing a UI like a user]] | Driving real Chrome through the DevTools Protocol with zero dependencies, and gating app changes on a hash stamp that only a passing run can refresh. | 2026-10-25 |
 | [[Vanilla GUI over a neon dashboard]] | Case study in overriding an inherited design system — the violet dashboard was replaced by an in-game GUI because explicit direction outweighs an artifact. | 2026-10-25 |

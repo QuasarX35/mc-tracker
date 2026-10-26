@@ -2,7 +2,7 @@
 title: Open questions
 type: synthesis
 summary: What this wiki still does not know or has not decided — lint findings, untested claims from the source, and next sources worth ingesting.
-updated: 2026-10-25
+updated: 2026-10-26
 sources: [2026-10-25-llm-wiki-pattern]
 tags: [open-questions, lint]
 ---
@@ -39,6 +39,12 @@ question that a future source or a future session could close.
   snowball, ender pearl, honey bottle, armour stand, empty bucket, signs, banners; 1: filled
   buckets, tools, armour, elytra, potions, boats, minecarts, shulker boxes, beds, cakes/stews,
   books, maps, banner patterns, discs). Residual risks have their own entries below
+  ([[Vanilla assets without redistribution]]).
+- **Tracker: remaining icon coverage.** The 1,368-icon catalogue still lacks twelve
+  obtainable-or-hidden 1.21.4 items and collapses 246 variant renders to five representatives.
+  Closing the gap is a provenance question — a registry-driven extractor and a bake gate that
+  fails when coverage drops — not a picker feature; the proposal is in the
+  [game-icon coverage note](../../docs/backlog/game-icons.md)
   ([[Vanilla assets without redistribution]]).
 - **Tracker: icon fidelity vs. pixel purity.** Item icons are 256 px renders downscaled smoothly
   while tiled textures stay nearest-neighbour; nobody has compared the smooth 22 px slots
@@ -137,6 +143,11 @@ question that a future source or a future session could close.
   place ([[Testing a UI like a user]]).
 - **Physical device + real OS motion preference.** Both mobile layout and reduced-motion are
   emulated in headless Chrome, not observed on hardware ([[Testing a UI like a user]]).
+- **Tracker: density and readability.** EDICT-0016 proposed a larger type scale and a compact
+  builds view; the founder withdrew it because it changed the deliberate small, dense look, so
+  dense wins for now. The underlying tension — whether the 16 px UI is readable at 1,280 and
+  390 without a density switch — was not tested with real users; reopen if use says otherwise
+  ([[Minecraft Build Tracker]]).
 - **Corpus domain.** The wiki now covers its own pattern plus one product. A third domain
   (reading, research, team knowledge) would test whether the page taxonomy holds
   ([[Implementation decisions]] D1).
@@ -160,6 +171,11 @@ contract, an e2e evidence output folder, per-row undo and an empty-state review.
 `docs/backlog/mass-input-research.md` adds twelve ranked mass-input proposals; only bulk paste is
 adopted, and the rest stay research ([[Material registry]], [[Status-ranked build ordering]],
 [[Testing a UI like a user]]).
+
+EDICT-0016 (the fourteen-item density and compact-view round) was withdrawn by the founder on
+2026-10-26 before verification; nothing shipped and the density/readability question is back in
+the list above. Remaining icon coverage is tracked in the
+[game-icon coverage note](../../docs/backlog/game-icons.md).
 
 ## Next sources worth looking for
 
