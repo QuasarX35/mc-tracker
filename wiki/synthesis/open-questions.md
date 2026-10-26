@@ -130,9 +130,9 @@ question that a future source or a future session could close.
   dialogs and a screen-reader announcement for the paused state are not frozen. The e2e evidence
   folder also still needs an output-directory argument
   ([[Testing a UI like a user]]).
-- **Tracker: bulk paste adds only the matched set.** Unknown lines are shown unmatched and are
-  not added; the matcher is exact name/slug then a unique ≥3-character prefix, no edit distance.
-  A user pasting a misspelled list gets a partial add, and the review rows are the only recovery
+- **Tracker: paste preview matches nothing unknown.** Unknown lines are shown in `#paste-errors`
+  and block the import until removed; the parser accepts stack syntax but has no edit distance.
+  A misspelled list can no longer be partially added, which is safer but leaves no fuzzy recovery
   ([[Minecraft Build Tracker]]).
 - **Tracker: undo is one level and expires.** Six seconds, invalidated by any later commit; two
   deletions in a row leave only the last restorable. Whether that meets a user's mental model of
@@ -146,9 +146,10 @@ question that a future source or a future session could close.
   emulated in headless Chrome, not observed on hardware ([[Testing a UI like a user]]).
 - ~~**Tracker: density and readability.**~~ **Decided 2026-10-26: enlarged.** The founder first
   withdrew the larger type scale and compact builds view, then reinstated the built round and
-  chose it after seeing both: body 18 / muted 17 / meta 15 / tiny 13, a `−`/`+` stepper with
-  resolved stack labels, a world sidebar and a compact builds view. The dense-only alternative
-  is retired ([[Minecraft Build Tracker]]).
+  chose it after seeing both: body 18 / muted 17 / meta 15 / tiny 13, a world sidebar and a compact
+  builds view. The `−`/`+` stepper that round also added was retired by EDICT-0017 in favour of
+  the row Needed cell and the shared inventory dialog. The dense-only alternative is retired
+  ([[Minecraft Build Tracker]]).
 - **Corpus domain.** The wiki now covers its own pattern plus one product. A third domain
   (reading, research, team knowledge) would test whether the page taxonomy holds
   ([[Implementation decisions]] D1).
@@ -162,13 +163,44 @@ question that a future source or a future session could close.
   a criterion. Candidate rule: file if it contains a comparison, a decision, or a connection
   not present on any existing page ([[Ingest, query and lint]]).
 
+## After the shared-inventory round (EDICT-0017)
+
+- **Tracker: allocation is positional.** One world stock, claimed in list order with no
+  reservation, so pausing a build or dragging it changes other builds' In/Left. Whether "first in
+  my list wins" matches how players think about a shared chest is untested in real play
+  ([[Shared inventory]]).
+- **Tracker: the migration has no undo.** The v1→v2 merge is one-shot and lossy (two builds' 64
+  stone become 128), the `migratedFrom` notice shows once, and the only recovery is clearing v2
+  and re-importing an older backup; the v1 key is deliberately left in place, which also means a
+  deleted v2 key silently re-migrates stale data ([[Shared inventory]]).
+- **Tracker: inventory edits are unattributed and undo is one level.** Any inventory write is a
+  whole-world commit with the standard six-second single-level Undo; nothing records which build
+  or session spent a stack ([[Local-first tracking]]).
+- **Tracker: units are display-only.** Items / Stacks / Shulkers is a per-browser preference and
+  never enters the state, and stack notation is only parsed in the dialog's delta; a quantity is
+  always stored as item count ([[Shared inventory]]).
+- **Docs: two concept pages still describe the retired UI.** [[Compact view]] and
+  [[Number stepper]] predate EDICT-0017 and still mention `#tile-dialog` and the stepper as live
+  controls; a later documentation pass should update or retire them ([[Minecraft Build Tracker]]).
+- **Docs: the persisted-keys list is reconciled.** EDICT-0017 §4 names `mbt.density` for the
+  hide-done toggle; the app briefly persisted `mbt.hideDone`, and the implementation now matches
+  the contract (§4 keys: `mbt.units`, `mbt.sidebar`, `mbt.inactiveMode`, `mbt.sort`, `mbt.density`).
+- **Tracker: the old height cap is gone, and the budget is now measured.** The 264 px
+  material-list cap and the 960/1,700 px page budgets were replaced by a 1,232 px screen / 1,240 px
+  canvas at 1280×900. S5Q measured it on the frozen fixture (`.tmp/s13/probe71.mjs`,
+  `reports/qa/evidence/edict-0017/probe.json`): detail 646 px, six rows of 48 px fully visible,
+  page scrolls past the fold with the toolbar pinned. Still open: a very large real build (100+
+  materials) grows the page rather than the detail panel — the intended behaviour, but its
+  usability on long builds has not been observed with real data.
+
 ## Decided vs deferred after round 3
 
 EDICT-0015 decided the ten round-3 items (ordering, header stats, alignment, custom materials,
-add-form steppers, compact height, import, background). The UX backlog keeps the residue explicit
-instead of silently dropping it: rows 9–15 of `docs/backlog/ux.md` hold custom editing/deletion,
-the pause-control accessibility review, an import restore summary/size guard, the dialog keyboard
-contract, an e2e evidence output folder, per-row undo and an empty-state review.
+add-form steppers, compact height, import, background). The add-form stepper it lists was retired
+by EDICT-0017. The UX backlog keeps the residue explicit instead of silently dropping it: rows 9–15
+of `docs/backlog/ux.md` hold custom editing/deletion, the pause-control accessibility review, an
+import restore summary/size guard, the dialog keyboard contract, an e2e evidence output folder,
+per-row undo and an empty-state review.
 `docs/backlog/mass-input-research.md` adds twelve ranked mass-input proposals; only bulk paste is
 adopted, and the rest stay research ([[Material registry]], [[Status-ranked build ordering]],
 [[Testing a UI like a user]]).
@@ -177,9 +209,10 @@ EDICT-0016 (the fourteen-item density and compact-view round) was withdrawn and 
 by the founder on 2026-10-26 as built; it now ships, and density/readability is decided enlarged.
 Remaining icon coverage was decided on 2026-10-26: one canonical icon per item, hidden items out,
 and the coverage gate recommended but awaiting a round; the details are in the
-[game-icon coverage note](../../docs/backlog/game-icons.md). Compact-view phase 2 — the global
-user inventory and the FRD 4.2 deficit formula, phases/targets, Ascend, crafting/smelting,
-crafting procs and the Power toggle — is deferred, not dropped; the split is in
+[game-icon coverage note](../../docs/backlog/game-icons.md). Compact-view phase 2 was partly
+delivered by EDICT-0017 — the global inventory and the deficit formula now ship
+([[Shared inventory]]) — while phases/targets, Ascend, crafting/smelting, crafting procs and the
+Power toggle stay deferred, not dropped; the split is in
 [the phase-2 backlog](../../docs/backlog/compact-view-phase-2.md).
 
 ## Next sources worth looking for

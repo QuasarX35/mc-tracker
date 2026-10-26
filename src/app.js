@@ -94,7 +94,16 @@
     notesEditing: false,
     editingBuildId: null,
     dialogBuildId: null,
-    tileTarget: null
+    units: 'items',
+    sort: 'remaining',
+    hideDone: false,
+    matView: 'table',
+    sidebarCollapsed: false,
+    inactiveMode: 'priority',
+    invTarget: null,
+    pasteTarget: null,
+    openMenu: null,
+    dragBuildId: null
   };
   var editingWorldId = null;
   var dialogIcon = { world: null, build: null };
@@ -104,6 +113,14 @@
   var ICON_CATALOG = buildIconCatalog();
   var pendingConfirm = null;
   var BUILDS_VIEW_KEY = 'mbt.buildsView';
+  /* EDICT-0017 §4: the one place a display preference is named, so read and write cannot drift. */
+  var PREF_KEY = {
+    units: 'mbt.units',
+    sort: 'mbt.sort',
+    hideDone: 'mbt.density',
+    sidebar: 'mbt.sidebar',
+    inactive: 'mbt.inactiveMode'
+  };
   var PENCIL_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M9 0h3v2L2 12H0V9L9 0Z"/></svg>';
   var TRASH_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M4 0h4v1h3v2H1V1h3V0Zm-2 4h8l-.6 8H2.6L2 4Zm2 1v6h1V5H4Zm3 0v6h1V5H7Z"/></svg>';
   /* Contract §5: the one 14-unit check. Never a text glyph — U+2713 is in neither Minecraft.ttf
@@ -113,7 +130,6 @@
   var CHECK_ICON = '<svg viewBox="0 0 14 14" width="100%" height="100%" aria-hidden="true" ' +
     'focusable="false" style="display:block">' +
     '<path d="M1 7 L4.5 10.5 L12 2 L13 3.5 L4.5 13 L0 8.5 Z" fill="currentColor"/></svg>';
-
   /* ------------------------------------------------------------------ util */
 
   function $(id) { return document.getElementById(id); }
@@ -680,91 +696,84 @@
   }
 
   function setStatus(message) {
-    if (els.statusLine) els.statusLine.textContent = message;
+    var node = els['status-line'];
+    if (node) node.textContent = message;
   }
 
   /* -------------------------------------------------------------- lifecycle */
 
-  function init() {
-    var ids = [
-      'tab-builds', 'tab-materials', 'tab-worlds', 'main',
-      'view-builds', 'view-materials', 'view-worlds',
-      'world-select', 'world-meta', 'btn-new-world', 'btn-new-world-2', 'btn-import', 'btn-export',
-      'file-import', 'build-list', 'build-empty', 'btn-new-build', 'btn-first-build',
-      'world-stats', 'world-progress', 'world-remaining', 'world-bar', 'world-fill', 'backdrop-pause',
-      'btn-new-custom',
-      'custom-dialog', 'custom-form', 'custom-name', 'custom-stack', 'custom-scope',
-      'custom-icon-pick', 'custom-icon-upload', 'custom-icon-file', 'custom-icon-preview', 'custom-error', 'custom-save', 'custom-cancel',
-      'import-dialog', 'import-form', 'import-file', 'import-drop', 'import-text', 'import-restore',
-      'import-cancel', 'import-error',
-      'build-detail', 'detail-empty', 'detail-empty-action', 'detail-body', 'detail-heading', 'build-delete',
-      'detail-meta', 'detail-avatar',
-      'build-rename', 'build-name', 'build-name-save', 'build-name-cancel',
-      'build-coords', 'copy-coords', 'status-group', 'build-pct', 'build-bar',
-      'build-fill', 'build-summary', 'notes-text', 'notes-edit', 'notes-editor',
-      'notes-hint', 'build-notes', 'notes-save', 'notes-cancel',
-      'material-body', 'material-empty', 'btn-empty-pick-material', 'add-material-form', 'bulk-paste',
-      'bulk-dialog', 'bulk-form', 'bulk-input', 'bulk-review', 'bulk-add', 'bulk-cancel', 'bulk-error',
-      'mat-item', 'mat-needed', 'mat-collected', 'mat-choice', 'mat-choice-slot',
-      'mat-choice-name', 'mat-error',
-      'materials-lede', 'mat-search', 'mat-filter', 'world-material-body', 'world-material-empty',
-      'btn-empty-reset-filter',
-      'mat-totals', 'btn-copy-list', 'worlds-lede', 'world-cards', 'world-empty', 'btn-sample',
-      'btn-empty-create-world',
-      'status-line', 'toast',
-      'world-panel', 'world-panel-name', 'view-standard', 'view-compact',
-      'compact-view', 'compact-grid', 'compact-world',
-      'tile-dialog', 'tile-form', 'tile-title', 'tile-absolute', 'tile-relative', 'tile-error',
-      'tile-cancel', 'tile-save',
-      'world-dialog', 'world-form', 'world-dialog-title', 'world-name', 'world-edition',
-      'world-version', 'world-notes', 'world-error', 'world-save',
-      'build-dialog', 'build-form', 'build-dialog-title', 'build-dialog-save',
-      'build-dlg-name', 'build-dlg-status', 'build-dlg-coords',
-      'build-error', 'confirm-dialog', 'confirm-title', 'confirm-text', 'confirm-ok',
-      'world-avatar', 'world-icon', 'world-icon-change', 'world-icon-remove',
-      'build-dlg-icon', 'build-dlg-icon-change', 'build-dlg-icon-remove',
-      'icon-dialog', 'icon-form', 'icon-dialog-title', 'icon-search', 'icon-grid',
-      'icon-count-hint', 'icon-suggest-note', 'icon-file', 'icon-upload', 'icon-upload-block',
-      'icon-preview', 'icon-hint', 'icon-error', 'icon-use', 'icon-cancel'
-    ];
-    ids.forEach(function (id) { els[id] = $(id); });
-    // map dashed ids to camelCase keys for readability below
-    els.statusLine = els['status-line'];
-    els.toast = els['toast'];
+  /** Every id is addressable as `els[id]`; a handful of aliases the render code expects. */
+  function collectEls() {
+    Array.prototype.forEach.call(document.querySelectorAll('[id]'), function (node) {
+      if (node.id && !els[node.id]) els[node.id] = node;
+    });
+    els.main = $('main');
+    els.tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
     els.viewswitch = document.querySelector('.viewswitch');
-    els.buildsCanvas = document.querySelector('#view-builds > .builds');
-    els.tabs = [els['tab-builds'], els['tab-materials'], els['tab-worlds']];
-    els.views = {
-      builds: els['view-builds'],
-      materials: els['view-materials'],
-      worlds: els['view-worlds']
-    };
+    els.buildsCanvas = document.querySelector('#view-builds .builds');
+    els.views = { builds: $('view-builds'), materials: $('view-materials'), worlds: $('view-worlds') };
+    els.unitButtons = Array.prototype.slice.call(document.querySelectorAll('#unit-toggle [data-unit]'));
+  }
 
+  /* EDICT-0017 §3.8: preferences survive a reload but a stored value wins only when it is one of
+     the frozen choices — a stale or hand-edited key must never wedge the UI. */
+  function readPref(key, fallback, allowed) {
+    var raw = null;
+    try { raw = window.localStorage.getItem(key); } catch (error) { raw = null; }
+    if (raw !== null && allowed.indexOf(raw) >= 0) return raw;
+    return fallback;
+  }
+
+  function writePref(key, value) {
+    try { window.localStorage.setItem(key, String(value)); } catch (error) { /* storage unavailable */ }
+  }
+
+  function readPrefs() {
+    ui.units = readPref(PREF_KEY.units, 'items', ['items', 'stacks', 'shulkers']);
+    ui.sort = readPref(PREF_KEY.sort, 'remaining', ['remaining', 'name', 'category']);
+    ui.hideDone = readPref(PREF_KEY.hideDone, 'off', ['on', 'off']) === 'on';
+    ui.sidebarCollapsed = readPref(PREF_KEY.sidebar, 'open', ['open', 'closed']) === 'closed';
+    ui.inactiveMode = readPref(PREF_KEY.inactive, 'priority', ['priority', 'end', 'hide']);
+  }
+
+  function init() {
+    collectEls();
+    readPrefs();
     ui.buildsView = readBuildsView();
     var loaded = M.load(window.localStorage);
-    state = loaded.state || M.emptyState();
     var seeded = false;
-    if (!loaded.state && /[?&]demo\b/.test(window.location.search)) {
-      state = M.seedState();
-      seeded = true;
-      M.save(window.localStorage, state);
+    if (loaded.error) setStatus(loaded.error);
+    state = loaded.state;
+    if (!state) {
+      /* EDICT-0009 onboarding: an empty browser shows the honest empty states; only an explicit
+         `?demo` request seeds the sample world. EDICT-0017 §5.9 then adds the v1 write-back. */
+      state = M.emptyState();
+      if (/[?&]demo\b/.test(window.location.search)) {
+        state = M.seedState();
+        M.save(window.localStorage, state);
+        seeded = true;
+      }
+    } else if (state.migratedFrom === 1) {
+      /* contract §5.9: a v1 document loads, migrates and is written back under the v2 key
+         (the v1 key is untouched; save() drops the one-session flag from the payload). */
+      var migratedWrite = M.save(window.localStorage, state);
+      if (migratedWrite.error) setStatus(migratedWrite.error);
     }
-    if (loaded.error) toast(loaded.error, true);
-    // Seed the first paint once; selectedBuild() itself must stay fallback-free (case 11).
+    ui.selectedBuildId = null;
     selectInitialBuild();
-
+    applySidebarCollapsed();
+    applyUnits();
+    applyInactiveMode();
     bind();
     bindExtras();
-    var tabParam = (window.location.search.match(/[?&]tab=([a-z]+)/) || [])[1];
-    if (tabParam && els.views[tabParam]) ui.view = tabParam;
+    var tabParam = /[?&]tab=(builds|materials|worlds)\b/.exec(window.location.search);
+    if (tabParam) setView(tabParam[1]);
+    renderMigratedNotice();
     renderAll();
     probeBackdrop();
     initMotion();
-    setStatus(!state.worlds.length
-      ? 'Start by creating a world.'
-      : seeded ? 'Loaded sample data.' : 'Loaded from this browser.');
+    setStatus(seeded ? 'Loaded sample data.' : 'Loaded from this browser.');
   }
-
   function commit(next) {
     state = next;
     var saved = M.save(window.localStorage, state);
@@ -842,19 +851,20 @@
 
     els['backdrop-pause'].addEventListener('click', function () { toggleMotion(); });
     bindViewSwitch();
-    bindSteppers();
-    bindCompactView();
-    bindTileDialog();
+    bindEdict0017();
     els['btn-new-build'].addEventListener('click', function () { openBuildDialog(null); });
     els['btn-first-build'].addEventListener('click', function () { openBuildDialog(null); });
 
+    /* Built entries are divs with their own buttons (§4), so one delegated listener covers
+       select, activate and remove; the row itself stays the drag handle owner. */
     els['build-list'].addEventListener('click', function (event) {
-      var button = event.target.closest('.build-entry');
-      if (!button) return;
-      ui.selectedBuildId = button.dataset.build;
-      ui.titleEditing = false;
-      ui.notesEditing = false;
-      renderAll();
+      var activate = event.target.closest ? event.target.closest('[data-build-activate]') : null;
+      if (activate) { toggleBuildActive(activate.getAttribute('data-build-activate')); return; }
+      var remove = event.target.closest ? event.target.closest('[data-build-remove]') : null;
+      if (remove) { confirmDeleteBuild(remove.getAttribute('data-build-remove')); return; }
+      var entry = event.target.closest ? event.target.closest('.build-entry') : null;
+      if (!entry) return;
+      selectBuild(entry.getAttribute('data-build'));
     });
 
     els['status-group'].addEventListener('click', function (event) {
@@ -975,33 +985,72 @@
       });
     });
 
+    /* EDICT-0017 §3: the Needed cell is a plain text input — select-all on focus, commit on
+       blur/Enter, Escape reverts. No per-row copy of stock lives here: it belongs to the world. */
     els['material-body'].addEventListener('change', function (event) {
-      var input = event.target.closest('[data-mat-field]');
-      if (!input) return;
-      var context = currentBuild();
-      if (!context) return;
-      var patch = {};
-      patch[input.dataset.matField] = input.value;
-      commit(M.updateMaterial(state, context.world.id, context.build.id, input.dataset.mat, patch).state);
+      var input = event.target.closest ? event.target.closest('[data-mat-field="needed"]') : null;
+      if (input) commitNeeded(input);
     });
 
-    /* Live progress: the bar and figures must not look stale while a number is still being
-       typed. Persistence still waits for the change event above. */
-    els['material-body'].addEventListener('input', function (event) {
-      if (!event.target.closest || !event.target.closest('[data-mat-field]')) return;
-      var live = readRowProgress();
-      paintBuildProgress(live.totals, live.count);
+    els['material-body'].addEventListener('focusin', function (event) {
+      if (event.target.matches && event.target.matches('[data-mat-field="needed"]')) {
+        /* §4: the display may be stacks/shulkers; editing is always a plain item count. */
+        if (ui.units !== 'items') event.target.value = String(event.target.getAttribute('data-prev'));
+        selectAll(event.target);
+      }
+    });
+
+    els['material-body'].addEventListener('keydown', function (event) {
+      var input = event.target.closest ? event.target.closest('[data-mat-field="needed"]') : null;
+      if (input) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          if (commitNeeded(input)) input.blur();
+          return;
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          revertNeeded(input);
+          input.blur();
+          return;
+        }
+        return;
+      }
+      var row = event.target.closest ? event.target.closest('.mat-row') : null;
+      if (!row || event.target !== row) return;
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        openRowInventory(row);
+      }
     });
 
     els['material-body'].addEventListener('click', function (event) {
-      var button = event.target.closest('[data-remove-mat]');
-      if (!button) return;
-      var context = currentBuild();
-      if (!context) return;
-      var before = snapshotState();
-      var buildId = context.build.id;
-      commit(M.deleteMaterial(state, context.world.id, context.build.id, button.dataset.removeMat).state);
-      offerUndo(before, 'Material removed.', buildId);
+      var update = event.target.closest ? event.target.closest('[data-mat-update]') : null;
+      if (update) { openRowInventory(update); return; }
+      var menu = event.target.closest ? event.target.closest('[data-mat-menu]') : null;
+      if (menu) { toggleRowMenu(menu); return; }
+      var remove = event.target.closest ? event.target.closest('[data-mat-remove]') : null;
+      if (remove) { removeRowMaterial(remove.getAttribute('data-mat-remove')); return; }
+      var row = event.target.closest ? event.target.closest('.mat-row') : null;
+      if (row && !event.target.closest('input, button, .mat-menu')) openRowInventory(row);
+    });
+
+    /* The grid is the same data: a chip opens the same inventory dialog. */
+    els['material-grid'].addEventListener('click', function (event) {
+      var chip = event.target.closest ? event.target.closest('[data-mat]') : null;
+      if (!chip) return;
+      openRowInventory(chip);
+    });
+
+    /* AC7/AC12: the chips are buttons, and a keyboard user must be able to open the dialog with
+       Enter or Space. The CDP harness (and some assistive tech) dispatches the key without the
+       synthetic click a real browser would add, so wire the activation explicitly. */
+    els['material-grid'].addEventListener('keydown', function (event) {
+      if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
+      var chip = event.target.closest ? event.target.closest('[data-mat]') : null;
+      if (!chip) return;
+      event.preventDefault();
+      openRowInventory(chip);
     });
 
     els['mat-choice'].addEventListener('click', function () {
@@ -1015,8 +1064,7 @@
       if (!context) return;
       var result = M.addMaterial(state, context.world.id, context.build.id, {
         item: els['mat-item'].value,
-        needed: els['mat-needed'].value,
-        collected: els['mat-collected'].value
+        needed: els['mat-needed'].value
       });
       if (result.error) {
         els['mat-error'].textContent = result.error;
@@ -1024,15 +1072,11 @@
         return;
       }
       els['mat-error'].hidden = true;
-      // Reset the picker and the number fields first, then commit: the render that follows shows
-      // the new row and the empty "Choose item…" chip in the same pass.
       setMaterialChoice('');
       els['mat-needed'].value = '1';
-      els['mat-collected'].value = '0';
       commit(result.state);
       els['mat-choice'].focus();
     });
-
     els['mat-search'].addEventListener('input', function () {
       ui.query = els['mat-search'].value;
       renderWorldMaterials();
@@ -1269,26 +1313,16 @@
       els['mat-search'].focus();
     });
 
-    /* EDICT-0014 §5: paste a shopping list, review the match, then add it in one commit. */
+    /* EDICT-0017 §6.2: paste is parsed before it is imported — the preview dialog is the review;
+       nothing is committed until #paste-ok is pressed. */
     els['bulk-paste'].addEventListener('click', function () {
       if (!currentBuild()) {
         els['mat-error'].textContent = 'Add a build before pasting materials.';
         els['mat-error'].hidden = false;
         return;
       }
-      els['bulk-input'].value = '';
-      els['bulk-error'].hidden = true;
-      renderBulkReview();
-      els['bulk-dialog'].showModal();
-      els['bulk-input'].focus();
+      openPastePreview();
     });
-    els['bulk-input'].addEventListener('input', renderBulkReview);
-    els['bulk-form'].addEventListener('submit', function (event) {
-      event.preventDefault();
-      if (event.submitter && event.submitter.value === 'cancel') { els['bulk-dialog'].close(); return; }
-      applyBulk();
-    });
-
     /* EDICT-0014 §3: one delegated tooltip pair for every [data-tip] surface in the document. */
     document.addEventListener('pointerover', function (event) {
       var owner = event.target && event.target.closest ? event.target.closest('[data-tip]') : null;
@@ -1393,6 +1427,10 @@
 
   /* ---------------------------------------------------------------- render */
 
+  /**
+   * EDICT-0017 §3: one render pass per state change. Order matters only for the things that read
+   * `state`; every panel paints from `M.allocate()`/`worldSummary()` so no two surfaces disagree.
+   */
   function renderAll() {
     renderWorldPicker();
     renderBuilds();
@@ -1402,9 +1440,11 @@
     renderWorldMaterials();
     renderWorlds();
     renderMaterialChoice();
+    applySidebarCollapsed();
+    applyUnits();
+    applyInactiveMode();
     setView(ui.view);
   }
-
   function formatCount(value) {
     return String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
@@ -1412,18 +1452,26 @@
   /* -------------------------------------------------------------- timestamps */
 
   /**
-   * EDICT-0016 §7: one display helper for every surface — `Created <date> · Updated <date time>`
-   * in <time datetime title=ISO> nodes, falling back `updatedAt → createdAt → —`.
+   * EDICT-0017 §3: every timestamp is a `.stamp[data-iso]` — visible text is the UTC
+   * `YYYY-MM-DD HH:MM` from `M.formatStamp`, the raw ISO rides `title` (and `datetime`), so the
+   * frozen cases can assert both the human line and the machine value.
    */
+  /* §3: `.stamp` carries only the UTC slice; the human label ("Updated …") is a sibling text
+     node so the element's own text matches `YYYY-MM-DD HH:MM` exactly. */
   function stampNode(iso, label) {
     var node = document.createElement('time');
+    node.className = 'stamp';
     var text = M.formatStamp(iso);
     if (text !== '\u2014') {
       node.setAttribute('datetime', String(iso));
       node.setAttribute('title', String(iso));
+      node.setAttribute('data-iso', String(iso));
     }
-    node.textContent = label + ' ' + text;
-    return node;
+    node.textContent = text;
+    var fragment = document.createDocumentFragment();
+    if (label) fragment.appendChild(document.createTextNode(label + ' '));
+    fragment.appendChild(node);
+    return fragment;
   }
 
   function stampFragment(entity) {
@@ -1431,23 +1479,25 @@
     var updated = stamps.updatedAt !== undefined ? stamps.updatedAt : stamps.createdAt;
     var fragment = document.createDocumentFragment();
     fragment.appendChild(stampNode(stamps.createdAt, 'Created'));
-    fragment.appendChild(document.createTextNode(' · '));
+    fragment.appendChild(document.createTextNode(' \u00b7 '));
     fragment.appendChild(stampNode(updated, 'Updated'));
     return fragment;
   }
 
   function timeHtml(iso, label) {
     var text = M.formatStamp(iso);
-    var attrs = text === '\u2014' ? '' : ' datetime="' + escapeHtml(iso) + '" title="' + escapeHtml(iso) + '"';
-    return '<time' + attrs + '>' + escapeHtml(label + ' ' + text) + '</time>';
+    var attrs = text === '\u2014'
+      ? ' class="stamp"'
+      : ' class="stamp" datetime="' + escapeHtml(iso) + '" title="' + escapeHtml(iso) + '"' +
+        ' data-iso="' + escapeHtml(iso) + '"';
+    return escapeHtml(label) + ' <time' + attrs + '>' + escapeHtml(text) + '</time>';
   }
 
   function stampHtml(entity) {
     var stamps = M.timestamps(entity);
     var updated = stamps.updatedAt !== undefined ? stamps.updatedAt : stamps.createdAt;
-    return timeHtml(stamps.createdAt, 'Created') + ' · ' + timeHtml(updated, 'Updated');
+    return timeHtml(stamps.createdAt, 'Created') + ' \u00b7 ' + timeHtml(updated, 'Updated');
   }
-
   /* ------------------------------------------------------------ builds view */
 
   function readBuildsView() {
@@ -1506,12 +1556,16 @@
     var world = activeWorld();
     if (!els['compact-grid']) return;
     renderCompactWorldLine(world);
+    var alloc = world ? M.allocate(world) : null;
     els['compact-grid'].innerHTML = world
-      ? M.sortBuilds(world.builds).map(compactCardHtml).join('')
+      ? M.sortBuilds(world.builds).map(function (build) {
+          return compactCardHtml(world, build, alloc);
+        }).join('')
       : '';
     wireIconFallbacks(els['compact-grid']);
   }
 
+  /** Identity only: the gathered sentence belongs to the sidebar, once per panel (§1 AC1). */
   function renderCompactWorldLine(world) {
     var node = els['compact-world'];
     if (!node) return;
@@ -1520,84 +1574,65 @@
       node.textContent = 'No world selected';
       return;
     }
-    var identity = world.name + ' · ' + (world.edition === 'bedrock' ? 'Bedrock' : 'Java');
+    var identity = world.name + ' \u00b7 ' + (world.edition === 'bedrock' ? 'Bedrock' : 'Java');
     if (world.version) identity += ' ' + world.version;
     node.textContent = identity;
-    var summary = M.worldSummary(world);
-    if (summary.needed > 0) {
-      node.textContent = identity + ' · ' + summary.pct + '% gathered · ' +
-        formatCount(summary.remaining) + ' of ' + formatCount(summary.needed) + ' items still to collect';
-    }
   }
 
-  function stackText(amount, stack) {
-    var size = stack && stack > 0 ? stack : M.DEFAULT_STACK;
-    var count = Math.max(0, Math.floor(Number(amount) || 0));
-    var stacks = Math.floor(count / size);
-    return stacks + (stacks === 1 ? ' stack' : ' stacks') + ' + ' + (count % size);
-  }
-
-  function compactTileHtml(build, material) {
-    var progress = M.materialProgress(material);
-    var done = progress.done;
-    var count = done ? material.needed : progress.remaining;
-    var stack = rowStack(material, build);
-    var stamps = M.timestamps(build);
-    var updatedIso = stamps.updatedAt !== undefined ? stamps.updatedAt : stamps.createdAt;
-    var tip = material.item + ': ' + material.collected + ' / ' + material.needed +
-      ' (' + stackText(material.collected, stack) + ' / ' + stackText(material.needed, stack) + ')' +
-      ' · Updated ' + M.formatStamp(updatedIso);
-    return '<button class="ctile" type="button" data-build-id="' + escapeHtml(build.id) +
-      '" data-mat-id="' + escapeHtml(material.id) + '" data-state="' + (done ? 'done' : 'open') +
-      '" data-tip="' + escapeHtml(tip) + '" aria-label="' + escapeHtml(material.item + ': ' +
-        material.collected + ' of ' + material.needed + ' collected') + '">' +
-      '<span class="ctile__count">' + formatCount(count) + '</span>' +
-      '<span class="ctile__icon" aria-hidden="true">' + slotInnerHtml(material.item, true) + '</span>' +
-      '<span class="ctile__name">' + escapeHtml(material.item) + '</span>' +
-      (done ? '<span class="ctile__done" aria-hidden="true">' + CHECK_ICON + '</span>' : '') +
-      '</button>';
-  }
-
-  function compactCardHtml(build) {
-    var totals = build.materials.reduce(function (acc, material) {
-      acc.needed += material.needed;
-      acc.gathered += Math.min(material.collected, material.needed);
-      return acc;
-    }, { needed: 0, gathered: 0 });
-    var pct = totals.needed ? Math.min(100, Math.round((totals.gathered / totals.needed) * 100)) : 0;
-    var meta = build.materials.length + (build.materials.length === 1 ? ' material' : ' materials');
-    if (String(build.coords || '').trim()) meta += ' · ' + escapeHtml(build.coords);
-    var id = escapeHtml(build.id);
-    var name = escapeHtml(build.name);
-    return '<article class="ccard" data-build-id="' + id + '" data-status="' + escapeHtml(build.status) + '">' +
+  function compactCardHtml(world, build, alloc) {
+    var progress = (alloc.perBuild[build.id]) || { covered: 0, needed: 0 };
+    var pct = progress.needed ? Math.min(100, Math.round((progress.covered / progress.needed) * 100)) : 0;
+    var classes = 'ccard' +
+      (build.status === 'done' ? ' ccard--done' : '') +
+      (build.active === false ? ' ccard--inactive' : '') +
+      (build.id === ui.selectedBuildId ? ' ccard--selected' : '');
+    return '<article class="' + classes + '" data-build="' + escapeHtml(build.id) + '">' +
       '<div class="ccard__head">' +
-        '<h3 class="ccard__title">' + name + '</h3>' +
-        '<span class="chip chip--' + escapeHtml(build.status) + ' ccard__chip">' +
+        '<span class="ccard__avatar">' + avatarHtml(build.icon, 24, build.name) + '</span>' +
+        '<span class="ccard__name" id="ccard-name-' + escapeHtml(build.id) + '">' + escapeHtml(build.name) + '</span>' +
+        '<span class="chip chip--' + escapeHtml(build.status) + '">' +
           escapeHtml(STATUS_LABEL[build.status] || build.status) + '</span>' +
-        '<span class="ccard__pct">' + pct + '%</span>' +
-        '<div class="ccard__actions">' +
-          '<button class="mc-btn mc-btn--sm mc-btn--icon" type="button" id="ccard-edit-' + id +
-            '" data-ccard-edit="' + id + '" aria-label="Edit ' + name + '" title="Edit build">' +
-            PENCIL_ICON + '</button>' +
-          '<button class="mc-btn mc-btn--sm mc-btn--icon mc-btn--danger" type="button" id="ccard-delete-' + id +
-            '" data-ccard-delete="' + id + '" aria-label="Delete ' + name + '" title="Delete build">' +
-            TRASH_ICON + '</button>' +
+        '<span class="ccard__actions">' +
+          '<button class="mc-btn mc-btn--xs" type="button" data-ccard-edit="' + escapeHtml(build.id) + '"' +
+            ' aria-label="Edit ' + escapeHtml(build.name) + '">' + PENCIL_ICON + '</button>' +
+          '<button class="mc-btn mc-btn--xs" type="button" data-ccard-delete="' + escapeHtml(build.id) + '"' +
+            ' aria-label="Delete ' + escapeHtml(build.name) + '">' + TRASH_ICON + '</button>' +
+        '</span>' +
+      '</div>' +
+      '<div class="ccard__progress">' +
+        '<div class="ccard__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '">' +
+          '<div class="ccard__fill" style="width:' + pct + '%"></div>' +
         '</div>' +
+        '<p class="ccard__pct">' + pct + '%</p>' +
       '</div>' +
-      '<p class="ccard__meta">' + meta + '</p>' +
-      '<p class="ccard__time">' + stampHtml(build) + '</p>' +
-      '<div class="ccard__bar" id="ccard-bar-' + id + '" role="progressbar" aria-valuemin="0" ' +
-        'aria-valuemax="100" aria-valuenow="' + pct + '">' +
-        '<div class="ccard__fill" id="ccard-fill-' + id + '" style="width:' + pct + '%"></div>' +
-      '</div>' +
-      '<p class="ccard__progress">' + pct + '% (' + formatCount(totals.gathered) + ' / ' +
-        formatCount(totals.needed) + ')</p>' +
       '<div class="ccard__matrix">' +
-        build.materials.map(function (material) { return compactTileHtml(build, material); }).join('') +
+        (build.materials || []).map(function (material) {
+          return compactTileHtml(world, build, material, alloc);
+        }).join('') +
       '</div>' +
       '</article>';
   }
 
+  /** A tile is a shortcut to `#inventory-dialog` for that material (§3), not the retired tile form. */
+  function compactTileHtml(world, build, material, alloc) {
+    var slug = slugifyItem(material.item);
+    var inventory = M.inventoryOf(world);
+    var got = Math.max(0, Math.floor(Number(inventory[slug]) || 0));
+    var covered = Math.max(0, Math.floor(Number(alloc.perMaterial[material.id]) || 0));
+    var needed = Math.max(1, Math.floor(Number(material.needed) || 1));
+    var remaining = Math.max(0, needed - covered);
+    var stack = stackSizeFor(material.item) || M.DEFAULT_STACK;
+    var tip = material.item + ': ' + M.formatUnits(got, slug, 'items', stack) + ' in the world \u00b7 ' +
+      M.formatUnits(covered, slug, 'items', stack) + ' of ' + M.formatUnits(needed, slug, 'items', stack) +
+      ' covered \u00b7 ' + M.formatUnits(remaining, slug, 'items', stack) + ' left';
+    return '<button class="ctile' + (remaining === 0 ? ' ctile--done' : '') + '" type="button"' +
+      ' data-build="' + escapeHtml(build.id) + '" data-mat="' + escapeHtml(material.id) + '"' +
+      ' data-tip="' + escapeHtml(tip) + '" aria-label="' + escapeHtml(tip) + '">' +
+      '<span class="ctile__count">' + escapeHtml(M.formatUnits(remaining, slug, ui.units, stack)) + '</span>' +
+      '<span class="slot" aria-hidden="true">' + slotInnerHtml(material.item, true) + '</span>' +
+      (remaining === 0 ? '<span class="ctile__done" aria-hidden="true">' + CHECK_ICON + '</span>' : '') +
+      '</button>';
+  }
   function confirmDeleteBuild(buildId) {
     var world = activeWorld();
     if (!world) return;
@@ -1627,271 +1662,561 @@
       if (deleteId) { confirmDeleteBuild(deleteId); return; }
       var tile = button.closest('.ctile');
       if (!tile) return;
-      openTileDialog(tile.getAttribute('data-build-id'), tile.getAttribute('data-mat-id'));
+      openInventoryFor(tile.getAttribute('data-build'), tile.getAttribute('data-mat'), tile);
     });
   }
+  /* ============================================================== EDICT-0017 */
 
-  /* ------------------------------------------------------------ quick update */
-
-  function showTileError(message) {
-    if (!els['tile-error']) return;
-    els['tile-error'].textContent = message;
-    els['tile-error'].hidden = false;
+  /** Replace one world inside a cloned state — world-scoped mutators return `{ state, world }`. */
+  function adoptWorld(nextWorld) {
+    if (!state || !nextWorld) return;
+    var next = JSON.parse(JSON.stringify(state));
+    for (var i = 0; i < next.worlds.length; i += 1) {
+      if (next.worlds[i].id === nextWorld.id) { next.worlds[i] = nextWorld; break; }
+    }
+    commit(next);
   }
 
-  function tileMaterial() {
-    var target = ui.tileTarget;
-    if (!target) return null;
+  function toggleBuildActive(buildId) {
     var world = activeWorld();
-    if (!world) return null;
-    var build = M.findBuild(world, target.buildId);
-    if (!build) return null;
-    var material = null;
-    build.materials.forEach(function (entry) { if (entry.id === target.matId) material = entry; });
-    return material ? { world: world, build: build, material: material } : null;
+    if (!world) return;
+    var build = M.findBuild(world, buildId);
+    if (!build) return;
+    var result = M.setBuildActive(world, buildId, build.active === false);
+    if (result.error) { toast(result.error, true); return; }
+    adoptWorld(result.world);
   }
 
-  function openTileDialog(buildId, matId) {
+  function removeRowMaterial(materialId) {
+    var context = currentBuild();
+    if (!context) return;
+    closeRowMenus();
+    var before = snapshotState();
+    var buildId = context.build.id;
+    commit(M.deleteMaterial(state, context.world.id, context.build.id, materialId).state);
+    offerUndo(before, 'Material removed.', buildId);
+  }
+
+  /* ---- the Needed cell: commit on blur/Enter, revert on Escape ---- */
+
+  /** §4: the unit toggle shapes every visible quantity, Needed included. Editing is always in
+      items, so focus converts the formatted display back to a plain integer. */
+  function neededDisplay(input, value) {
+    var matId = input.getAttribute('data-mat');
+    var context = currentBuild();
+    if (!context) return String(value);
+    var material = null;
+    (context.build.materials || []).forEach(function (row) {
+      if (row.id === matId) material = row;
+    });
+    var slug = material ? slugifyItem(material.item) : '';
+    var stack = material ? (stackSizeFor(material.item) || M.DEFAULT_STACK) : M.DEFAULT_STACK;
+    return M.formatUnits(value, slug, ui.units, stack);
+  }
+
+  function commitNeeded(input) {
+    var context = currentBuild();
+    if (!context) return false;
+    var matId = input.getAttribute('data-mat');
+    var previous = Math.max(1, Math.floor(Number(input.getAttribute('data-prev')) || 1));
+    var raw = String(input.value || '').trim();
+    var next = Number(raw);
+    if (raw === '' || !isFinite(next)) {
+      input.value = neededDisplay(input, previous);
+      return false;
+    }
+    var clamped = Math.max(1, Math.floor(next));
+    input.setAttribute('data-prev', String(clamped));
+    if (clamped === previous) {
+      input.value = neededDisplay(input, clamped);
+      return true;
+    }
+    commit(M.updateMaterial(state, context.world.id, context.build.id, matId, { needed: clamped }).state);
+    return true;
+  }
+
+  function revertNeeded(input) {
+    var previous = Math.max(1, Math.floor(Number(input.getAttribute('data-prev')) || 1));
+    input.value = neededDisplay(input, previous);
+  }
+
+  function selectAll(input) {
+    try { input.select(); } catch (error) { /* readonly inputs just keep the caret */ }
+  }
+
+  /* ---- #inventory-dialog: absolute stock and ±relative amounts (§3.7) ---- */
+
+  function currentInvTarget() {
+    return ui.invTarget;
+  }
+
+  function showInvError(message) {
+    if (!els['inv-error']) return;
+    els['inv-error'].textContent = message || '';
+    els['inv-error'].hidden = !message;
+  }
+
+  /** Open the shared dialog for one material; `build` may differ from the selected build. */
+  function openInventoryFor(buildId, materialId, trigger) {
     var world = activeWorld();
     if (!world) return;
     var build = M.findBuild(world, buildId);
     if (!build) return;
     var material = null;
-    build.materials.forEach(function (entry) { if (entry.id === matId) material = entry; });
+    (build.materials || []).forEach(function (row) {
+      if (row.id === materialId) material = row;
+    });
     if (!material) return;
-    ui.tileTarget = { buildId: buildId, matId: matId };
-    els['tile-title'].textContent = 'Update inventory: ' + material.item;
-    els['tile-absolute'].value = String(Math.max(0, Math.floor(Number(material.collected) || 0)));
-    els['tile-relative'].value = '0';
-    clearFormError('tile-error');
-    els['tile-dialog'].showModal();
-    els['tile-absolute'].focus();
-    safeSelect(els['tile-absolute']);
+    var slug = slugifyItem(material.item);
+    var alloc = M.allocate(world);
+    var inventory = M.inventoryOf(world);
+    var covered = Math.max(0, Math.floor(Number(alloc.perMaterial[material.id]) || 0));
+    var needed = Math.max(1, Math.floor(Number(material.needed) || 1));
+    ui.invTarget = { buildId: build.id, materialId: material.id, slug: slug, item: material.item };
+    if (els['inv-title']) els['inv-title'].textContent = 'Update ' + material.item;
+    if (els['inv-context']) {
+      els['inv-context'].textContent = build.name + ' \u00b7 ' +
+        M.formatUnits(needed, slug, 'items', null) + ' needed \u00b7 ' +
+        Math.max(0, Math.floor(Number(inventory[slug]) || 0)) + ' in the world \u00b7 ' +
+        covered + ' covered';
+    }
+    if (els['inv-absolute']) {
+      els['inv-absolute'].value = String(Math.max(0, Math.floor(Number(inventory[slug]) || 0)));
+    }
+    if (els['inv-delta']) els['inv-delta'].value = '';
+    showInvError('');
+    /* D14: Escape (or the X) returns focus to whatever opened the dialog. Keep the trigger in
+       the same place `ui.invTarget` lives; it is cleared by the dialog's close handler. */
+    ui.invTrigger = trigger && trigger.focus ? trigger : null;
+    if (els['inventory-dialog']) {
+      if (typeof els['inventory-dialog'].showModal === 'function') els['inventory-dialog'].showModal();
+      if (els['inv-absolute']) { els['inv-absolute'].focus(); selectAll(els['inv-absolute']); }
+    }
+    return trigger || null;
   }
 
-  /** One model commit: absolute + the signed relative delta, clamped at zero. */
-  function commitTileDialog() {
-    var context = tileMaterial();
-    if (!context) { els['tile-dialog'].close(); return; }
-    var absoluteRaw = String(els['tile-absolute'].value).trim();
-    var absolute = /^\d+$/.test(absoluteRaw) ? Number(absoluteRaw) : NaN;
-    if (!isFinite(absolute)) {
-      showTileError('Current inventory must be a whole number.');
-      return;
-    }
-    if (absolute > 1e9) { showTileError('That count is too large.'); return; }
-    var relative = M.parseRelative(els['tile-relative'].value, rowStack(context.material, context.build));
-    if (relative.error) { showTileError(relative.error); return; }
-    var collected = absolute + relative.value;
-    if (!isFinite(collected) || Math.abs(collected) > 1e9) {
-      showTileError('That count is too large.');
-      return;
-    }
-    collected = Math.max(0, Math.floor(collected));
-    /* A commit that changes nothing closes quietly instead of inventing a second notification. */
-    if (collected === Math.max(0, Math.floor(Number(context.material.collected) || 0))) {
-      els['tile-dialog'].close();
-      toast('Inventory updated.');
-      return;
-    }
-    /* EDICT-0014 §6 applies to this surface too (case 95): one commit per Enter, and the quick
-       update offers the same six-second Undo as every other material mutation. */
+  function openRowInventory(node) {
+    var row = node && node.closest ? node.closest('[data-mat]') : null;
+    if (!row) return;
+    var context = currentBuild();
+    if (!context) return;
+    closeRowMenus();
+    openInventoryFor(context.build.id, row.getAttribute('data-mat'), row);
+  }
+
+  function commitInventory() {
+    var target = currentInvTarget();
+    var world = activeWorld();
+    if (!target || !world) return;
+    /* EDICT-0017 case 110: the dialog commit is also an Undoable mutation, exactly like a row
+       removal — one save, one toast, and the pre-action snapshot wired to the toast action. */
     var before = snapshotState();
-    var result = M.updateMaterial(state, context.world.id, context.build.id, context.material.id, {
-      collected: collected
-    });
-    if (result.error) { showTileError(result.error); return; }
-    els['tile-dialog'].close();
-    commit(result.state);
-    offerUndo(before, 'Inventory updated.', context.build.id);
-  }
-
-  function bindTileDialog() {
-    if (!els['tile-form']) return;
-    els['tile-form'].addEventListener('submit', function (event) {
-      event.preventDefault();
-      if (event.submitter && event.submitter.value === 'cancel') {
-        els['tile-dialog'].close();
+    var buildId = target.buildId;
+    var deltaRaw = String((els['inv-delta'] && els['inv-delta'].value) || '').trim();
+    var result = null;
+    if (deltaRaw) {
+      /* D7: `2s` is two stacks *of this item*, so the parser gets the material's own stack
+         size rather than falling back to the model's 64 default. */
+      var parsed = M.parseRelative(deltaRaw, resolvedStackFor(target.item, M.findBuild(world, target.buildId)));
+      if (parsed.error) { showInvError(parsed.error); return; }
+      result = M.addInventory(world, target.slug, parsed.value);
+    } else {
+      var absoluteRaw = String((els['inv-absolute'] && els['inv-absolute'].value) || '').trim();
+      var absolute = Number(absoluteRaw);
+      if (absoluteRaw === '' || !isFinite(absolute)) {
+        showInvError('Enter a whole number of items.');
         return;
       }
-      commitTileDialog();
+      result = M.setInventory(world, target.slug, absolute);
+    }
+    if (!result || result.error) { showInvError((result && result.error) || 'Could not update the inventory.'); return; }
+    ui.invTarget = null;
+    if (els['inventory-dialog']) els['inventory-dialog'].close();
+    adoptWorld(result.world || result.state);
+    offerUndo(before, 'Inventory updated.', buildId);
+  }
+
+  /* ---- row overflow menu ---- */
+
+  function closeRowMenus() {
+    if (ui.openMenu) {
+      ui.openMenu.setAttribute('aria-expanded', 'false');
+      var panel = ui.openMenu.parentNode ? ui.openMenu.parentNode.querySelector('.mat-menu') : null;
+      if (panel) panel.hidden = true;
+    }
+    ui.openMenu = null;
+  }
+
+  function toggleRowMenu(button) {
+    var panel = button.parentNode ? button.parentNode.querySelector('.mat-menu') : null;
+    if (!panel) return;
+    var willOpen = panel.hidden;
+    closeRowMenus();
+    if (willOpen) {
+      panel.hidden = false;
+      button.setAttribute('aria-expanded', 'true');
+      ui.openMenu = button;
+    }
+  }
+
+  /* ---- #paste-preview: parse before import (§6.2) ---- */
+
+  function openPastePreview() {
+    if (!els['paste-preview']) return;
+    if (els['paste-text']) els['paste-text'].value = '';
+    if (els['paste-ok']) els['paste-ok'].disabled = true;
+    renderPastePreview();
+    if (typeof els['paste-preview'].showModal === 'function') els['paste-preview'].showModal();
+    if (els['paste-text']) els['paste-text'].focus();
+  }
+
+  /** Rendered from `M.parseBulk`: matched rows are the import, everything else is explained. */
+  /** AC19/D12: the preview shows one row per item — repeated lines are summed, not repeated. */
+  function mergePasteRows(rows) {
+    var order = [];
+    var bySlug = {};
+    rows.forEach(function (row) {
+      var key = String(row.slug || '').toLowerCase();
+      if (!key) return;
+      if (!bySlug[key]) {
+        bySlug[key] = { slug: row.slug, name: row.name || row.raw, qty: 0 };
+        order.push(key);
+      }
+      bySlug[key].qty += Math.max(1, Math.floor(Number(row.qty) || 1));
     });
-    els['tile-dialog'].addEventListener('keydown', function (event) {
-      if (event.key === 'Escape') {
+    return order.map(function (key) { return bySlug[key]; });
+  }
+
+  function renderPastePreview() {
+    var context = currentBuild();
+    if (!context) return;
+    var text = els['paste-text'] ? els['paste-text'].value : '';
+    var parsed = text.trim() ? M.parseBulk(text, catalogData()) : { rows: [] };
+    var rows = parsed.rows || parsed;
+    var matched = [];
+    var rejected = [];
+    rows.forEach(function (row) {
+      if (row.state === 'matched' && row.slug) matched.push(row);
+      else rejected.push(row);
+    });
+    var merged = mergePasteRows(matched);
+    if (els['paste-rows']) {
+      els['paste-rows'].innerHTML = merged.map(function (row) {
+        var stack = resolvedStackFor(row.name || row.slug, context.build);
+        return '<div class="paste-row" role="listitem" data-slug="' + escapeHtml(row.slug) + '">' +
+          '<span class="paste-row__name">' + escapeHtml(row.name || row.slug) + '</span>' +
+          '<span class="paste-row__qty">' + escapeHtml(M.formatUnits(row.qty, row.slug, ui.units, stackMapFor(row.slug, stack))) + '</span>' +
+          '</div>';
+      }).join('');
+      els['paste-rows'].setAttribute('data-count', String(merged.length));
+    }
+    if (els['paste-errors']) {
+      if (rejected.length) {
+        els['paste-errors'].textContent = rejected.length +
+          (rejected.length === 1 ? ' line was not understood: ' : ' lines were not understood: ') +
+          rejected.map(function (row) { return row.raw || row.name || ''; }).join(', ');
+        els['paste-errors'].hidden = false;
+      } else {
+        els['paste-errors'].textContent = '';
+        els['paste-errors'].hidden = true;
+      }
+    }
+    if (els['paste-context']) {
+      els['paste-context'].textContent = context.build.name + ' \u00b7 ' +
+        (merged.length ? merged.length + (merged.length === 1 ? ' line ready to import' : ' lines ready to import') : 'Nothing parsed yet');
+    }
+    if (els['paste-ok']) els['paste-ok'].disabled = merged.length === 0;
+  }
+
+  function applyPaste() {
+    var context = currentBuild();
+    if (!context) return;
+    var text = els['paste-text'] ? els['paste-text'].value : '';
+    var parsed = text.trim() ? M.parseBulk(text, catalogData()) : { rows: [] };
+    var rows = mergePasteRows((parsed.rows || parsed).filter(function (row) {
+      return row.state === 'matched' && row.slug;
+    }));
+    if (!rows.length) return;
+    var next = state;
+    var added = 0;
+    rows.forEach(function (row) {
+      var result = M.addMaterial(next, context.world.id, context.build.id, { item: row.name || row.slug, needed: row.qty || 1 });
+      if (!result.error) { next = result.state; added += 1; }
+    });
+    if (!added) return;
+    if (els['paste-preview']) els['paste-preview'].close();
+    commit(next);
+    toast(added + (added === 1 ? ' material added.' : ' materials added.'));
+  }
+
+  /* ---- #shopping-dialog: what is still missing, from `M.shoppingList()` ---- */
+
+  function renderShopping() {
+    var world = activeWorld();
+    if (!els['shopping-body']) return;
+    var rows = world ? M.shoppingList(world) : [];
+    els['shopping-body'].innerHTML = rows.map(function (row) {
+      var stack = resolvedStackFor(row.item, null);
+      var builds = (row.builds || []).map(function (buildId) {
+        var build = world ? M.findBuild(world, buildId) : null;
+        return build ? build.name : '';
+      }).filter(Boolean).join(', ');
+      return '<div class="mat-row" role="row" data-mat="' + escapeHtml(row.slug) + '">' +
+        '<span class="mat-row__item">' + slotHtml(row.item) +
+          '<span class="mat-row__name">' + escapeHtml(row.item) + '</span></span>' +
+        '<span class="num" data-shopping-count>' + escapeHtml(M.formatUnits(row.remaining, row.slug, ui.units, stackMapFor(row.slug, stack))) + '</span>' +
+        '<span class="mat-row__builds builds-col">' + escapeHtml(builds) + '</span>' +
+        '</div>';
+    }).join('');
+    wireIconFallbacks(els['shopping-body']);
+    if (els['shopping-close']) els['shopping-close'].disabled = false;
+  }
+
+  function openShoppingDialog() {
+    if (!els['shopping-dialog']) return;
+    renderShopping();
+    if (typeof els['shopping-dialog'].showModal === 'function') els['shopping-dialog'].showModal();
+  }
+
+  /* ---- preferences: units, sidebar, inactive builds, sort, view ---- */
+
+  function applyUnits() {
+    (els.unitButtons || []).forEach(function (button) {
+      button.setAttribute('aria-pressed', button.getAttribute('data-unit') === ui.units ? 'true' : 'false');
+    });
+  }
+
+  function setUnits(unit) {
+    if (['items', 'stacks', 'shulkers'].indexOf(unit) < 0 || unit === ui.units) return;
+    ui.units = unit;
+    writePref(PREF_KEY.units, unit);
+    renderAll();
+  }
+
+  function applySidebarCollapsed() {
+    var collapsed = !!ui.sidebarCollapsed;
+    document.body.classList.toggle('is-sidebar-collapsed', collapsed);
+    if (els['sidebar-toggle']) {
+      els['sidebar-toggle'].setAttribute('aria-pressed', collapsed ? 'true' : 'false');
+      els['sidebar-toggle'].setAttribute('aria-label', collapsed ? 'Expand world panel' : 'Collapse world panel');
+      els['sidebar-toggle'].setAttribute('title', collapsed ? 'Expand world panel' : 'Collapse world panel');
+      els['sidebar-toggle'].textContent = collapsed ? '\u00bb' : '\u00ab';
+    }
+  }
+
+  function setSidebarCollapsed(collapsed) {
+    ui.sidebarCollapsed = !!collapsed;
+    writePref(PREF_KEY.sidebar, ui.sidebarCollapsed ? 'closed' : 'open');
+    applySidebarCollapsed();
+  }
+
+  function applyInactiveMode() {
+    if (els['inactive-mode'] && els['inactive-mode'].value !== ui.inactiveMode) {
+      els['inactive-mode'].value = ui.inactiveMode;
+    }
+  }
+
+  function setInactiveMode(mode) {
+    if (['priority', 'end', 'hide'].indexOf(mode) < 0) return;
+    ui.inactiveMode = mode;
+    writePref(PREF_KEY.inactive, mode);
+    renderBuilds();
+  }
+
+  function setSortMode(mode) {
+    if (['remaining', 'name', 'category'].indexOf(mode) < 0) return;
+    ui.sort = mode;
+    writePref(PREF_KEY.sort, mode);
+    renderDetail();
+  }
+
+  function setHideDone(value) {
+    ui.hideDone = !!value;
+    writePref(PREF_KEY.hideDone, ui.hideDone ? 'on' : 'off');
+    renderDetail();
+  }
+
+  function setMaterialView(mode) {
+    ui.matView = mode === 'grid' ? 'grid' : 'table';
+    renderDetail();
+  }
+
+  /* ---- drag to reorder (§4): whole row draggable, drop on the target slot ---- */
+
+  function bindBuildListDnD() {
+    if (!els['build-list']) return;
+    els['build-list'].addEventListener('dragstart', function (event) {
+      var entry = event.target.closest ? event.target.closest('.build-entry') : null;
+      if (!entry) return;
+      ui.dragBuildId = entry.getAttribute('data-build');
+      entry.classList.add('is-dragging');
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        try { event.dataTransfer.setData('text/plain', ui.dragBuildId); } catch (error) { /* ok */ }
+      }
+    });
+    els['build-list'].addEventListener('dragend', function (event) {
+      var entry = event.target.closest ? event.target.closest('.build-entry') : null;
+      Array.prototype.forEach.call(els['build-list'].querySelectorAll('.is-dragging, .is-drop'), function (node) {
+        node.classList.remove('is-dragging', 'is-drop');
+      });
+      if (entry) entry.classList.remove('is-dragging');
+      ui.dragBuildId = null;
+    });
+    els['build-list'].addEventListener('dragover', function (event) {
+      var entry = event.target.closest ? event.target.closest('.build-entry') : null;
+      if (!entry || !ui.dragBuildId) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      Array.prototype.forEach.call(els['build-list'].querySelectorAll('.is-drop'), function (node) {
+        if (node !== entry) node.classList.remove('is-drop');
+      });
+      entry.classList.add('is-drop');
+    });
+    els['build-list'].addEventListener('drop', function (event) {
+      var entry = event.target.closest ? event.target.closest('.build-entry') : null;
+      var world = activeWorld();
+      if (!entry || !ui.dragBuildId || !world) return;
+      event.preventDefault();
+      var targetId = entry.getAttribute('data-build');
+      var from = -1;
+      var to = -1;
+      world.builds.forEach(function (build, index) {
+        if (build.id === ui.dragBuildId) from = index;
+        if (build.id === targetId) to = index;
+      });
+      if (from < 0 || to < 0 || from === to) return;
+      if (from < to) to -= 1;
+      var result = M.moveBuild(world, ui.dragBuildId, to);
+      entry.classList.remove('is-drop');
+      if (result.error) { toast(result.error, true); return; }
+      adoptWorld(result.world || result.state);
+    });
+  }
+
+  /** One place that attaches every EDICT-0017 surface, called once from bind(). */
+  function bindEdict0017() {
+    if (els['inventory-form']) {
+      els['inventory-form'].addEventListener('submit', function (event) {
         event.preventDefault();
-        els['tile-dialog'].close();
-        return;
-      }
-      if (event.key !== 'Enter') return;
-      /* Enter anywhere in the dialog commits; Enter on Cancel keeps its native meaning. */
-      if (event.target === els['tile-cancel']) return;
-      event.preventDefault();
-      commitTileDialog();
+        if (event.submitter && event.submitter.value === 'cancel') {
+          ui.invTarget = null;
+          showInvError('');
+          if (els['inventory-dialog']) els['inventory-dialog'].close();
+          return;
+        }
+        commitInventory();
+      });
+      /* A07/AC7: Enter in either field is a commit. Native implicit submission is not
+         synthesized by CDP or by some assistive tech, so commit on the keystroke itself. */
+      els['inventory-form'].addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter') return;
+        if (!event.target || event.target.tagName === 'TEXTAREA') return;
+        if (event.target === els['inv-cancel'] || event.target === els['inv-ok']) return;
+        event.preventDefault();
+        commitInventory();
+      });
+    }
+    if (els['inv-cancel']) {
+      /* Cases 110/111: Cancel is a plain button so Enter inside the fields implicitly submits
+         through #inv-ok (the only submit button left in the form) and actually commits. */
+      els['inv-cancel'].addEventListener('click', function () {
+        ui.invTarget = null;
+        showInvError('');
+        if (els['inventory-dialog']) els['inventory-dialog'].close();
+      });
+    }
+    if (els['inventory-dialog']) {
+      /* Escape and the X both close natively; a stale target could otherwise commit next time.
+         D14: the close also returns focus to the row/chip that opened the dialog. */
+      els['inventory-dialog'].addEventListener('close', function () {
+        ui.invTarget = null;
+        showInvError('');
+        var trigger = ui.invTrigger;
+        ui.invTrigger = null;
+        if (trigger && trigger.focus && document.contains(trigger)) { trigger.focus(); return; }
+        /* A committed edit re-renders the rows, so the original node is detached. Re-focus the
+           row that now represents the same material (D14: the keyboard path must not dead-end). */
+        var matId = trigger && trigger.getAttribute
+          ? (trigger.getAttribute('data-mat') || trigger.getAttribute('data-mat-update'))
+          : null;
+        if (!matId) return;
+        var row = document.querySelector('#material-body [data-mat="' + matId + '"]');
+        if (row && row.focus) row.focus();
+      });
+    }
+    if (els['paste-form']) {
+      els['paste-form'].addEventListener('submit', function (event) {
+        event.preventDefault();
+        if (event.submitter && event.submitter.value === 'cancel') {
+          if (els['paste-preview']) els['paste-preview'].close();
+          return;
+        }
+        applyPaste();
+      });
+    }
+    if (els['paste-text']) els['paste-text'].addEventListener('input', renderPastePreview);
+
+    if (els['btn-shopping-list']) els['btn-shopping-list'].addEventListener('click', openShoppingDialog);
+
+    if (els['sidebar-toggle']) {
+      els['sidebar-toggle'].addEventListener('click', function () {
+        setSidebarCollapsed(!ui.sidebarCollapsed);
+      });
+    }
+
+    (els.unitButtons || []).forEach(function (button) {
+      button.addEventListener('click', function () { setUnits(button.getAttribute('data-unit')); });
     });
-    els['tile-dialog'].addEventListener('close', function () {
-      ui.tileTarget = null;
-      clearFormError('tile-error');
+
+    if (els['inactive-mode']) {
+      els['inactive-mode'].addEventListener('change', function () { setInactiveMode(els['inactive-mode'].value); });
+    }
+    if (els['mat-sort']) {
+      els['mat-sort'].addEventListener('change', function () { setSortMode(els['mat-sort'].value); });
+    }
+    if (els['mat-hide-done']) {
+      els['mat-hide-done'].addEventListener('click', function () { setHideDone(!ui.hideDone); });
+    }
+    if (els['mat-view-table']) {
+      els['mat-view-table'].addEventListener('click', function () { setMaterialView('table'); });
+    }
+    if (els['mat-view-grid']) {
+      els['mat-view-grid'].addEventListener('click', function () { setMaterialView('grid'); });
+    }
+    bindBuildListDnD();
+    bindCompactView();
+    closedRowMenuOnOutsideClick();
+  }
+
+  /** A click anywhere else closes an open row menu; Escape closes it too. */
+  function closedRowMenuOnOutsideClick() {
+    document.addEventListener('click', function (event) {
+      if (!ui.openMenu) return;
+      if (event.target.closest && event.target.closest('.mat-row__menu')) return;
+      closeRowMenus();
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') closeRowMenus();
     });
   }
-
-  /* ---------------------------------------------------------------- steppers */
-
-  /**
-   * EDICT-0016 §2/§8/§9: one delegated implementation. Plain ±1, Shift ± the item's stack,
-   * Ctrl/⌘ ±16; Shift wins when both are held.
-   */
-  function bindSteppers() {
-    document.addEventListener('click', onStepperClick);
-    document.addEventListener('wheel', onStepperWheel, { capture: true, passive: false });
-    document.addEventListener('keydown', onStepperKeydown, { capture: true });
-    document.addEventListener('focusin', onNumberFocus);
-    document.addEventListener('click', onNumberClick);
-  }
-
-  function isStepperInput(node) {
-    return !!(node && node.tagName === 'INPUT' && node.closest && node.closest('[data-stepper]'));
-  }
-
-  /**
-   * AC8: a single click (or a keyboard focus with nothing selected) selects the whole value.
-   * `selectionStart` is unreportable on some `type=number` implementations, so every probe is
-   * guarded and `select()` is attempted for both shapes.
-   */
-  function safeSelect(input) {
-    if (!input) return;
-    try { input.select(); } catch (error) { /* number inputs may refuse select() */ }
-    try {
-      if (typeof input.setSelectionRange === 'function' && input.type !== 'number') {
-        input.setSelectionRange(0, String(input.value).length);
-      }
-    } catch (error) { /* selection APIs are optional for non-text inputs */ }
-    try {
-      if (typeof input.setSelectionRange === 'function' && input.type === 'number' && String(input.value)) {
-        input.setSelectionRange(String(input.value).length, String(input.value).length);
-      }
-    } catch (error) { /* caret control is best-effort on number inputs */ }
-  }
-
-  function selectionCollapsed(input) {
-    var start = null;
-    var end = null;
-    try { start = input.selectionStart; end = input.selectionEnd; } catch (error) { start = null; end = null; }
-    if (start === null || end === null) return true;
-    return start === end;
-  }
-
-  function onNumberFocus(event) {
-    if (!isStepperInput(event.target)) return;
-    if (!selectionCollapsed(event.target)) return;
-    safeSelect(event.target);
-  }
-
-  function onNumberClick(event) {
-    if (!isStepperInput(event.target)) return;
-    if (!selectionCollapsed(event.target)) return;
-    safeSelect(event.target);
-  }
-
-  function onStepperClick(event) {
-    var button = event.target.closest ? event.target.closest('[data-stepper-step]') : null;
-    if (!button) return;
-    var container = button.closest('[data-stepper]');
-    if (!container) return;
-    var input = container.querySelector('input');
-    if (!input) return;
-    event.preventDefault();
-    var sign = button.getAttribute('data-stepper-step') === '-1' ? -1 : 1;
-    var field = input.getAttribute('data-mat-field');
-    var matId = input.getAttribute('data-mat');
-    if (!applyInputStep(input, sign * stepAmount(input, event))) {
-      if (field && matId) focusStepperButton(field, matId, sign > 0 ? '1' : '-1');
-      return;
-    }
-    /* A row step committed and re-rendered the table; hand focus back to the same button. */
-    if (field && matId) focusStepperButton(field, matId, sign > 0 ? '1' : '-1');
-  }
-
-  function onStepperWheel(event) {
-    var input = event.target;
-    if (!isStepperInput(input)) return;
-    if (document.activeElement !== input) return;
-    if (!event.deltaY) return;
-    /* Focused wheel must never scroll the page or the material list (AC9). */
-    event.preventDefault();
-    var field = input.getAttribute('data-mat-field');
-    var matId = input.getAttribute('data-mat');
-    var amount = (event.deltaY > 0 ? -1 : 1) * stepAmount(input, event);
-    if (!applyInputStep(input, amount)) return;
-    if (field && matId) focusStepperInput(field, matId);
-  }
-
-  function commitDirtyRow(input) {
-    var field = input.getAttribute('data-mat-field');
-    var material = findRowMaterial(input.getAttribute('data-mat'));
-    if (!material || !field) return;
-    var stored = field === 'needed' ? material.needed : material.collected;
-    var typed = Math.floor(Number(input.value));
-    if (!isFinite(typed)) return;
-    if (typed === stored) return;
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-
-  function onStepperKeydown(event) {
-    if (event.key !== 'Enter') return;
-    var input = event.target;
-    if (!isStepperInput(input)) return;
-    /* Add form: Needed walks to Got and must not submit the form. */
-    if (input.id === 'mat-needed') {
-      event.preventDefault();
-      if (els['mat-collected']) {
-        els['mat-collected'].focus();
-        safeSelect(els['mat-collected']);
-      }
-      return;
-    }
-    var field = input.getAttribute('data-mat-field');
-    var matId = input.getAttribute('data-mat');
-    if (!field || !matId) return;
-    var inputs = Array.prototype.slice.call(
-      els['material-body'].querySelectorAll('[data-mat-field="' + field + '"]'));
-    var index = inputs.indexOf(input);
-    if (index < 0) return;
-    event.preventDefault();
-    if (index === inputs.length - 1) {
-      /* Last field: commit, then keep focus here — never blur, never wrap. */
-      commitDirtyRow(input);
-      focusStepperInput(field, matId);
-      return;
-    }
-    var nextId = inputs[index + 1].getAttribute('data-mat');
-    commitDirtyRow(input);
-    focusStepperInput(field, nextId);
-  }
-
   function renderWorldStats() {
     var world = activeWorld();
-    var summary = world ? M.worldSummary(world) : null;
-    var show = !!(world && summary && summary.needed > 0);
-    /* Contract §3: the three stat nodes carry `hidden` themselves, not only their wrapper,
-       so a probe that reads the children sees the same truth as the paint. */
-    els['world-stats'].hidden = !show;
-    els['world-progress'].hidden = !show;
-    els['world-remaining'].hidden = !show;
-    els['world-bar'].hidden = !show;
-    if (!show) {
-      els['world-progress'].textContent = '';
-      els['world-remaining'].textContent = '';
-      els['world-bar'].setAttribute('aria-valuenow', '0');
-      els['world-fill'].style.width = '0%';
+    var node = els['world-progress-text'];
+    var bar = els['world-bar'];
+    var fill = els['world-fill'];
+    if (!world) {
+      if (node) node.textContent = '';
+      if (bar) bar.setAttribute('aria-valuenow', '0');
+      if (fill) fill.style.width = '0%';
       return;
     }
-    els['world-progress'].textContent = summary.pct + '% gathered';
-    els['world-remaining'].textContent =
-      formatCount(summary.remaining) + ' of ' + formatCount(summary.needed) + ' items still to collect';
-    els['world-bar'].setAttribute('aria-valuenow', String(summary.pct));
-    els['world-fill'].style.width = summary.pct + '%';
+    var summary = M.worldSummary(world);
+    if (node) node.textContent = M.progressText(summary.covered, summary.needed);
+    var pct = summary.needed ? Math.min(100, Math.round((summary.covered / summary.needed) * 100)) : 0;
+    if (bar) bar.setAttribute('aria-valuenow', String(pct));
+    if (fill) fill.style.width = pct + '%';
   }
-
   function renderWorldPicker() {
     var world = activeWorld();
     var options = state.worlds.map(function (item) {
@@ -1917,231 +2242,197 @@
     els['world-meta'].appendChild(stampFragment(world));
   }
 
+  /** The list order: inactive builds in place, at the end, or hidden — the frozen three modes. */
+  function buildsForList(world) {
+    var rows = M.sortBuilds(world.builds).slice();
+    if (ui.inactiveMode === 'hide') {
+      rows = rows.filter(function (build) { return build.active !== false; });
+    } else if (ui.inactiveMode === 'end') {
+      var paused = rows.filter(function (build) { return build.active === false; });
+      var live = rows.filter(function (build) { return build.active !== false; });
+      rows = live.concat(paused);
+    }
+    return rows;
+  }
+
+  function selectBuild(buildId) {
+    var world = activeWorld();
+    if (!world || !M.findBuild(world, buildId)) return;
+    ui.selectedBuildId = buildId;
+    ui.titleEditing = false;
+    ui.notesEditing = false;
+    renderAll();
+  }
+
   function renderBuilds() {
     var world = activeWorld();
     var build = selectedBuild();
     if (build) ui.selectedBuildId = build.id;
-
+    if (!els['build-list']) return;
+    var alloc = world ? M.allocate(world) : null;
     var items = [];
     if (world) {
-      M.sortBuilds(world.builds).forEach(function (entry) {
-        var totals = entry.materials.reduce(function (acc, material) {
-          acc.needed += material.needed;
-          acc.collected += Math.min(material.collected, material.needed);
-          return acc;
-        }, { needed: 0, collected: 0 });
-        var pct = totals.needed ? Math.round((totals.collected / totals.needed) * 100) : 0;
+      buildsForList(world).forEach(function (entry, index) {
+        var progress = (alloc.perBuild[entry.id]) || { covered: 0, needed: 0 };
+        var pct = progress.needed ? Math.min(100, Math.round((progress.covered / progress.needed) * 100)) : 0;
         var selected = build && build.id === entry.id;
+        var classes = 'build-entry' +
+          (index === 0 ? ' build-entry--top' : '') +
+          (entry.active === false ? ' build-entry--inactive' : '') +
+          (selected ? ' is-selected' : '');
         items.push(
-          '<li><button type="button" class="build-entry" data-build="' + escapeHtml(entry.id) + '"' +
-          (selected ? ' aria-current="true"' : '') + '>' +
-          '<span class="build-entry__top">' +
-            '<span class="build-entry__identity">' +
-              avatarHtml(entry.icon, 28, entry.name) +
+          '<li role="listitem">' +
+            '<div class="' + classes + '" data-build="' + escapeHtml(entry.id) + '" data-order="' + index + '" draggable="true"' +
+            (selected ? ' aria-current="true"' : '') + '>' +
+              '<span class="build-entry__grab" aria-hidden="true">' +
+                '<svg viewBox="0 0 8 14" width="8" height="14" focusable="false"><path d="M0 1h2v2H0zM0 6h2v2H0zM0 11h2v2H0zM6 1h2v2H6zM6 6h2v2H6zM6 11h2v2H6z"/></svg>' +
+              '</span>' +
+              '<span class="build-entry__slot" aria-hidden="true">' + avatarHtml(entry.icon, 24, entry.name) + '</span>' +
               '<span class="build-entry__name">' + escapeHtml(entry.name) + '</span>' +
-            '</span>' +
-            '<span class="chip chip--' + escapeHtml(entry.status) + '">' + escapeHtml(STATUS_LABEL[entry.status] || entry.status) + '</span>' +
-          '</span>' +
-          '<span class="build-entry__meta">' +
-            '<span>' + pct + '% gathered</span>' +
-            '<span aria-hidden="true">·</span>' +
-            '<span>' + entry.materials.length + (entry.materials.length === 1 ? ' material' : ' materials') + '</span>' +
-            (entry.coords ? '<span aria-hidden="true">·</span><span>' + escapeHtml(entry.coords) + '</span>' : '') +
-          '</span>' +
-          '</button></li>'
+              '<span class="build-entry__badge">' + escapeHtml(STATUS_LABEL[entry.status] || entry.status) + '</span>' +
+              '<span class="build-entry__bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="' + pct + '">' +
+                '<span class="build-entry__fill" style="width:' + pct + '%"></span>' +
+              '</span>' +
+              '<span class="build-entry__actions">' +
+                '<button class="mc-btn mc-btn--xs" type="button" data-build-activate="' + escapeHtml(entry.id) + '"' +
+                  ' aria-pressed="' + (entry.active === false ? 'false' : 'true') + '"' +
+                  ' aria-label="' + escapeHtml((entry.active === false ? 'Resume ' : 'Pause ') + entry.name) + '">' +
+                  (entry.active === false ? '\u25b6' : '\u23f8') + '</button>' +
+                '<button class="mc-btn mc-btn--xs" type="button" data-build-remove="' + escapeHtml(entry.id) + '"' +
+                  ' aria-label="Delete ' + escapeHtml(entry.name) + '">' + TRASH_ICON + '</button>' +
+              '</span>' +
+            '</div>' +
+          '</li>'
         );
       });
     }
     els['build-list'].innerHTML = items.join('');
     wireIconFallbacks(els['build-list']);
-    var empty = !world || !world.builds.length;
-    els['build-empty'].hidden = !empty;
-    els['build-list'].hidden = empty;
+    if (els['build-empty']) els['build-empty'].hidden = !!(world && world.builds.length);
   }
-
-  /** Paint the gathered/total figures; shared by the model render and by live typing. */
-  function paintBuildProgress(totals, materialCount) {
-    var needed = Math.max(0, totals.needed);
-    var collected = Math.min(Math.max(0, totals.collected), needed);
-    var pct = needed ? Math.min(100, Math.round((collected / needed) * 100)) : 0;
-    els['build-pct'].textContent = pct + '%';
-    els['build-fill'].style.width = pct + '%';
-    els['build-bar'].setAttribute('aria-valuenow', String(pct));
-    els['build-summary'].textContent = materialCount
-      ? collected + ' of ' + needed + ' items gathered · ' + (needed - collected) + ' to go'
-      : 'No materials listed yet. Add the blocks this build needs.';
-  }
-
-  /** The same figures read from the row inputs, so the bar is not stale while typing (D5). */
-  function readRowProgress() {
-    var totals = { needed: 0, collected: 0 };
-    var rows = els['material-body'].querySelectorAll('.mat-row');
-    Array.prototype.forEach.call(rows, function (row) {
-      var needInput = row.querySelector('[data-mat-field="needed"]');
-      var gotInput = row.querySelector('[data-mat-field="collected"]');
-      var need = Math.max(1, Math.floor(Number(needInput && needInput.value) || 1));
-      var got = Math.max(0, Math.floor(Number(gotInput && gotInput.value) || 0));
-      totals.needed += need;
-      totals.collected += Math.min(got, need);
-    });
-    return { totals: totals, count: rows.length };
-  }
-
-  /* EDICT-0014 §5: bulk paste. The review list comes from the model's parser, repeated matches
-     merge into one row, and only matched rows are committed — unknown names stay visible in the
-     review so the user can see what was not understood. */
-  function bulkRows() {
-    var rows = M.parseBulk(els['bulk-input'].value, catalogData()).rows;
-    var seen = {};
-    var merged = [];
-    rows.forEach(function (row) {
-      if (row.state !== 'matched') {
-        merged.push({ raw: row.raw, qty: row.qty, name: row.name, slug: row.slug, state: row.state });
-        return;
-      }
-      if (seen[row.slug]) { seen[row.slug].qty += row.qty; return; }
-      var copy = { raw: row.raw, qty: row.qty, name: row.name, slug: row.slug, state: row.state };
-      seen[row.slug] = copy;
-      merged.push(copy);
-    });
-    return merged;
-  }
-
-  function renderBulkReview() {
-    var rows = bulkRows();
-    els['bulk-review'].innerHTML = rows.map(function (row) {
-      var matched = row.state === 'matched';
-      return '<div class="bulk-row" data-bulk-state="' + (matched ? 'matched' : 'unknown') + '">' +
-        '<span class="slot" aria-hidden="true" data-tip="' + escapeHtml(row.name) + '">' +
-        slotInnerHtml(row.name) + '</span>' +
-        '<span class="bulk-row__name">' + escapeHtml(row.name) + '</span>' +
-        (matched
-          ? '<input class="mc-input bulk-row__qty" type="number" min="1" step="1" value="' + row.qty + '" ' +
-            'data-bulk-qty="' + escapeHtml(row.slug) + '" aria-label="Quantity for ' + escapeHtml(row.name) + '">'
-          : '<span class="bulk-row__note">not in the catalogue</span>') +
-        '</div>';
-    }).join('');
-    wireIconFallbacks(els['bulk-review']);
-  }
-
-  function applyBulk() {
-    var context = currentBuild();
-    if (!context) return;
-    var inputs = els['bulk-review'].querySelectorAll('.bulk-row[data-bulk-state="matched"] [data-bulk-qty]');
-    var next = state;
-    var added = 0;
-    Array.prototype.forEach.call(inputs, function (input) {
-      var entry = catalogEntry(input.dataset.bulkQty);
-      if (!entry) return;
-      var result = M.addMaterial(next, context.world.id, context.build.id, {
-        item: entry.name,
-        needed: input.value,
-        collected: 0
-      });
-      if (result.error) return;
-      next = result.state;
-      added += 1;
-    });
-    if (!added) {
-      els['bulk-error'].textContent = 'No lines matched a catalogue item.';
-      els['bulk-error'].hidden = false;
-      return;
-    }
-    els['bulk-error'].hidden = true;
-    els['bulk-dialog'].close();
-    commit(next);
-    toast(added + (added === 1 ? ' material added.' : ' materials added.'));
-  }
-
+  /* Paste and shopping rendering live in the EDICT-0017 block above; this range used to hold the
+     retired free-form paste helpers. */
   function renderDetail() {
     var world = activeWorld();
     var build = selectedBuild();
     var hasBuild = !!(world && build);
-    els['detail-empty'].hidden = hasBuild;
-    els['detail-body'].hidden = !hasBuild;
+    if (els['detail-empty']) els['detail-empty'].hidden = hasBuild;
+    if (els['detail-body']) els['detail-body'].hidden = !hasBuild;
+    renderMigratedNotice();
     if (!hasBuild) {
       ui.titleEditing = false;
       ui.notesEditing = false;
       ui.editingBuildId = null;
+      renderDetailProgress(0, 0);
+      if (els['build-delete']) els['build-delete'].disabled = true;
       return;
     }
-    /* Selecting another build abandons an in-progress inline edit (Escape semantics). */
     if (ui.editingBuildId !== build.id) {
       ui.editingBuildId = build.id;
       ui.titleEditing = false;
       ui.notesEditing = false;
     }
 
-    els['detail-heading'].textContent = build.name;
-    els['detail-heading'].hidden = ui.titleEditing;
-    /* EDICT-0014 §8: a suggestion is shown on the avatar but never written into the build, so a
-       rename can never silently overwrite a stored icon. */
-    var suggestion = build.icon ? null : suggestionFor(build);
-    var shownIcon = build.icon || (suggestion ? { kind: 'item', slug: suggestion.slug } : null);
-    els['detail-avatar'].innerHTML = avatarHtml(shownIcon, 40, build.name);
-    els['detail-avatar'].setAttribute('aria-label', 'Change icon for ' + build.name);
-    if (suggestion) {
-      els['detail-avatar'].setAttribute('data-icon-auto', 'true');
-      els['detail-avatar'].setAttribute('title', suggestion.reason);
-    } else {
-      els['detail-avatar'].removeAttribute('data-icon-auto');
-      els['detail-avatar'].removeAttribute('title');
+    /* ---- header ---- */
+    if (els['detail-avatar']) {
+      /* EDICT-0014 D8: a stored icon wins; otherwise the view shows the model's suggestion and
+         marks it (never storing it on the build). */
+      var avatarIcon = build.icon;
+      var avatarSuggestion = avatarIcon ? null : suggestionFor(build);
+      if (!avatarIcon && avatarSuggestion) avatarIcon = { kind: 'item', slug: avatarSuggestion.slug };
+      els['detail-avatar'].innerHTML = avatarHtml(avatarIcon, 40, build.name);
+      if (avatarSuggestion) {
+        els['detail-avatar'].dataset.iconAuto = 'true';
+        els['detail-avatar'].title = avatarSuggestion.reason || '';
+      } else {
+        if (els['detail-avatar'].dataset.iconAuto) delete els['detail-avatar'].dataset.iconAuto;
+        els['detail-avatar'].title = '';
+      }
+      wireIconFallbacks(els['detail-avatar']);
     }
-    wireIconFallbacks(els['detail-avatar']);
-
-    els['build-name'].hidden = !ui.titleEditing;
-    els['build-name-save'].hidden = !ui.titleEditing;
-    els['build-name-cancel'].hidden = !ui.titleEditing;
-    els['build-rename'].hidden = ui.titleEditing;
-    if (!ui.titleEditing) els['build-name'].value = build.name;
-
-    els['build-coords'].value = build.coords;
-    els['copy-coords'].disabled = !String(build.coords).trim();
-
-    els['notes-text'].hidden = ui.notesEditing;
-    els['notes-editor'].hidden = !ui.notesEditing;
-    /* EDICT-0016 §3/§4: the actions live in the label row and replace #notes-edit while editing. */
-    els['notes-hint'].hidden = !ui.notesEditing;
-    els['notes-save'].hidden = !ui.notesEditing;
-    els['notes-cancel'].hidden = !ui.notesEditing;
-    els['notes-edit'].hidden = ui.notesEditing;
-    if (!ui.notesEditing) {
-      els['notes-text'].textContent = build.notes || 'No notes yet.';
-      els['notes-text'].classList.toggle('notes__text--empty', !build.notes);
+    if (els['build-name']) {
+      if (!ui.titleEditing) els['build-name'].value = build.name;
+      els['build-name'].hidden = !ui.titleEditing;
     }
+    if (els['build-name-save']) els['build-name-save'].hidden = !ui.titleEditing;
+    if (els['build-name-cancel']) els['build-name-cancel'].hidden = !ui.titleEditing;
+    if (els['build-rename']) {
+      els['build-rename'].hidden = ui.titleEditing;
+      els['build-rename'].setAttribute('aria-pressed', ui.titleEditing ? 'true' : 'false');
+    }
+    if (els['build-delete']) els['build-delete'].disabled = false;
+
+    Array.prototype.forEach.call(document.querySelectorAll('#status-group [data-status]'), function (button) {
+      button.setAttribute('aria-pressed', button.getAttribute('data-status') === build.status ? 'true' : 'false');
+    });
+
+    if (els['build-coords']) {
+      els['build-coords'].value = build.coords || '';
+      els['build-coords'].placeholder = 'x / y / z';
+    }
+    if (els['copy-coords']) els['copy-coords'].disabled = !build.coords;
+    if (els['detail-heading']) {
+      els['detail-heading'].textContent = build.name;
+      /* Renaming swaps the heading for the inline input (case 09: the heading steps aside). */
+      els['detail-heading'].hidden = ui.titleEditing;
+    }
+
+    /* ---- notes ---- */
+    if (els['notes-text']) {
+      var hasNotes = !!(build.notes && String(build.notes).trim());
+      els['notes-text'].textContent = hasNotes ? build.notes : 'No notes yet.';
+      els['notes-text'].classList.toggle('notes__text--empty', !hasNotes);
+      els['notes-text'].hidden = ui.notesEditing;
+    }
+    if (els['notes-editor']) els['notes-editor'].hidden = !ui.notesEditing;
+    if (els['notes-save']) els['notes-save'].hidden = !ui.notesEditing;
+    if (els['notes-cancel']) els['notes-cancel'].hidden = !ui.notesEditing;
+    if (els['notes-edit']) els['notes-edit'].hidden = false;
+    if (els['notes-hint']) els['notes-hint'].hidden = !ui.notesEditing;
+
+    /* ---- overall progress: exactly one sentence, from the model ---- */
+    var alloc = M.allocate(world);
+    var progress = alloc.perBuild[build.id] || { covered: 0, needed: 0 };
+    renderDetailProgress(progress.covered, progress.needed);
     renderDetailMeta(build);
 
-    Array.prototype.forEach.call(els['status-group'].querySelectorAll('[data-status]'), function (button) {
-      var active = button.dataset.status === build.status;
-      button.classList.toggle('is-active', active);
-      button.setAttribute('aria-pressed', active ? 'true' : 'false');
-    });
-
-    var totals = build.materials.reduce(function (acc, material) {
-      acc.needed += material.needed;
-      acc.collected += Math.min(material.collected, material.needed);
-      return acc;
-    }, { needed: 0, collected: 0 });
-    paintBuildProgress(totals, build.materials.length);
-
-    var rows = build.materials.map(function (material) {
-      var progress = M.materialProgress(material);
-      return '<div class="mat-row" role="row" data-mat="' + escapeHtml(material.id) + '">' +
-        '<span class="mat-row__item">' + slotHtml(material.item) +
-          '<span class="mat-row__name">' + escapeHtml(material.item) + '</span></span>' +
-        rowStepperHtml(material, 'needed', 'needed for') +
-        rowStepperHtml(material, 'collected', 'collected for') +
-        '<span class="num">' + progress.remaining + '</span>' +
-        '<button type="button" class="row-delete" data-remove-mat="' + escapeHtml(material.id) + '" ' +
-          'aria-label="Remove ' + escapeHtml(material.item) + '">×</button>' +
-        '</div>';
-    });
-    els['material-body'].innerHTML = rows.join('');
-    wireIconFallbacks(els['material-body']);
-    els['material-empty'].hidden = build.materials.length > 0;
+    /* ---- rows and chips ---- */
+    var rows = rowsFor(world, build, alloc);
+    if (ui.hideDone) rows = rows.filter(function (row) { return row.remaining > 0; });
+    var sorted = sortRows(rows);
+    if (els['material-body']) {
+      els['material-body'].innerHTML = sorted.map(rowHtml).join('');
+      wireIconFallbacks(els['material-body']);
+    }
+    if (els['material-grid']) {
+      els['material-grid'].innerHTML = sorted.map(chipHtml).join('');
+      wireIconFallbacks(els['material-grid']);
+    }
+    if (els['material-empty']) els['material-empty'].hidden = build.materials.length > 0;
+    renderMaterialsViewMode();
   }
 
-  /** The build's detail meta line: `Updated …` in a <time>, with created carried on the title. */
+  /** The detail sentence and bar. `covered`/`needed` come straight from `allocate()`. */
+  function renderDetailProgress(covered, needed) {
+    var safeCovered = Math.max(0, Math.floor(Number(covered) || 0));
+    var safeNeeded = Math.max(0, Math.floor(Number(needed) || 0));
+    if (els['detail-progress-text']) {
+      els['detail-progress-text'].textContent = M.progressText(safeCovered, safeNeeded);
+    }
+    var pct = safeNeeded ? Math.min(100, Math.round((safeCovered / safeNeeded) * 100)) : 0;
+    if (els['detail-bar']) els['detail-bar'].setAttribute('aria-valuenow', String(pct));
+    if (els['detail-fill']) els['detail-fill'].style.width = pct + '%';
+  }
+
+  function renderMigratedNotice() {
+    var node = els['migrated-from'];
+    if (!node) return;
+    var migrated = !!(state && state.migratedFrom === 1);
+    node.hidden = !migrated;
+    node.textContent = migrated
+      ? 'Upgraded from an older backup: collected counts moved into the world inventory.'
+      : '';
+  }
   function renderDetailMeta(build) {
     if (!els['detail-meta']) return;
     els['detail-meta'].textContent = '';
@@ -2157,196 +2448,218 @@
     }
   }
 
+  /* --------------------------------------------------------- material rows */
+  /* EDICT-0017 §3: one row per material, eight cells, values straight from `allocate()`. */
+
+  function stackForMaterial(material, build) {
+    return resolvedStackFor(material.item, build) || M.DEFAULT_STACK;
+  }
+
   /**
-   * EDICT-0016 §2: one stepper for every editable number — `+` button, the input, `−` button, in
-   * that literal order. `field`/`matId` are only for material rows; the container carries them so
-   * a re-render can hand focus back to the same control.
+   * §1: `2s` means two stacks *of that item*, so the size must be resolved through the custom-item
+   * chain (build → world → account) before the catalogue, exactly like `M.resolveItem` does.
    */
-  function stepperHtml(options) {
-    var opts = options || {};
-    var field = opts.field || '';
-    var matId = opts.matId || '';
-    var type = opts.type === 'text' ? 'text' : 'number';
-    var value = opts.value === undefined || opts.value === null ? '' : String(opts.value);
-    var attrs = ' class="mc-input num' + (opts.gotCol ? ' got-col' : '') + '" type="' + type + '" inputmode="numeric"';
-    if (opts.min !== undefined) attrs += ' min="' + opts.min + '"';
-    if (opts.max !== undefined) attrs += ' max="' + opts.max + '"';
-    if (type === 'number') attrs += ' step="1"';
-    attrs += ' value="' + escapeHtml(value) + '"';
-    if (opts.id) attrs += ' id="' + escapeHtml(opts.id) + '"';
-    if (field) attrs += ' data-mat-field="' + escapeHtml(field) + '"';
-    if (matId) attrs += ' data-mat="' + escapeHtml(matId) + '"';
-    if (opts.required) attrs += ' required';
-    attrs += ' aria-label="' + escapeHtml(opts.inputLabel || opts.name || 'Value') + '">';
-    var wrapper = ' class="stepper" data-stepper';
-    if (field && matId) {
-      wrapper += ' data-stepper-field="' + escapeHtml(field) + '" data-stepper-mat="' + escapeHtml(matId) + '"';
-    }
-    var name = escapeHtml(opts.name || 'value');
-    return '<div' + wrapper + '>' +
-      '<button class="stepper__btn" type="button" data-stepper-step="1" aria-label="Increase ' + name + '">+</button>' +
-      '<input' + attrs +
-      '<button class="stepper__btn" type="button" data-stepper-step="-1" aria-label="Decrease ' + name + '">−</button>' +
+  function resolvedStackFor(name, build) {
+    var world = activeWorld();
+    var entry = world ? M.resolveItem(state, world, build || currentBuild(), name) : null;
+    var stack = entry && Number(entry.stack);
+    if (isFinite(stack) && stack > 0) return Math.floor(stack);
+    return stackSizeFor(name) || M.DEFAULT_STACK;
+  }
+
+  function rowUnits(value, slug, stack) {
+    /* `formatUnits` expects the stack map keyed by slug, not a bare size — a number there fell
+       back to the 64 default and mis-rendered every non-64 item (§1, cases 42/64). */
+    return M.formatUnits(Math.max(0, Math.floor(Number(value) || 0)), slug, ui.units, stackMapFor(slug, stack));
+  }
+
+  function stackMapFor(slug, size) {
+    var stacks = {};
+    var n = Math.floor(Number(size) || 0);
+    if (n > 0) stacks[String(slug).toLowerCase()] = n;
+    return stacks;
+  }
+
+  /**
+   * One row per material of `build`, with the numbers allocation already decided:
+   * `got` is the world's stock, `covered` is what `allocate()` gave this row, `left` is what is
+   * still open and never goes negative. A `done` build consumes nothing (§2) but displays as
+   * complete, so its rows report `covered === needed` and zero surplus.
+   */
+  function rowsFor(world, build, alloc) {
+    var inventory = M.inventoryOf(world);
+    var shared = alloc.slugs || {};
+    var doneBuild = build.status === 'done';
+    return build.materials.map(function (material) {
+      var slug = slugifyItem(material.item);
+      var needed = Math.max(1, Math.floor(Number(material.needed) || 1));
+      var got = Math.max(0, Math.floor(Number(inventory[slug]) || 0));
+      var covered = doneBuild
+        ? needed
+        : Math.min(Math.max(0, Math.floor(Number(alloc.perMaterial[material.id]) || 0)), needed);
+      var remaining = Math.max(0, needed - covered);
+      /* §2: surplus is stock the *world* holds beyond what every active build needs, so it is a
+         slug-level number from the allocation — never `covered - needed` of one row. */
+      var entry = shared[slug];
+      var surplus = doneBuild || !entry ? 0 : Math.max(0, Math.floor(Number(entry.surplus) || 0));
+      return {
+        material: material,
+        slug: slug,
+        stack: stackForMaterial(material, build),
+        needed: needed,
+        got: got,
+        covered: covered,
+        remaining: remaining,
+        surplus: surplus,
+        complete: remaining === 0,
+        shared: (shared[slug] && shared[slug].shared) || 0
+      };
+    });
+  }
+
+  function categoryFor(slug) {
+    var table = window.MC_ICON_CATEGORIES || {};
+    return table[slug] || 'Misc';
+  }
+
+  function byNameThenSlug(left, right) {
+    var byName = left.material.item.localeCompare(right.material.item);
+    if (byName !== 0) return byName;
+    return left.slug < right.slug ? -1 : left.slug > right.slug ? 1 : 0;
+  }
+
+  /** §3: remaining desc (default), name, or category — every mode breaks ties deterministically. */
+  function sortRows(rows) {
+    var list = rows.slice();
+    list.sort(function (left, right) {
+      if (ui.sort === 'name') return byNameThenSlug(left, right);
+      if (ui.sort === 'category') {
+        var byCategory = categoryFor(left.slug).localeCompare(categoryFor(right.slug));
+        if (byCategory !== 0) return byCategory;
+        return byNameThenSlug(left, right);
+      }
+      if (right.remaining !== left.remaining) return right.remaining - left.remaining;
+      return byNameThenSlug(left, right);
+    });
+    return list;
+  }
+
+  function rowHtml(row) {
+    var material = row.material;
+    var matId = escapeHtml(material.id);
+    var name = escapeHtml(material.item);
+    var surplusCell = row.surplus > 0
+      ? '<span class="num is-surplus" data-mat-surplus>+' +
+        escapeHtml(rowUnits(row.surplus, row.slug, row.stack)) + ' surplus</span>'
+      : '';
+    return '<div class="mat-row' + (row.complete ? ' mat-row--done' : '') + '" role="row"' +
+      ' data-mat="' + matId + '" tabindex="0">' +
+      '<span class="mat-row__item">' +
+        '<span class="mat-row__slot slot" data-tip="' + escapeHtml(material.item) + '" aria-hidden="true">' + slotInnerHtml(material.item, true) + '</span>' +
+        '<span class="mat-row__name">' + name + '</span>' +
+        (row.shared > 1
+          ? '<span class="mat-shared" data-mat-shared>shared with ' + row.shared + ' builds</span>'
+          : '') +
+      '</span>' +
+      '<span class="mat-row__needed">' +
+        '<input class="mc-input num" type="text" inputmode="numeric" value="' + escapeHtml(rowUnits(row.needed, row.slug, row.stack)) + '"' +
+        ' data-mat-field="needed" data-mat="' + matId + '" data-prev="' + row.needed + '"' +
+        ' aria-label="Needed ' + name + '">' +
+      '</span>' +
+      '<span data-mat-got aria-label="' + escapeHtml('Got — world inventory for ' + material.item) + '" title="' + escapeHtml('World inventory for ' + material.item) + '">' +
+        escapeHtml(rowUnits(row.got, row.slug, row.stack)) + '</span>' +
+      '<span class="num" data-mat-covered>' + escapeHtml(rowUnits(row.covered, row.slug, row.stack)) + '</span>' +
+      '<span class="num" data-mat-remaining>' + escapeHtml(rowUnits(row.remaining, row.slug, row.stack)) + '</span>' +
+      surplusCell +
+      '<button class="mc-btn mc-btn--sm" type="button" data-mat-update="' + matId + '">Update</button>' +
+      '<span class="mat-row__menu">' +
+        '<button type="button" data-mat-menu aria-haspopup="true" aria-expanded="false"' +
+          ' aria-label="Row actions for ' + name + '">\u22ef</button>' +
+        '<div class="mat-menu" hidden>' +
+          '<button class="mc-btn mc-btn--sm" type="button" data-mat-remove="' + matId + '">Remove</button>' +
+        '</div>' +
+      '</span>' +
       '</div>';
   }
 
-  /** One material row's Needed or Got stepper, with the item named in the accessible labels. */
-  function rowStepperHtml(material, field, verb) {
-    var isNeeded = field === 'needed';
-    return stepperHtml({
-      field: field,
-      matId: material.id,
-      min: isNeeded ? 1 : 0,
-      gotCol: !isNeeded,
-      value: isNeeded ? material.needed : material.collected,
-      name: verb + ' ' + material.item,
-      inputLabel: (isNeeded ? 'Needed ' : 'Collected ') + material.item
-    });
+  function chipHtml(row) {
+    var count = row.remaining > 0 ? row.remaining : row.needed;
+    var tip = row.material.item + ': ' + rowUnits(row.covered, row.slug, row.stack) + ' of ' +
+      rowUnits(row.needed, row.slug, row.stack) + ' \u00b7 left ' +
+      rowUnits(row.remaining, row.slug, row.stack);
+    return '<button class="mat-chip' + (row.complete ? ' is-done' : '') + '" type="button" role="listitem"' +
+      ' data-mat="' + escapeHtml(row.material.id) + '" data-tip="' + escapeHtml(tip) + '"' +
+      ' aria-label="' + escapeHtml(row.material.item + ': ' + row.remaining + ' left of ' + row.needed) + '">' +
+      '<span class="mat-chip__count" data-mat-chip-count>' + escapeHtml(rowUnits(count, row.slug, row.stack)) + '</span>' +
+      '<span class="slot" aria-hidden="true">' + slotInnerHtml(row.material.item, true) + '</span>' +
+      '</button>';
   }
 
-  /** Resolve an item's stack exactly as the retired renderer did (registry first, then catalogue). */
-  function rowStack(material, build) {
-    var owner = build || selectedBuild();
-    var resolved = M.resolveItem(state, activeWorld(), owner, material.item);
-    return (resolved && resolved.stack) || stackSizeFor(material.item) || M.DEFAULT_STACK;
+  /** Table/grid are the same data; only one container is visible, and both buttons report state. */
+  function renderMaterialsViewMode() {
+    var grid = ui.matView === 'grid';
+    if (els['material-table']) els['material-table'].hidden = grid;
+    if (els['material-grid']) els['material-grid'].hidden = !grid;
+    if (els['mat-view-table']) els['mat-view-table'].setAttribute('aria-pressed', grid ? 'false' : 'true');
+    if (els['mat-view-grid']) els['mat-view-grid'].setAttribute('aria-pressed', grid ? 'true' : 'false');
+    if (els['mat-hide-done']) els['mat-hide-done'].setAttribute('aria-pressed', ui.hideDone ? 'true' : 'false');
+    if (els['mat-sort'] && els['mat-sort'].value !== ui.sort) els['mat-sort'].value = ui.sort;
   }
-
-  function findRowMaterial(matId) {
-    var build = selectedBuild();
-    if (!build) return null;
-    var found = null;
-    build.materials.forEach(function (entry) { if (entry.id === matId) found = entry; });
-    return found;
-  }
-
-  function stackForInput(input) {
-    if (!input) return M.DEFAULT_STACK;
-    if (input.getAttribute('data-mat')) return rowStack(findRowMaterial(input.getAttribute('data-mat')));
-    if (input.id === 'mat-needed' || input.id === 'mat-collected') {
-      var resolved = resolvedPendingItem();
-      return resolved && resolved.stack ? resolved.stack : M.DEFAULT_STACK;
-    }
-    if (input.id === 'custom-stack') {
-      var world = activeWorld();
-      var build = selectedBuild();
-      var named = M.resolveItem(state, world, build, els['custom-name'] ? els['custom-name'].value : '');
-      return named && named.stack ? named.stack : M.DEFAULT_STACK;
-    }
-    return M.DEFAULT_STACK;
-  }
-
-  /** Shift = one stack of this item, Ctrl/⌘ = 16, plain = 1; Shift wins when both are held. */
-  function stepAmount(input, event) {
-    if (!event) return 1;
-    if (event.shiftKey) return stackForInput(input);
-    if (event.ctrlKey || event.metaKey) return 16;
-    return 1;
-  }
-
-  function inputHasMin(input) {
-    var min = input.getAttribute('min');
-    return min !== null && min !== '' && isFinite(Number(min));
-  }
-
-  function inputHasMax(input) {
-    var max = input.getAttribute('max');
-    return max !== null && max !== '' && isFinite(Number(max));
-  }
-
-  function clampInput(input, value) {
-    var next = Math.round(value);
-    if (!isFinite(next)) next = 0;
-    if (inputHasMin(input)) next = Math.max(Number(input.getAttribute('min')), next);
-    if (inputHasMax(input)) next = Math.min(Number(input.getAttribute('max')), next);
-    return next;
-  }
-
-  /** Current numeric value of a stepper input; `#tile-relative` is text and parsed as a delta. */
-  function inputNumber(input) {
-    if (input.type === 'text') {
-      var parsed = M.parseRelative(input.value, stackForInput(input));
-      return parsed && parsed.error === undefined ? parsed.value : null;
-    }
-    var value = Number(input.value);
-    return isFinite(value) ? Math.floor(value) : null;
-  }
-
-  /** Apply one step and let the shipped commit path run: `input` first, then `change`. */
-  function applyInputStep(input, amount) {
-    if (!input) return false;
-    var current = inputNumber(input);
-    var base = current === null ? 0 : current;
-    var next = clampInput(input, base + Math.round(amount));
-    if (current !== null && next === current) return false;
-    input.value = String(next);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-    return true;
-  }
-
-  function focusStepperButton(field, matId, step) {
-    var container = document.querySelector(
-      '[data-stepper-field="' + field + '"][data-stepper-mat="' + matId + '"]');
-    if (!container) return false;
-    var button = container.querySelector('[data-stepper-step="' + step + '"]');
-    if (!button) return false;
-    button.focus();
-    return true;
-  }
-
-  function focusStepperInput(field, matId) {
-    var input = document.querySelector(
-      '#material-body [data-mat-field="' + field + '"][data-mat="' + matId + '"]');
-    if (!input) return false;
-    input.focus();
-    return true;
-  }
-
+  /**
+   * EDICT-0017 §4: the Materials tab shows world-level sums from `aggregateWorld()` — needed,
+   * covered and left per item, each row naming the builds that need it. `covered` (allocation),
+   * never the retired `material.collected`.
+   */
   function renderWorldMaterials() {
     var world = activeWorld();
     var rows = world ? M.aggregateWorld(world) : [];
-    els['materials-lede'].textContent = world
-      ? 'Every block needed across "' + world.name + '", summed by item.'
-      : 'Create a world to start a shopping list.';
-    /* B5: the world's Updated <time> rides the lede; its textContent stays the same sentence. */
-    if (world) {
-      var worldStamps = M.timestamps(world);
-      var worldUpdated = worldStamps.updatedAt !== undefined ? worldStamps.updatedAt : worldStamps.createdAt;
-      els['materials-lede'].appendChild(document.createTextNode(' · '));
-      els['materials-lede'].appendChild(stampNode(worldUpdated, 'Updated'));
+    var summary = world ? M.worldSummary(world) : { covered: 0, needed: 0 };
+    if (els['materials-lede']) {
+      els['materials-lede'].textContent = world
+        ? 'Every block needed across "' + world.name + '", summed by item.'
+        : 'Create a world to start a shopping list.';
+      if (world) {
+        var stamps = M.timestamps(world);
+        var updated = stamps.updatedAt !== undefined ? stamps.updatedAt : stamps.createdAt;
+        if (updated !== undefined) {
+          els['materials-lede'].appendChild(document.createTextNode(' \u00b7 '));
+          els['materials-lede'].appendChild(stampNode(updated, 'Updated'));
+        }
+      }
     }
-
-    var query = ui.query.trim().toLowerCase();
+    var query = String(ui.query || '').trim().toLowerCase();
     var filtered = rows.filter(function (row) {
-      if (query && row.item.toLowerCase().indexOf(query) < 0) return false;
       if (ui.filter === 'remaining' && row.done) return false;
       if (ui.filter === 'done' && !row.done) return false;
+      if (query && row.item.toLowerCase().indexOf(query) < 0) return false;
       return true;
     });
-
-    els['world-material-body'].innerHTML = filtered.map(function (row) {
-      return '<div class="mat-row' + (row.done ? ' mat-row--done' : '') + '" role="row">' +
-        '<span class="mat-row__item">' + slotHtml(row.item) +
-          '<span class="mat-row__name">' + escapeHtml(row.item) + '</span></span>' +
-        '<span class="num">' + row.needed + '</span>' +
-        '<span class="num got-col">' + row.collected + '</span>' +
-        '<span class="num">' + row.remaining + '</span>' +
-        '<span class="progress-col"><span class="mat-row__bar"><span style="width:' + row.pct + '%"></span></span></span>' +
-        '<span class="mat-row__builds builds-col">' + escapeHtml(row.builds.join(', ')) + '</span>' +
-        '</div>';
-    }).join('');
-
-    wireIconFallbacks(els['world-material-body']);
-    /* EDICT-0014 §4: the filter notice only speaks when a search or filter is what hid the
-       rows; a world with no materials yet keeps the page quiet (its own lede explains it). */
-    els['world-material-empty'].hidden = !(filtered.length === 0 && (ui.query.trim() || ui.filter !== 'all'));
-    var summary = M.worldSummary(world);
-    els['mat-totals'].textContent = world
-      ? rows.length + (rows.length === 1 ? ' item' : ' items') + ' · ' + summary.collected + ' / ' + summary.needed +
-        ' gathered · ' + summary.remaining + ' to go · ' + summary.pct + '%'
-      : '';
+    if (els['world-material-body']) {
+      els['world-material-body'].innerHTML = filtered.map(function (row) {
+        var slug = slugifyItem(row.item);
+        var stack = stackSizeFor(row.item) || M.DEFAULT_STACK;
+        var covered = row.covered !== undefined ? row.covered : 0;
+        return '<div class="mat-row mtable--wide' + (row.done ? ' mat-row--done' : '') + '" role="row"' +
+          ' data-mat="' + escapeHtml(slug) + '">' +
+          '<span class="mat-row__item">' +
+            '<span class="mat-row__slot" aria-hidden="true">' + slotInnerHtml(row.item, true) + '</span>' +
+            '<span class="mat-row__name">' + escapeHtml(row.item) + '</span>' +
+          '</span>' +
+          '<span class="num">' + escapeHtml(rowUnits(row.needed, slug, stack)) + '</span>' +
+          '<span class="num got-col">' + escapeHtml(rowUnits(covered, slug, stack)) + '</span>' +
+          '<span class="num">' + escapeHtml(rowUnits(row.remaining, slug, stack)) + '</span>' +
+          '<span class="progress-col"><span class="mat-row__bar"><span style="width: ' + row.pct + '%"></span></span></span>' +
+          '<span class="mat-row__builds builds-col">' + escapeHtml((row.builds || []).join(', ')) + '</span>' +
+          '</div>';
+      }).join('');
+      wireIconFallbacks(els['world-material-body']);
+    }
+    if (els['world-material-empty']) els['world-material-empty'].hidden = filtered.length > 0;
+    if (els['mat-totals']) {
+      els['mat-totals'].textContent = filtered.length + (filtered.length === 1 ? ' item \u00b7 ' : ' items \u00b7 ') +
+        M.progressText(summary.covered, summary.needed);
+    }
   }
-
   function renderWorlds() {
     els['world-cards'].innerHTML = state.worlds.map(function (world) {
       var summary = M.worldSummary(world);
@@ -2357,7 +2670,7 @@
         '</div>' +
         '<p class="world-card__meta">' + (world.edition === 'bedrock' ? 'Bedrock' : 'Java') + ' ' + escapeHtml(world.version) +
           ' · ' + summary.builds + ' builds · ' + summary.materials + ' materials</p>' +
-        '<p class="world-card__meta">' + summary.pct + '% gathered · ' + summary.remaining + ' items to go</p>' +
+        '<p class="world-card__meta">' + summary.pct + '% complete · ' + summary.remaining + ' items to go</p>' +
         (world.notes ? '<p class="world-card__meta">' + escapeHtml(world.notes) + '</p>' : '') +
         '<div class="world-card__actions">' +
           (active ? '' : '<button class="mc-btn mc-btn--sm" type="button" data-world-select="' + escapeHtml(world.id) + '">Select</button>') +

@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "activeWorldId": "w1",
+  "worlds": [
+    {
+      "id": "w1",
+      "name": "Priority World",
+      "edition": "java",
+      "version": "1.21.4",
+      "notes": "Duplicate item inside one build (Glass 96 + 32) and across builds (Stone Bricks 300 + 200).",
+      "createdAt": "2026-09-14T08:05:00.000Z",
+      "updatedAt": "2026-10-25T21:40:00.000Z",
+      "icon": null,
+      "inventory": {
+        "stone_bricks": 350,
+        "glass": 100
+      },
+      "builds": [
+        {
+          "id": "b1",
+          "name": "Wall",
+          "status": "building",
+          "active": true,
+          "coords": "0 / 64 / 0",
+          "notes": "",
+          "icon": null,
+          "materials": [
+            { "id": "m1", "item": "Stone Bricks", "needed": 300 },
+            { "id": "m2", "item": "Glass", "needed": 96 },
+            { "id": "m3", "item": "Glass", "needed": 32 }
+          ]
+        },
+        {
+          "id": "b2",
+          "name": "Hut",
+          "status": "planned",
+          "active": true,
+          "coords": "16 / 64 / 16",
+          "notes": "",
+          "icon": null,
+          "materials": [
+            { "id": "m4", "item": "stone bricks", "needed": 200 }
+          ]
+        },
+        {
+          "id": "b3",
+          "name": "Old Shed",
+          "status": "done",
+          "active": false,
+          "coords": "",
+          "notes": "",
+          "icon": null,
+          "materials": [
+            { "id": "m5", "item": "Stone Bricks", "needed": 50 }
+          ]
+        }
+      ]
+    }
+  ],
+  "customItems": {}
+}

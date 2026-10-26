@@ -12,32 +12,38 @@ a backup and **Import** to restore it.
 
 - **Worlds** — one tracker per world, with edition + version and an **identity icon**: pick any
   Minecraft item from your extracted set or upload a picture. The active world lives in the left
-  **world sidebar** (identity, derived stats, new/import/export actions); edit or delete from the
-  Worlds tab. Worlds and custom items carry created/updated timestamps.
+  **world sidebar**: identity, one derived progress line (`X / Y items gathered (Z%)`) with its XP
+  bar, the inactive-build display mode, an Items / Stacks / Shulkers switch, the shopping list and
+  new/import/export; the rail collapses to 56 px and remembers it. Edit or delete from the Worlds
+  tab. Worlds and custom items carry created/updated timestamps.
 - **Builds** — plan a build with status (Planned / Building / Done), coordinates, notes and its
   own icon/avatar, visible in the list and the detail header. Rename with the pencil beside the
   title, copy coordinates from the field, and view/edit notes in place — the view shows the note
   text, and Edit puts the hint plus save/cancel in the section header. Builds carry created/updated
   timestamps too.
-- **Materials** — choose each block from the full item catalog or paste a whole list, give it
-  `needed` / `got`, and adjust with the `−` / `+` steppers beside each number field; **Shift** adds
-  one stack and **Ctrl/⌘** adds 16. The fields stay `type=number` with the native spinners hidden.
-  The build's XP bar fills as you gather.
-- **Shopping list** — every item summed across all builds in the world, sorted so outstanding
-  items come first, filterable, copyable as text (`Stone Bricks x640 (440 left)`).
+- **Materials** — choose each block from the full item catalog or paste a whole list. The world
+  has **one inventory**: the **Got** cell shows how many you hold, and each build's **In / Left**
+  (plus a `+N surplus` when you over-fill) is derived by giving that stock to your builds in list
+  order. Every row has a plain **Needed** field (Enter or blur commits, Escape restores) and an
+  **Update** button opening one dialog that accepts either an absolute number or a delta — `+64`,
+  `-32`, `2s`, `2s+10` (the item's own stack size) — with one Undo. The build's XP bar fills as its
+  allocation is covered.
+- **Shopping list** — every active build's outstanding need after the world inventory is applied
+  in build order (a paused build hands its share back to the pool), largest shortfall first,
+  filterable and copyable as text (`Stone Bricks x640 (440 left)`).
 - **Quality of life** — deleting a material, build or world offers **Undo** for 6 seconds; recent
   picks lead the icon picker; the picker suggests an icon from the build's name, notes or
   materials and states why, without replacing a choice you made; one shared tooltip follows the
   slot and is never painted under a dialog; empty screens offer the next action instead of an
   error toast. The picker pages 120 tiles at a time, so all 1,368 items are reachable.
-- **Layout and custom items** — the build list ranks **Building → Planned → Done**, the left
-  sidebar holds the world and its stats, and the top bar shows a derived `X% gathered` plus
-  `N of M items still to collect`; labels and controls align pairwise at 1280×900 and 390×844,
-  within a 960 px desktop budget and a 1,700 px mobile budget. A **Standard / Compact** switch
-  turns the builds list into one card per build with a material-matrix tile that opens a
-  quick-update dialog. Custom materials can be added at build, world or account scope (name,
-  stack 1–999, catalogue icon or upload) and resolve nearest-first; the add form gains the same
-  `−`/`+` steppers, and **Import** works through a dialog with file, drop or paste.
+- **Layout and custom items** — the build list groups **Building → Planned → Done**, and dragging
+  a grab handle reorders builds inside their group; a build can be paused and kept in place,
+  pushed after the active builds, or hidden. Labels and controls align pairwise at 1280×900 and
+  390×844 within the 1,240 px canvas (1,232 px screen). A **Standard / Compact** switch turns the
+  builds list into one card per build with a material-matrix tile whose count is the remaining
+  amount; a tile opens the same inventory dialog. Custom materials can be added at build, world or
+  account scope (name, stack 1–999, catalogue icon or upload) and resolve nearest-first;
+  **Import** works through a dialog with file, drop or paste.
 - **Sample data** — `src/index.html?demo=1` seeds two example worlds if storage is empty.
   Deep links: `?tab=builds|materials|worlds`.
 
@@ -160,6 +166,7 @@ node tests/unit/tracker-model.test.mjs                # 22 model cases
 node tests/unit/tracker-icons.test.mjs                # 9 identity cases
 node tests/unit/tracker-suggest.test.mjs              # 38 suggestion cases (frozen fixtures)
 node tests/unit/tracker-0015.test.mjs                 # 11 ordering/stats/custom/import/motion cases
+node tests/unit/tracker-0017.test.mjs                 # shared inventory, allocation, units, v1→v2 migration
 node tests/qa/tracker.acceptance.test.mjs             # 17 acceptance + static contract cases
 node tests/qa/tracker-icons.acceptance.test.mjs       # 8 identity/backdrop acceptance cases
 node tests/qa/tracker-icon-resolution.acceptance.test.mjs  # 7 high-resolution icon cases
@@ -173,15 +180,18 @@ node src/wiki/cli.mjs sync                      # which completed edicts have be
 node src/wiki/cli.mjs index --check             # catalogue freshness
 
 # UI acceptance (real Chrome, driven over the DevTools Protocol — no packages)
-node tests/qa/ui.e2e.test.mjs                   # 96 user-flow cases (identity + interaction + layout + sidebar + compact + timestamps + backdrop)
+node tests/qa/ui.e2e.test.mjs                   # browser flows: identity + interaction + layout + sidebar + compact + timestamps + shared inventory + backdrop
 node scripts/app-qa.mjs run                     # run them AND stamp the app sources
 node scripts/app-qa.mjs status                  # verified / STALE
 
 ```
 
-Current status: **120/120** `npm test` cases (unit + acceptance, 11 suites), **186/186**
-UI-audit cases, **96/96** browser flows — screenshots verified at 1280 px and 390 px, stamp
-`2026-10-26T02:59:39.552Z` covering 8 hashed sources.
+Current status: EDICT-0017 (shared inventory, per-build allocation, Standard-view rework) passed its
+S5Q verification cycle 1 — **128/128** browser cases, **186/186** audit, **152/152** `npm test`
+across 12 suites — and the app is stamped at `2026-10-26T06:37:19.750Z` with 128 UI cases
+(`node scripts/app-qa.mjs status`). The hashed evidence crate is
+`reports/qa/evidence/edict-0017/` and the QA report is `reports/qa/edict-0017-qa.md`; the older
+120-test / 96-browser-flow record belongs to the superseded EDICT-0016 tree.
 
 ## Scope and honesty
 
@@ -205,9 +215,13 @@ UI-audit cases, **96/96** browser flows — screenshots verified at 1280 px and 
 - Text notes only — no screenshots or blueprint uploads on builds (yet).
 - Import (file dialog, drag-drop or paste) replaces the current data set, and only after
   validation; a bad file changes nothing. Custom items are local data scoped to a build, world or
-  account; `SCHEMA` stays 1, so older backups import with empty registries.
-- Number fields stay `type=number` with their native spinners hidden, and the scenery only pans
-  with the explicit pause control on browsers that honour `prefers-reduced-motion`; the motion
-  preference is stored per browser.
+  account. Storage is schema **2** (`mc-build-tracker:v2`): a v1 document or backup is migrated
+  once by summing each build's `collected` into the world inventory, and a v2 file that still
+  carries per-build `collected` is refused.
+- **Needed** is a plain number cell and every other quantity changes through the inventory
+  dialog; there is no stepper. The allocation is order-dependent: it is computed from the world
+  stock on every render and never stored, so editing the world inventory changes every build's
+  In/Left. The scenery only pans with the explicit pause control on browsers that honour
+  `prefers-reduced-motion`; the motion preference is stored per browser.
 
 

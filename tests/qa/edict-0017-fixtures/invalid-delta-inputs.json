@@ -1,0 +1,11 @@
+{
+  "item": "Stone Bricks",
+  "stack": 64,
+  "inputs": [
+    { "text": "abc", "expect": "error" },
+    { "text": "2s+", "expect": "error" },
+    { "text": "+1e9", "expect": "error" },
+    { "text": "--1", "expect": "error" },
+    { "text": "2s+10", "expect": 138 }
+  ]
+}

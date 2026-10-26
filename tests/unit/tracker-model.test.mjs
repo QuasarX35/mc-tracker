@@ -74,7 +74,8 @@ test('addMaterial merges duplicate items instead of duplicating rows', () => {
   const materials = state.worlds[0].builds[0].materials;
   assert.equal(materials.length, 1);
   assert.equal(materials[0].needed, 15);
-  assert.equal(materials[0].collected, 3);
+  // EDICT-0017: rows no longer carry a per-build count; the world's inventory owns stock.
+  assert.equal(materials[0].collected, undefined);
 });
 
 test('addMaterial rejects empty names and non-positive quantities', () => {
@@ -87,7 +88,7 @@ test('addMaterial rejects empty names and non-positive quantities', () => {
   assert.ok(M.addMaterial(state, worldId, build.build.id, { item: 'X', needed: -4 }).error);
 });
 
-test('collected above needed is allowed but clamped in progress and aggregation', () => {
+test('allocation covers a row up to its need and reports the rest as surplus', () => {
   let state = M.createWorld(M.emptyState(), { name: 'W' }).state;
   const worldId = state.worlds[0].id;
   const build = M.createBuild(state, worldId, { name: 'B' });
@@ -95,15 +96,15 @@ test('collected above needed is allowed but clamped in progress and aggregation'
   const added = M.addMaterial(state, worldId, build.build.id, { item: 'Glass', needed: 64, collected: 100 });
   state = added.state;
   const material = state.worlds[0].builds[0].materials[0];
+  // EDICT-0017: the per-build collected is gone; stock lives on the world.
+  assert.equal(material.collected, undefined);
 
-  const progress = M.materialProgress(material);
-  assert.equal(progress.collected, 64);
-  assert.equal(progress.remaining, 0);
-  assert.equal(progress.done, true);
-
-  const rows = M.aggregateWorld(state.worlds[0]);
-  assert.equal(rows[0].collected, 64);
-  assert.equal(rows[0].remaining, 0);
+  state.worlds[0] = M.setInventory(state.worlds[0], 'glass', 100).world;
+  const alloc = M.allocate(state.worlds[0]);
+  assert.equal(alloc.perMaterial[material.id], 64); // capped at the row's need
+  assert.equal(alloc.slugs.glass.covered, 64);
+  assert.equal(alloc.slugs.glass.surplus, 36);
+  assert.equal(M.buildProgress(alloc, build.build.id).remaining, 0);
 });
 
 test('updateMaterial clamps needed at 1 for the whole stepper range', () => {
@@ -172,7 +173,7 @@ test('updateBuild trims and limits the text the title and notes editors send', (
   assert.equal(longNotes.build.notes.length, 400);
 });
 
-test('aggregateWorld sums the same item across builds and names the builds', () => {
+test('the world rollup sums the same item across builds and names the buildings', () => {
   let state = M.createWorld(M.emptyState(), { name: 'W' }).state;
   const worldId = state.worlds[0].id;
   const one = M.createBuild(state, worldId, { name: 'Farm' });
@@ -183,14 +184,17 @@ test('aggregateWorld sums the same item across builds and names the builds', () 
   state = M.addMaterial(state, worldId, two.build.id, { item: 'stone bricks', needed: 50, collected: 10 }).state;
   state = M.addMaterial(state, worldId, two.build.id, { item: 'Oak Planks', needed: 20, collected: 20 }).state;
 
-  const rows = M.aggregateWorld(state.worlds[0]);
-  const bricks = rows.find((row) => row.item.toLowerCase() === 'stone bricks');
-  assert.equal(bricks.needed, 150);
-  assert.equal(bricks.collected, 50);
-  assert.equal(bricks.remaining, 100);
-  assert.deepEqual(plain(bricks.builds).sort(), ['Farm', 'Hall']);
-  // gathered items sort after outstanding ones
-  assert.equal(rows[rows.length - 1].done, true);
+  // EDICT-0017: the world rollup is allocate() + shoppingList(), not per-build counts.
+  const alloc = M.allocate(state.worlds[0]);
+  assert.equal(alloc.slugs.stone_bricks.inventory, 0);
+  assert.equal(alloc.slugs.stone_bricks.covered, 0);
+  assert.equal(alloc.slugs.stone_bricks.remaining, 150);
+  const rows = M.shoppingList(state.worlds[0]);
+  const bricks = rows.find((row) => row.slug === 'stone_bricks');
+  assert.equal(bricks.remaining, 150);
+  assert.equal(bricks.builds.length, 2);
+  const owners = bricks.builds.map((id) => state.worlds[0].builds.find((b) => b.id === id).name);
+  assert.deepEqual(plain(owners).sort(), ['Farm', 'Hall']);
 });
 
 test('worldSummary and globalSummary roll up numbers consistently', () => {
@@ -233,7 +237,10 @@ test('export/import round-trips, and import rejects foreign or corrupt data', ()
   assert.deepEqual(plain(imported.state), plain(state));
 
   assert.ok(M.importJSON('not json').error);
-  assert.ok(M.importJSON('{"version":1}').error);
+  // A v1 document now migrates; these shapes are the ones that must still be refused.
+  assert.ok(M.importJSON('{}').error);
+  assert.ok(M.importJSON('[]').error);
+  assert.ok(M.importJSON('null').error);
   const wrongVersion = M.importJSON(JSON.stringify({ version: 99, worlds: [] }));
   assert.ok(wrongVersion.error);
 });

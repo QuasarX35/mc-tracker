@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "activeWorldId": "world-a",
+  "worlds": [
+    {
+      "id": "world-a",
+      "name": "Migration World",
+      "edition": "java",
+      "version": "1.21.4",
+      "notes": "v1 backup: duplicate item across builds, case-folded keys, one malformed count.",
+      "createdAt": "2026-09-14T08:05:00.000Z",
+      "icon": null,
+      "builds": [
+        {
+          "id": "build-a1",
+          "name": "Storage Hall",
+          "status": "building",
+          "coords": "0 / 62 / 0",
+          "notes": "",
+          "icon": null,
+          "materials": [
+            { "id": "m-a1", "item": "Stone Bricks", "needed": 384, "collected": 200 },
+            { "id": "m-a2", "item": "glass", "needed": 96, "collected": 96 },
+            { "id": "m-a3", "item": "Glass", "needed": 32, "collected": "garbage" }
+          ]
+        },
+        {
+          "id": "build-a2",
+          "name": "Iron Farm",
+          "status": "planned",
+          "coords": "120 / 64 / -40",
+          "notes": "Second build shares the same item.",
+          "icon": null,
+          "materials": [
+            { "id": "m-a4", "item": "stone bricks", "needed": 256, "collected": 50 },
+            { "id": "m-a5", "item": "Iron Ingot", "needed": 64, "collected": 0 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "world-b",
+      "name": "Second World",
+      "edition": "bedrock",
+      "version": "1.21",
+      "notes": "",
+      "createdAt": "2026-10-02T10:00:00.000Z",
+      "icon": null,
+      "builds": [
+        {
+          "id": "build-b1",
+          "name": "Tower",
+          "status": "done",
+          "coords": "",
+          "notes": "",
+          "icon": null,
+          "materials": [
+            { "id": "m-b1", "item": "Stone Bricks", "needed": 100, "collected": 100 }
+          ]
+        }
+      ]
+    }
+  ]
+}

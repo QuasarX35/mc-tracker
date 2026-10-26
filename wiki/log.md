@@ -339,3 +339,53 @@ The ten-item report changed the app's controls, its typeface, its icon set and i
   records compact phase 2 as deferred with its backlog split.
 - `wiki/index.md` regenerated (27 pages); `lint` clean, 27 pages; `sync` 9/9 once ledger seq 171
   records this pass.
+
+## [2026-10-26] ingest | EDICT-0017 R9 docs pass — shared inventory, allocation, corrected row
+
+- `design-system/minecraft-tracker/MASTER.md` — the component table now carries the world
+  inventory and its allocation (one `world.inventory`, computed In/Left/Surplus, `shared with N
+  builds`), the eight-cell material row (Needed as the one text cell; Got/In/Left/Surplus read
+  only; Update and row menu), the `#inventory-dialog` with absolute-or-delta syntax and Undo, the
+  paste preview (`#paste-preview`, `#paste-ok`), the toolbar (sort, hide-done, table/grid), the
+  remaining-first compact matrix opening the same dialog, the sidebar progress/units/inactive
+  modes with its 56 px rail, UTC stamp text with ISO `title`/`data-iso`, schema 2 with the
+  one-time migration, and the 1,232/1,240 px frame; `.stepper`, `#bulk-dialog`, `#tile-*`,
+  `#world-remaining` and the 264 px cap are recorded as retired.
+- `design-system/minecraft-tracker/pages/tracker.md` — the same behaviour as rules 7–8, 15 and
+  19–21 plus new 23–27; AC-1/2, 12, 18 and 21–23 rewritten and AC-25–28 added for allocation, the
+  dialog, migration and preferences; the EDICT-0016 verification record is marked superseded and
+  points at the EDICT-0017 S5 record.
+- `README.md` — capabilities and honesty updated: one world inventory with positional allocation,
+  the Needed cell plus the Update dialog (`+64` / `-32` / `2s` / `2s+10`), drag order and pause
+  modes, the 1,232 px screen, compact tiles opening the shared dialog, schema 2 and the migration,
+  `tests/unit/tracker-0017.test.mjs`, and the stamp/S5 status.
+- Created [[Shared inventory]] (`type: concept`, `sources: []`) — the v2 model, allocation in
+  build order, surplus/shared semantics, the case-insensitive migration sum, the retired
+  per-build `collected` counter and stepper model, and the tensions that remain.
+- Updated [[Minecraft Build Tracker]] (what it does, the material row and the sidebar, a
+  "shared-inventory round" section, verification marked superseded/pending S5, new tensions) and
+  [[Open questions]] (positional allocation, one-way migration, unattributed inventory writes,
+  display-only units, two stale concept pages, the `mbt.density`/`mbt.hideDone` drift and the
+  height-cap question).
+- `wiki/index.md` was not regenerated and `lint` was not run here: the app-qa stamp still covers
+  the pre-0017 sources, so lint fails for an unrelated reason. The Lead runs index, lint and the
+  S5 record.
+
+## [2026-10-26] edit | EDICT-0017 S5 verification — 128 browser cases, evidence crate, stamp
+
+- `reports/qa/edict-0017-qa.md` created: QA_PASS cycle 1 (ledger seq 178), pinned sha256 for
+  `src/app.js` / `src/index.html` / `src/styles.css` / `src/tracker/model.js` and the suites,
+  environment, reproducible commands, AC1–AC22 → case traceability, G1–G5 accounting, and the
+  disclosed deviations (Lead as browser hands, case amendments, `#unit-label` ruling,
+  focus-within stand-in for hover).
+- `reports/qa/evidence/edict-0017/` created: 14 §3.5 captures, seven matching suite shots,
+  `README.md` and `probe.json` (measured desktop geometry 1232/200/360/646, dialog context, the
+  `+385 surplus` row, shopping rows, 56 px rail, unit renderings, paste preview, drag
+  before/after, retired-id probes). Captured 2026-10-26T06:35:22.694Z, before the stamp at
+  06:37:19.750Z, so every artefact postdates the last source change.
+- Verification: browser 128/128, audit 186/186, `npm test` 152/152 (12 suites), app-qa stamp
+  `cases 128`; `lint` clean at 28 pages, `sync` 9/9, `index --check` up to date.
+- Updated [[Minecraft Build Tracker]] verdict wording from "pending S5" to the passed stamp and
+  [[Open questions]] to drop the now-answered height-cap question, keeping the positional
+  allocation, one-way migration and unattributed-write caveats.
+- EDICT-0017 header status is `S5Q QA_VERIFY`; ledger rows 172–178 carry S0–S5Q.

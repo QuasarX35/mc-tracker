@@ -1,0 +1,117 @@
+{
+  "app": "minecraft-tracker",
+  "edict": "EDICT-0017",
+  "captured_at": "2026-10-26T06:35:22.694Z",
+  "desktop": {
+    "viewport": {
+      "width": 1280,
+      "height": 900
+    },
+    "main": 1232,
+    "worldPanel": 200,
+    "buildList": 360,
+    "buildDetail": 646,
+    "headerTop": 213,
+    "progressTop": 414,
+    "toolbarTop": 500,
+    "fullyVisibleRows": 4,
+    "horizontalOverflow": false
+  },
+  "desktopGrid": {
+    "chips": 4,
+    "perRowMax": 4,
+    "minSide": 53
+  },
+  "inventoryDialog": {
+    "title": "Update Stone Bricks",
+    "context": "Iron Farm (spawn) · 384 needed · 200 in the world · 200 covered",
+    "absoluteType": "number",
+    "deltaPlaceholder": "+64, -32, 2s, 2s+10",
+    "errorHidden": true,
+    "focused": "inv-delta"
+  },
+  "surplus": {
+    "item": "Stone Bricks",
+    "needed": "97",
+    "got": "482",
+    "remaining": "0",
+    "surplus": "+385 surplus",
+    "surplusClass": "num is-surplus"
+  },
+  "shopping": {
+    "rows": 6,
+    "first": "Cobblestone",
+    "counts": [
+      "468",
+      "448",
+      "440"
+    ],
+    "builds": "Nether Hub"
+  },
+  "rail": {
+    "width": 56,
+    "collapsed": true
+  },
+  "units": {
+    "needed": "6 stacks",
+    "got": "3 stacks + 8",
+    "pressed": "items:false,stacks:true,shulkers:false"
+  },
+  "paste": {
+    "matched": 2,
+    "errors": "1 line was not understood: 1 mystery widget",
+    "okDisabled": false
+  },
+  "drag": {
+    "before": [
+      "Iron Farm (spawn)",
+      "Storage Hall",
+      "Nether Hub"
+    ],
+    "after": [
+      {
+        "name": "Iron Farm (spawn)",
+        "order": "0"
+      },
+      {
+        "name": "Nether Hub",
+        "order": "1"
+      },
+      {
+        "name": "Storage Hall",
+        "order": "2"
+      }
+    ],
+    "ok": true
+  },
+  "mobile": {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "scrollWidth": 390,
+    "horizontalOverflow": false,
+    "neededBox": {
+      "type": "text",
+      "width": 44
+    },
+    "gotBox": {
+      "width": 48,
+      "title": "World inventory for Stone Bricks"
+    }
+  },
+  "mobileGrid": {
+    "chips": 4,
+    "perRowMax": 4,
+    "minSide": 53,
+    "scrollWidth": 390
+  },
+  "retired": {
+    "matCollected": false,
+    "itemOptions": false,
+    "tileDialog": false,
+    "bulkDialog": false,
+    "steppers": 0,
+    "fragment": "no-hash"
+  }
+}

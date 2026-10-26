@@ -6,29 +6,41 @@
  * context and drive the exported `TrackerModel` object, so the logic is still
  * unit-testable without a bundler or a DOM.
  *
- * State shape (schema version 1):
+ * State shape (schema version 2, EDICT-0017):
  * {
- *   version: 1,
+ *   version: 2,
  *   activeWorldId: string|null,
+ *   migratedFrom?: 1,                       // set once by migrateV1, dropped by the first v2 save
  *   worlds: [{
- *     id, name, edition: 'java'|'bedrock', version, notes, createdAt,
+ *     id, name, edition: 'java'|'bedrock', version, notes, createdAt, updatedAt,
+ *     inventory: { [slug]: integer },        // the shared per-world stock
  *     builds: [{ id, name, status: 'planned'|'building'|'done', coords, notes,
- *                icon?, materials: [{ id, item, needed, collected }] }],
+ *                active: boolean, icon?, materials: [{ id, item, needed }] }],
  *     icon?
  *   }]
  * }
  *
+ * Two changes against schema 1: a build no longer stores `collected` (the world inventory
+ * decides what is covered — see `allocate`), and a build carries `active`, which the rollups
+ * and priority allocation honour. `migrateV1` folds every build's old `collected` into the
+ * world inventory once, so an old backup keeps importing.
+ *
  * `icon` is optional and additive (EDICT-0010): either
  *   { kind: 'item',  slug: 'stone_bricks' }   // a locally extracted Minecraft icon
  *   { kind: 'image', dataUrl: 'data:image/webp;base64,...' }  // an uploaded image
- * so schema version 1 stays valid and older backups keep importing.
  */
 (function (root) {
   'use strict';
 
-  var SCHEMA = 1;
-  var STORAGE_KEY = 'mc-build-tracker:v1';
+  var SCHEMA = 2;
+  var STORAGE_KEY = 'mc-build-tracker:v2';
+  var V1_STORAGE_KEY = 'mc-build-tracker:v1';
   var STATUSES = ['planned', 'building', 'done'];
+  /* A shulker box holds 27 stacks of its item, whatever the item's own stack size is. */
+  var SHULKER_SLOTS = 27;
+  /* EDICT-0017 §1: a fixed gathering rate. It lives in the model now so round 6 can turn a
+     remaining count into minutes without re-deriving the constant; nothing shows it yet. */
+  var ITEMS_PER_MINUTE = 30;
 
   /* ---------------------------------- icons --------------------------------- */
   /* Identity for worlds and builds (EDICT-0010). Images are stored inline so that
@@ -185,8 +197,13 @@
   /* ---------------------------- relative parsing --------------------------- */
 
   var STACK_SYNTAX = /^([+\-])?\s*(\d+)\s*s(?:t|tack|tacks)?$/i;
+  /**
+   * EDICT-0017 §1: the same stack syntax with an optional trailing item count, so `2s+10` is
+   * two stacks plus ten items. Anchored, so `2s+` and `1s@16` stay errors.
+   */
+  var STACK_PLUS_SYNTAX = /^([+\-])?\s*(\d+)\s*s(?:t|tack|tacks)?\s*(?:([+\-])\s*(\d+))?$/i;
   var PLAIN_SYNTAX = /^([+\-])?\s*(\d+)$/;
-  var RELATIVE_ERROR = 'Enter a whole number, or +64 / -32 / 2s / 2st.';
+  var RELATIVE_ERROR = 'Enter a whole number, or +64 / -32 / 2s / 2s+10.';
 
   function stackSizeOr(value, fallback) {
     var size = Number(value);
@@ -205,13 +222,24 @@
   }
 
   /**
-   * EDICT-0016 §10: the quick-update dialog's relative field. A plain integer is an item count;
-   * `2s`/`2st` are stacks of this item, so `2s` on a 64-stack item is +128.
+   * EDICT-0016 §10 / EDICT-0017 §1: the quick-update dialog's relative field. A plain integer
+   * is an item count, `2s`/`2st` are stacks of this item (64-stack item: `2s` is +128) and
+   * `2s+10` adds ten items on top of the two stacks. Anchored; anything else is `{ error }`.
    */
   function parseRelative(text, stack) {
     var raw = String(text == null ? '' : text).trim();
     if (!raw) return { value: 0 };
-    if (/[a-z]/i.test(raw)) return parseStackSyntax(raw, stack);
+    var stackMatch = STACK_PLUS_SYNTAX.exec(raw);
+    if (stackMatch) {
+      var stacks = Number(stackMatch[2]);
+      if (!isFinite(stacks)) return { error: RELATIVE_ERROR };
+      var size = stackSizeOr(stack, DEFAULT_STACK);
+      var extra = stackMatch[4] ? Number(stackMatch[4]) : 0;
+      if (!isFinite(extra)) return { error: RELATIVE_ERROR };
+      var whole = (stackMatch[1] === '-' ? -1 : 1) * stacks * size;
+      var rest = (stackMatch[3] === '-' ? -1 : 1) * extra;
+      return { value: whole + rest };
+    }
     var match = PLAIN_SYNTAX.exec(raw);
     if (!match) return { error: RELATIVE_ERROR };
     var amount = Number(match[2]);
@@ -467,6 +495,258 @@
     });
   }
 
+  /* --------------------------- units and inventory ------------------------- */
+
+  /**
+   * EDICT-0017 §1: units are display-only. `items` is the stored unit; `stacks` is the item's
+   * own stack size and `shulkers` is 27 of those stacks (a shulker of Ender Pearls is 432, not
+   * 1728), so the same stored count formats differently per item without changing the data.
+   */
+  function unitSize(unit, slug, stacks) {
+    if (unit === 'shulkers') return stackSizeFor(slug, stacks) * SHULKER_SLOTS;
+    if (unit === 'stacks') return stackSizeFor(slug, stacks);
+    return 1;
+  }
+
+  /** `2 stacks + 56`, `1 stack`, or the bare number when it does not fill one stack. */
+  function stackText(value, size, label) {
+    var qty = Math.floor(value / size);
+    var rem = value - qty * size;
+    if (qty <= 0) return String(value);
+    var unit = qty === 1 ? label.replace(/s$/, '') : label;
+    return rem > 0 ? qty + ' ' + unit + ' + ' + rem : qty + ' ' + unit;
+  }
+
+  function formatUnits(n, slug, unit, stacks) {
+    var value = Math.max(0, toInt(n));
+    if (unit === 'stacks') return stackText(value, stackSizeFor(slug, stacks), 'stacks');
+    if (unit === 'shulkers') return stackText(value, stackSizeFor(slug, stacks) * SHULKER_SLOTS, 'shulkers');
+    return String(value);
+  }
+
+  /** Tooltip helper: `184 = 2 stacks + 56`; a count below one stack stays a bare number. */
+  function stackNotation(n, slug, stacks, unit) {
+    var value = Math.max(0, toInt(n));
+    var kind = unit === 'shulkers' ? 'shulkers' : 'stacks';
+    if (unit === 'items') return String(value);
+    if (value < unitSize(kind, slug, stacks)) return String(value);
+    return value + ' = ' + formatUnits(value, slug, kind, stacks);
+  }
+
+  /**
+   * The shared stock of one world, keyed by item slug. Every item the world's builds mention is
+   * present (missing key = 0), so a caller never has to guard a lookup; stored keys that no build
+   * mentions survive untouched.
+   */
+  function inventoryOf(world) {
+    var out = {};
+    var stored = world && world.inventory && typeof world.inventory === 'object' ? world.inventory : {};
+    if (world && Array.isArray(world.builds)) {
+      world.builds.forEach(function (build) {
+        (build.materials || []).forEach(function (material) {
+          var slug = itemSlug(material && material.item);
+          if (slug && !Object.prototype.hasOwnProperty.call(out, slug)) out[slug] = 0;
+        });
+      });
+    }
+    Object.keys(stored).forEach(function (slug) {
+      out[slug] = Math.max(0, toInt(stored[slug]));
+    });
+    return out;
+  }
+
+  /**
+   * EDICT-0017 §1: these three take a **world** (that is the scope the inventory lives in) and
+   * return `{ state, world }` where both keys are the same next object, matching the return shape
+   * of the state-level mutators they sit beside.
+   */
+  function setInventory(world, slug, value) {
+    var key = itemSlug(slug);
+    if (!key) return { error: 'An inventory entry needs an item.', state: clone(world) };
+    var next = clone(world);
+    if (!next || typeof next !== 'object') return { error: 'Unknown world.', state: next };
+    if (!next.inventory || typeof next.inventory !== 'object' || Array.isArray(next.inventory)) {
+      next.inventory = {};
+    }
+    next.inventory[key] = Math.max(0, toInt(value));
+    touch(next);
+    return { state: next, world: next };
+  }
+
+  function addInventory(world, slug, delta) {
+    var key = itemSlug(slug);
+    if (!key) return { error: 'An inventory entry needs an item.', state: clone(world) };
+    var current = Math.max(0, toInt(inventoryOf(world)[key]));
+    return setInventory(world, key, Math.max(0, current + toSignedInt(delta)));
+  }
+
+  /**
+   * EDICT-0017 §2 — the one place counts are decided. Priority allocation in build order: each
+   * item's stock fills the first active build that needs it, then whatever is left flows to the
+   * next; a build that is done still consumes stock (it was built) unless it is inactive.
+   */
+  function allocate(world) {
+    var perMaterial = {};
+    var perBuild = {};
+    var slugs = {};
+    var builds = world && Array.isArray(world.builds) ? world.builds : [];
+    var inventory = inventoryOf(world);
+
+    builds.forEach(function (build) {
+      var total = 0;
+      (build.materials || []).forEach(function (material) {
+        total += Math.max(0, toInt(material && material.needed));
+      });
+      perBuild[build.id] = { covered: 0, needed: total };
+    });
+
+    var order = [];
+    var bySlug = {};
+    builds.forEach(function (build) {
+      /* EDICT-0017 fixtures (README, `inactive-state.json`): a build that is `done` leaves the
+         rollup as well — it already consumed its materials, so it must not steal stock from the
+         builds that are still being built. `active: false` pauses a build the same way. */
+      if (build.active === false || build.status === 'done') return;
+      (build.materials || []).forEach(function (material) {
+        var slug = itemSlug(material && material.item);
+        if (!slug) return;
+        if (!bySlug[slug]) {
+          bySlug[slug] = [];
+          order.push(slug);
+        }
+        bySlug[slug].push({ build: build, material: material });
+      });
+    });
+
+    order.forEach(function (slug) {
+      var stock = Math.max(0, toInt(inventory[slug]));
+      var remaining = stock;
+      var covered = 0;
+      var needed = 0;
+      var shared = 0;
+
+      /* Grouped by build, because the build order is the priority order. */
+      var buckets = [];
+      var current = null;
+      bySlug[slug].forEach(function (row) {
+        if (row.build !== current) {
+          current = row.build;
+          buckets.push({ build: row.build, rows: [] });
+        }
+        buckets[buckets.length - 1].rows.push(row);
+      });
+
+      buckets.forEach(function (bucket) {
+        var buildNeed = 0;
+        bucket.rows.forEach(function (row) {
+          buildNeed += Math.max(0, toInt(row.material.needed));
+        });
+        needed += buildNeed;
+        if (buildNeed > 0) shared += 1;
+        var left = Math.min(buildNeed, remaining);
+        remaining -= left;
+        covered += left;
+        /* Inside one build the rows are filled in material order. */
+        bucket.rows.forEach(function (row) {
+          var rowNeeded = Math.max(0, toInt(row.material.needed));
+          var rowCovered = Math.min(rowNeeded, left);
+          left -= rowCovered;
+          perMaterial[row.material.id] = rowCovered;
+          var progress = perBuild[bucket.build.id];
+          progress.covered += rowCovered;
+        });
+      });
+
+      slugs[slug] = {
+        inventory: stock,
+        covered: covered,
+        remaining: Math.max(0, needed - covered),
+        surplus: Math.max(0, remaining),
+        shared: shared
+      };
+    });
+
+    /* A finished build is out of the priority race but its own progress is still meaningful:
+       it is complete, so it reports full coverage rather than a 0% gap nobody can act on. */
+    builds.forEach(function (build) {
+      if (build.status !== 'done') return;
+      var done = perBuild[build.id];
+      if (done) done.covered = done.needed;
+    });
+
+    return { perMaterial: perMaterial, perBuild: perBuild, slugs: slugs };
+  }
+
+  function buildProgress(alloc, buildId) {
+    var entry = alloc && alloc.perBuild ? alloc.perBuild[buildId] : null;
+    var needed = entry ? Math.max(0, toInt(entry.needed)) : 0;
+    var covered = entry ? Math.min(needed, Math.max(0, toInt(entry.covered))) : 0;
+    return { covered: covered, needed: needed, remaining: Math.max(0, needed - covered) };
+  }
+
+  /** EDICT-0017 §1: the one sentence every progress surface prints. */
+  function progressText(covered, needed) {
+    var want = Math.max(0, toInt(needed));
+    /* The numerator is capped at the goal: allocation can never cover more than a build needs,
+       and a stray larger value must not print `50 / 10` in a sentence people read. */
+    var have = Math.min(want, Math.max(0, toInt(covered)));
+    var pct = want ? Math.round((have / want) * 100) : 0;
+    return have + ' / ' + want + ' items gathered (' + pct + '%)';
+  }
+
+  /** EDICT-0017 §1: what is still missing, biggest gap first, across the active builds only. */
+  function shoppingList(world) {
+    var alloc = allocate(world);
+    var builds = world && Array.isArray(world.builds) ? world.builds : [];
+    var rows = Object.keys(alloc.slugs).map(function (slug) {
+      var entry = alloc.slugs[slug];
+      var item = titleizeItem(slug);
+      var owners = [];
+      builds.forEach(function (build) {
+        if (build.active === false) return;
+        (build.materials || []).forEach(function (material) {
+          if (itemSlug(material && material.item) !== slug) return;
+          if (item === titleizeItem(slug)) item = cleanText(material.item, 48) || item;
+          if (owners.indexOf(build.id) < 0) owners.push(build.id);
+        });
+      });
+      return { slug: slug, item: item, remaining: entry.remaining, builds: owners };
+    });
+    return rows.filter(function (row) {
+      return row.remaining > 0;
+    }).sort(function (a, b) {
+      if (b.remaining !== a.remaining) return b.remaining - a.remaining;
+      return a.slug < b.slug ? -1 : a.slug > b.slug ? 1 : 0;
+    });
+  }
+
+  function setBuildActive(world, buildId, active) {
+    var next = clone(world);
+    var build = findBuild(next, buildId);
+    if (!build) return { error: 'Unknown build.', state: clone(world) };
+    build.active = active !== false;
+    touch(build);
+    touch(next);
+    return { state: next, world: next };
+  }
+
+  function moveBuild(world, buildId, toIndex) {
+    var next = clone(world);
+    if (!next || !Array.isArray(next.builds)) return { error: 'Unknown build.', state: next };
+    var from = -1;
+    next.builds.forEach(function (build, index) {
+      if (build && build.id === buildId) from = index;
+    });
+    if (from < 0) return { error: 'Unknown build.', state: next };
+    var target = Math.floor(Number(toIndex));
+    if (!isFinite(target)) target = from;
+    target = Math.max(0, Math.min(next.builds.length - 1, target));
+    var moved = next.builds.splice(from, 1)[0];
+    next.builds.splice(target, 0, moved);
+    touch(next);
+    return { state: next, world: next };
+  }
+
   /* --------------------------- custom materials --------------------------- */
 
   /* Frozen strings (EDICT-0015 §4, tests/qa/edict-0015-fixtures/README.md). */
@@ -666,6 +946,8 @@
       edition: (input && input.edition) === 'bedrock' ? 'bedrock' : 'java',
       version: cleanText(input && input.version, 24) || '1.21',
       notes: cleanText(input && input.notes, 240),
+      /* EDICT-0017 §1: the shared per-world stock starts empty. */
+      inventory: {},
       builds: []
     };
     /* EDICT-0016 §7: the world keeps its createdAt and gains updatedAt on creation. */
@@ -732,6 +1014,9 @@
       status: STATUSES.indexOf(input && input.status) >= 0 ? input.status : 'planned',
       coords: cleanText(input && input.coords, 32),
       notes: cleanNotes(input && input.notes, 400),
+      /* EDICT-0017 §1: a new build is active unless the caller says otherwise, so priority
+         allocation and the rollups count it from the start. */
+      active: !(input && input.active === false),
       materials: [],
       /* EDICT-0014 §8: `icon` is always present on a build — null means "no stored icon, the
          view may show a suggestion", which is how a suggestion stays a view decision. */
@@ -834,16 +1119,16 @@
     })[0];
     if (existing) {
       next = updateMaterial(next, worldId, buildId, existing.id, {
-        needed: existing.needed + needed,
-        collected: existing.collected + toInt(input && input.collected)
+        needed: existing.needed + needed
       }).state;
       return { state: next };
     }
+    /* EDICT-0017 §1: a material is a requirement only — the world inventory decides how much of
+       it is covered, so there is no per-build `collected` to seed any more. */
     build.materials.push({
       id: uid('mat'),
       item: item,
-      needed: needed,
-      collected: Math.min(needed, toInt(input && input.collected))
+      needed: needed
     });
     touch(build);
     touch(findWorld(next, worldId));
@@ -865,8 +1150,6 @@
       material.item = item;
     }
     if (patch.needed !== undefined) material.needed = Math.max(1, toInt(patch.needed));
-    if (patch.collected !== undefined) material.collected = toInt(patch.collected);
-    // Collected can exceed needed (a player over-farms); the shopping list clamps it.
     touch(build);
     touch(findWorld(next, worldId));
     return { state: next, material: material };
@@ -888,42 +1171,54 @@
 
   /* ------------------------------ aggregation ----------------------------- */
 
-  function materialProgress(material) {
-    var collected = Math.min(material.collected, material.needed);
+  /**
+   * EDICT-0017 §1: a material is a requirement plus however much of it the shared stock covers,
+   * so `covered` is passed in from `allocate` instead of read off the row. `collected` stays as an
+   * alias so the 0016-era rollups keep one vocabulary.
+   */
+  function materialProgress(material, covered) {
+    var needed = Math.max(0, toInt(material && material.needed));
+    var supplied = Math.min(needed, Math.max(0, toInt(covered)));
     return {
-      needed: material.needed,
-      collected: collected,
-      rawCollected: material.collected,
-      remaining: Math.max(0, material.needed - collected),
-      pct: material.needed ? Math.round((collected / material.needed) * 100) : 0,
-      done: collected >= material.needed
+      needed: needed,
+      covered: supplied,
+      collected: supplied,
+      remaining: Math.max(0, needed - supplied),
+      pct: needed ? Math.round((supplied / needed) * 100) : 0,
+      done: supplied >= needed
     };
   }
 
   /**
-   * Shopping list for a world: one row per item, summed across every build,
-   * with the builds that need it so the player knows why it is on the list.
+   * Shopping list for a world: one row per item, summed across the **active** builds, with the
+   * builds that need it so the player knows why it is on the list.
    */
   function aggregateWorld(world) {
     if (!world) return [];
-    var byItem = {};
-    world.builds.forEach(function (build) {
-      build.materials.forEach(function (material) {
-        var key = material.item.toLowerCase();
-        if (!byItem[key]) {
-          byItem[key] = { item: material.item, needed: 0, collected: 0, builds: [], materialIds: [] };
+    var alloc = allocate(world);
+    var bySlug = {};
+    var order = [];
+    (world.builds || []).forEach(function (build) {
+      if (build.active === false) return;
+      (build.materials || []).forEach(function (material) {
+        var slug = itemSlug(material && material.item);
+        if (!slug) return;
+        if (!bySlug[slug]) {
+          bySlug[slug] = { item: material.item, needed: 0, covered: 0, builds: [], materialIds: [] };
+          order.push(slug);
         }
-        var row = byItem[key];
-        row.needed += material.needed;
-        row.collected += Math.min(material.collected, material.needed);
+        var row = bySlug[slug];
+        row.needed += Math.max(0, toInt(material.needed));
+        row.covered += Math.max(0, toInt(alloc.perMaterial[material.id]));
         if (row.builds.indexOf(build.name) < 0) row.builds.push(build.name);
         row.materialIds.push(material.id);
       });
     });
-    return Object.keys(byItem).map(function (key) {
-      var row = byItem[key];
-      row.remaining = Math.max(0, row.needed - row.collected);
-      row.pct = row.needed ? Math.round((row.collected / row.needed) * 100) : 0;
+    return order.map(function (slug) {
+      var row = bySlug[slug];
+      row.collected = row.covered;
+      row.remaining = Math.max(0, row.needed - row.covered);
+      row.pct = row.needed ? Math.round((row.covered / row.needed) * 100) : 0;
       row.done = row.remaining === 0;
       return row;
     }).sort(function (a, b) {
@@ -932,29 +1227,32 @@
     });
   }
 
-  /** Whole-world roll-up: builds by status, materials, progress. */
+  /** Whole-world roll-up over the active builds: builds by status, materials, progress. */
   function worldSummary(world) {
     var summary = {
       builds: 0,
       byStatus: { planned: 0, building: 0, done: 0 },
       materials: 0,
       needed: 0,
+      covered: 0,
       collected: 0,
       remaining: 0,
       pct: 0
     };
     if (!world) return summary;
-    world.builds.forEach(function (build) {
+    var alloc = allocate(world);
+    (world.builds || []).forEach(function (build) {
       summary.builds += 1;
       summary.byStatus[build.status] = (summary.byStatus[build.status] || 0) + 1;
-      build.materials.forEach(function (material) {
-        summary.materials += 1;
-        summary.needed += material.needed;
-        summary.collected += Math.min(material.collected, material.needed);
-      });
+      if (build.active === false) return;
+      var progress = buildProgress(alloc, build.id);
+      summary.materials += (build.materials || []).length;
+      summary.needed += progress.needed;
+      summary.covered += progress.covered;
     });
-    summary.remaining = Math.max(0, summary.needed - summary.collected);
-    summary.pct = summary.needed ? Math.round((summary.collected / summary.needed) * 100) : 0;
+    summary.collected = summary.covered;
+    summary.remaining = Math.max(0, summary.needed - summary.covered);
+    summary.pct = summary.needed ? Math.round((summary.covered / summary.needed) * 100) : 0;
     return summary;
   }
 
@@ -966,11 +1264,12 @@
       total.builds += s.builds;
       total.materials += s.materials;
       total.needed += s.needed;
-      total.collected += s.collected;
+      total.covered += s.covered;
       ['planned', 'building', 'done'].forEach(function (k) { total.byStatus[k] += s.byStatus[k]; });
     });
-    total.remaining = Math.max(0, total.needed - total.collected);
-    total.pct = total.needed ? Math.round((total.collected / total.needed) * 100) : 0;
+    total.collected = total.covered;
+    total.remaining = Math.max(0, total.needed - total.covered);
+    total.pct = total.needed ? Math.round((total.covered / total.needed) * 100) : 0;
     return total;
   }
 
@@ -1005,17 +1304,25 @@
     var errors = [];
     if (!state || state.version !== SCHEMA) errors.push('Unsupported data version.');
     if (!state || !Array.isArray(state.worlds)) return errors.concat('worlds must be an array');
+    /* EDICT-0017 §1: the inventory lives on the world, never at the top level. */
+    if (state.inventory !== undefined) {
+      errors.push('The inventory belongs to a world, not the whole tracker.');
+    }
     state.worlds.forEach(function (world) {
       if (!world.id || !world.name) errors.push('A world is missing id or name.');
       validateIcon(world.icon, 'world "' + world.name + '"', errors);
       if (world.iconAuto !== undefined && typeof world.iconAuto !== 'boolean') {
         errors.push('World ' + world.name + ' has a non-boolean iconAuto.');
       }
+      validateInventory(world.inventory, world.name, errors);
       validateCustomRegistry(world.customItems, 'World "' + world.name + '" custom items', errors);
       if (!Array.isArray(world.builds)) errors.push('World ' + world.name + ' has no builds array.');
       (world.builds || []).forEach(function (build) {
         if (!build.id || !build.name) errors.push('A build in ' + world.name + ' is missing id or name.');
         if (STATUSES.indexOf(build.status) < 0) errors.push('Build ' + build.name + ' has an unknown status.');
+        if (build.active !== undefined && typeof build.active !== 'boolean') {
+          errors.push('Build ' + build.name + ' has a non-boolean active flag.');
+        }
         validateIcon(build.icon, 'build "' + build.name + '"', errors);
         if (build.iconAuto !== undefined && typeof build.iconAuto !== 'boolean') {
           errors.push('Build ' + build.name + ' has a non-boolean iconAuto.');
@@ -1024,7 +1331,10 @@
         (build.materials || []).forEach(function (material) {
           if (!material.id || !material.item) errors.push('A material in ' + build.name + ' is missing id or item.');
           if (!(material.needed >= 1)) errors.push('Material ' + material.item + ' needs at least 1.');
-          if (!(material.collected >= 0)) errors.push('Material ' + material.item + ' has a negative collected count.');
+          /* EDICT-0017 §1: the shared inventory replaced the per-build count. */
+          if (material.collected !== undefined) {
+            errors.push('Material ' + material.item + ' still carries a collected count.');
+          }
         });
       });
     });
@@ -1032,8 +1342,82 @@
     return errors;
   }
 
+  /** The world stock: an object of slug -> non-negative integer, nothing else. */
+  function validateInventory(inventory, worldName, errors) {
+    if (inventory === undefined || inventory === null) return;
+    if (typeof inventory !== 'object' || Array.isArray(inventory)) {
+      errors.push('World ' + worldName + ' has a malformed inventory.');
+      return;
+    }
+    Object.keys(inventory).forEach(function (slug) {
+      if (!ICON_SLUG_RE.test(String(slug))) {
+        errors.push('World ' + worldName + ' has an invalid inventory item name.');
+        return;
+      }
+      var value = inventory[slug];
+      if (typeof value !== 'number' || !isFinite(value) || value < 0 || value !== Math.floor(value)) {
+        errors.push('World ' + worldName + ' has a negative or fractional inventory count.');
+      }
+    });
+  }
+
   function exportJSON(state) {
     return JSON.stringify(state, null, 2);
+  }
+
+  /**
+   * EDICT-0017 §1/§5 — v1 -> v2. Every old per-build `collected` is summed into the owning
+   * world's shared inventory (case-insensitive, via the item slug), the row loses `collected`,
+   * the build gains `active: true`, and every count is clamped/coerced **before** `validate`
+   * runs — a v1 row may carry `collected: "garbage"`, which becomes 0 instead of an import
+   * error. Pure, idempotent (a v2 state only gets its missing inventories filled) and never
+   * throws on a malformed row.
+   */
+  /* The frozen EDICT-0017 v2 fixtures spell "no custom items" as `{}`, which `validate` rightly
+     rejects as a registry shape. An EMPTY object carries no entries, so it is dropped on import;
+     anything else non-array is left in place to be reported as the defect it is. */
+  function emptyRegistryObject(value) {
+    return !!value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0;
+  }
+
+  function migrateV1(state) {
+    var next = clone(state && typeof state === 'object' ? state : {});
+    var worlds = Array.isArray(next.worlds) ? next.worlds : [];
+    worlds.forEach(function (world) {
+      if (!world || typeof world !== 'object') return;
+      if (!Array.isArray(world.builds)) world.builds = [];
+      /* The frozen v2 fixtures carry `customItems: {}` (an empty object, not an array). An
+         import must not brick on it: the registry is simply dropped, which reads as "none". */
+      if (emptyRegistryObject(world.customItems)) delete world.customItems;
+      var inventory = {};
+      world.builds.forEach(function (build) {
+        if (!build || typeof build !== 'object') return;
+        if (!Array.isArray(build.materials)) build.materials = [];
+        if (emptyRegistryObject(build.customItems)) delete build.customItems;
+        if (typeof build.active !== 'boolean') build.active = true;
+        build.materials = build.materials.filter(function (material) {
+          if (!material || typeof material !== 'object') return false;
+          if (!material.id) material.id = uid('mat');
+          return !!cleanText(material.item, 48);
+        });
+        build.materials.forEach(function (material) {
+          var slug = itemSlug(material.item);
+          var collected = toInt(material.collected);
+          if (slug) inventory[slug] = (inventory[slug] || 0) + collected;
+          delete material.collected;
+          material.needed = Math.max(1, toInt(material.needed));
+        });
+      });
+      /* A v2 state keeps its richer inventory; a second pass must not re-sum anything. */
+      world.inventory = next.version === SCHEMA && world.inventory && typeof world.inventory === 'object'
+        ? world.inventory
+        : inventory;
+    });
+    next.worlds = worlds;
+    if (emptyRegistryObject(next.customItems)) delete next.customItems;
+    if (next.version !== SCHEMA) next.migratedFrom = 1;
+    next.version = SCHEMA;
+    return next;
   }
 
   function importJSON(text) {
@@ -1043,9 +1427,32 @@
     } catch (err) {
       return { error: 'That is not valid JSON.' };
     }
-    var errors = validate(parsed);
+    /* Contract §5 (D1): a **v2** document that still carries a per-build `collected` is refused,
+       because v2 keeps the stock on the world only. A v1 document is migrated (its collected is
+       folded into the world inventory by migrateV1, which is the whole point of the upgrade). */
+    if (parsed && typeof parsed === 'object' && parsed.version === SCHEMA && Array.isArray(parsed.worlds)) {
+      var collectedError = null;
+      parsed.worlds.forEach(function (world) {
+        if (collectedError || !world || !Array.isArray(world.builds)) return;
+        world.builds.forEach(function (build) {
+          if (collectedError || !build || !Array.isArray(build.materials)) return;
+          build.materials.forEach(function (material) {
+            if (!collectedError && material && material.collected !== undefined) {
+              collectedError = 'Material ' + material.item + ' still carries a collected count.';
+            }
+          });
+        });
+      });
+      if (collectedError) return { error: 'That file is not a tracker backup: ' + collectedError };
+    }
+    /* Both generations go through the same coercion pass: `migrateV1` is idempotent on a v2
+       document (it only fills what is missing), and running it on v1 is the migration itself. */
+    var candidate = parsed && typeof parsed === 'object' && (parsed.version === 1 || parsed.version === SCHEMA)
+      ? migrateV1(parsed)
+      : parsed;
+    var errors = validate(candidate);
     if (errors.length) return { error: 'That file is not a tracker backup: ' + errors[0] };
-    var state = clone(parsed);
+    var state = clone(candidate);
     state.version = SCHEMA;
     if (!state.activeWorldId || !findWorld(state, state.activeWorldId)) {
       state.activeWorldId = state.worlds.length ? state.worlds[0].id : null;
@@ -1066,9 +1473,17 @@
     var store = storage || root.localStorage;
     try {
       var raw = store && store.getItem(STORAGE_KEY);
+      var legacy = false;
+      /* EDICT-0017 §1: the v1 key is read once so an existing install keeps its data. It is
+         never deleted or rewritten — only the v2 key is written. */
+      if (!raw) {
+        raw = store && store.getItem(V1_STORAGE_KEY);
+        legacy = !!raw;
+      }
       if (!raw) return { state: null };
       var imported = importJSON(raw);
       if (imported.error) return { error: imported.error };
+      if (legacy && imported.state) imported.state.migratedFrom = 1;
       return { state: imported.state };
     } catch (err) {
       return { error: 'Could not read saved data: ' + err.message };
@@ -1078,7 +1493,11 @@
   function save(storage, state) {
     var store = storage || root.localStorage;
     try {
-      store.setItem(STORAGE_KEY, JSON.stringify(state));
+      /* EDICT-0017 §3.8: `migratedFrom` is a one-shot notice — the first v2 write drops it, so a
+         reload no longer claims the data was just migrated. */
+      var payload = state && typeof state === 'object' ? clone(state) : state;
+      if (payload && typeof payload === 'object') delete payload.migratedFrom;
+      store.setItem(STORAGE_KEY, JSON.stringify(payload));
       return { ok: true };
     } catch (err) {
       return { error: 'Could not save: ' + err.message };
@@ -1122,15 +1541,19 @@
     });
     state = netherHub.state;
 
-    state = addMaterial(state, survival.id, ironFarm.build.id, { item: 'Stone Bricks', needed: 384, collected: 200 }).state;
-    state = addMaterial(state, survival.id, ironFarm.build.id, { item: 'Iron Ingot', needed: 64, collected: 0 }).state;
-    state = addMaterial(state, survival.id, ironFarm.build.id, { item: 'Glass', needed: 96, collected: 96 }).state;
-    state = addMaterial(state, survival.id, ironFarm.build.id, { item: 'Torch', needed: 32, collected: 12 }).state;
-    state = addMaterial(state, survival.id, storageRoom.build.id, { item: 'Oak Planks', needed: 512, collected: 64 }).state;
-    state = addMaterial(state, survival.id, storageRoom.build.id, { item: 'Crafting Table', needed: 12, collected: 0 }).state;
-    state = addMaterial(state, survival.id, storageRoom.build.id, { item: 'Stone Bricks', needed: 256, collected: 0 }).state;
-    state = addMaterial(state, survival.id, netherHub.build.id, { item: 'Cobblestone', needed: 768, collected: 300 }).state;
-    state = addMaterial(state, survival.id, netherHub.build.id, { item: 'Coal', needed: 128, collected: 128 }).state;
+    state = addMaterial(state, survival.id, ironFarm.build.id, { item: 'Stone Bricks', needed: 384 }).state;
+    state = addMaterial(state, survival.id, ironFarm.build.id, { item: 'Iron Ingot', needed: 64 }).state;
+    state = addMaterial(state, survival.id, ironFarm.build.id, { item: 'Glass', needed: 96 }).state;
+    state = addMaterial(state, survival.id, ironFarm.build.id, { item: 'Torch', needed: 32 }).state;
+    state = addMaterial(state, survival.id, storageRoom.build.id, { item: 'Oak Planks', needed: 512 }).state;
+    state = addMaterial(state, survival.id, storageRoom.build.id, { item: 'Crafting Table', needed: 12 }).state;
+    state = addMaterial(state, survival.id, storageRoom.build.id, { item: 'Stone Bricks', needed: 256 }).state;
+    state = addMaterial(state, survival.id, netherHub.build.id, { item: 'Cobblestone', needed: 768 }).state;
+    state = addMaterial(state, survival.id, netherHub.build.id, { item: 'Coal', needed: 128 }).state;
+    /* EDICT-0017: the sample ships a shared stock so priority allocation is visible on load. */
+    state.worlds[0].inventory = {
+      stone_bricks: 200, glass: 96, torch: 12, oak_planks: 64, cobblestone: 300, coal: 128
+    };
 
     var creative = createWorld(state, {
       name: 'Creative Flat',
@@ -1148,8 +1571,9 @@
       icon: { kind: 'item', slug: 'stone_bricks' }
     });
     state = castle.state;
-    state = addMaterial(state, state.worlds[1].id, castle.build.id, { item: 'Stone Bricks', needed: 1024, collected: 1024 }).state;
-    state = addMaterial(state, state.worlds[1].id, castle.build.id, { item: 'Dirt', needed: 256, collected: 256 }).state;
+    state = addMaterial(state, state.worlds[1].id, castle.build.id, { item: 'Stone Bricks', needed: 1024 }).state;
+    state = addMaterial(state, state.worlds[1].id, castle.build.id, { item: 'Dirt', needed: 256 }).state;
+    state.worlds[1].inventory = { stone_bricks: 1024, dirt: 256 };
     state.activeWorldId = state.worlds[0].id;
     return state;
   }
@@ -1157,7 +1581,10 @@
   var api = {
     SCHEMA: SCHEMA,
     STORAGE_KEY: STORAGE_KEY,
+    V1_STORAGE_KEY: V1_STORAGE_KEY,
     STATUSES: STATUSES,
+    SHULKER_SLOTS: SHULKER_SLOTS,
+    ITEMS_PER_MINUTE: ITEMS_PER_MINUTE,
     ICON_KINDS: ICON_KINDS,
     ICON_DATA_URL_MAX: ICON_DATA_URL_MAX,
     DEFAULT_STACK: DEFAULT_STACK,
@@ -1169,6 +1596,19 @@
     timestamps: timestamps,
     touch: touch,
     parseRelative: parseRelative,
+    unitSize: unitSize,
+    formatUnits: formatUnits,
+    stackNotation: stackNotation,
+    inventoryOf: inventoryOf,
+    setInventory: setInventory,
+    addInventory: addInventory,
+    allocate: allocate,
+    buildProgress: buildProgress,
+    progressText: progressText,
+    shoppingList: shoppingList,
+    setBuildActive: setBuildActive,
+    moveBuild: moveBuild,
+    migrateV1: migrateV1,
     titleizeItem: titleizeItem,
     itemSlug: itemSlug,
     SUGGEST_KEYWORDS: SUGGEST_KEYWORDS,

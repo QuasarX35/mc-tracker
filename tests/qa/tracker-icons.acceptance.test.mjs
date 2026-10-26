@@ -83,9 +83,12 @@ test('AC-I4 the app implements avatars, upload processing and the backdrop probe
 });
 
 test('AC-I5 the visual contract covers avatars, the picker and the panorama layer', () => {
-  for (const selector of ['.avatar', '.avatar--40', '.icon-grid', '.icon-tile', '.detail__avatar', '.icon-field', '.notes__text', '.stepper']) {
+  /* EDICT-0017 §3 retires the stepper, so its style block is gone by contract; the v2 row and
+     chip styles take its place in the same frozen visual contract. */
+  for (const selector of ['.avatar', '.avatar--40', '.avatar--24', '.icon-grid', '.icon-tile', '.detail__avatar', '.icon-field', '.notes__text', '.mat-chip']) {
     assert.ok(CSS.includes(selector), `missing ${selector}`);
   }
+  assert.ok(!CSS.includes('.stepper'), 'the stepper styles are retired (EDICT-0017 §3)');
   assert.ok(!CSS.includes('.picker-tab'), 'the retired picker tab styles must be gone (D7)');
   assert.match(CSS, /:root\.has-panorama \.backdrop__layer/);
   assert.ok(!CSS.includes('.backdrop__layer:nth-child(2)'), 'the second painted copy is retired (EDICT-0015 §1)');

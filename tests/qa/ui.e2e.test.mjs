@@ -25,7 +25,7 @@ import path from 'node:path';
 import { launch, fileUrl, sleep } from './ui/harness.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..', '..');
-const EVIDENCE = path.join(ROOT, 'reports', 'qa', 'evidence', 'edict-0016');
+const EVIDENCE = path.join(ROOT, 'reports', 'qa', 'evidence', 'edict-0017');
 const CSS_PATH = path.join(ROOT, 'src', 'styles.css');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'mc-qa-'));
 let app;
@@ -54,10 +54,10 @@ async function reset({ demo = true } = {}) {
   await p.waitFor('document.querySelector("#world-select") !== null');
 }
 
-/** Current app state, straight from the page's persisted model. */
+/** Current app state, straight from the page's persisted model (EDICT-0017: the v2 key). */
 async function appState() {
   return page().evaluate(`
-    const raw = localStorage.getItem('mc-build-tracker:v1');
+    const raw = localStorage.getItem('mc-build-tracker:v2');
     return raw ? JSON.parse(raw) : null;
   `);
 }
@@ -83,7 +83,7 @@ async function openFirstBuild() {
 
 async function buildByName(name) {
   return page().evaluate(`
-    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v1'));
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
     for (const world of state.worlds) {
       for (const build of world.builds) if (build.name === ${JSON.stringify(name)}) return { build, worldId: world.id };
     }
@@ -92,21 +92,19 @@ async function buildByName(name) {
 }
 
 /**
- * The whole build's gathered percentage and remaining count, computed from the
- * rendered rows. `#build-pct` is build-wide, so a single row cannot reach 100%.
+ * The whole build's gathered percentage and remaining count, computed from the v2 rows:
+ * Needed is the text editor's value, and what the build has is the per-material covered cell.
  */
 async function buildTotals() {
   return page().evaluate(`
     const rows = Array.from(document.querySelectorAll('#material-body .mat-row'));
     let needed = 0;
-    let collected = 0;
+    let covered = 0;
     for (const row of rows) {
-      const n = Number(row.querySelector('[data-mat-field="needed"]').value);
-      const c = Number(row.querySelector('[data-mat-field="collected"]').value);
-      needed += n;
-      collected += Math.min(c, n);
+      needed += Number(row.querySelector('[data-mat-field="needed"]').value) || 0;
+      covered += Number(row.querySelector('[data-mat-covered]').textContent.trim()) || 0;
     }
-    return { pct: needed ? Math.round((collected / needed) * 100) : 0, remaining: needed - collected, needed, collected };
+    return { pct: needed ? Math.round((covered / needed) * 100) : 0, remaining: needed - covered, needed, covered };
   `);
 }
 
@@ -138,7 +136,7 @@ async function stableRowCount(selector = '#world-material-body .mat-row', accept
  * Matches the exact display name first (a substring match picks "Allay Spawn Egg"
  * for "egg"), or the frozen slug when one is given.
  */
-async function addMaterialViaPicker(nameQuery, { needed = null, collected = null, slug = null } = {}) {
+async function addMaterialViaPicker(nameQuery, { needed = null, slug = null } = {}) {
   await page().click('#mat-choice');
   await page().waitFor('document.querySelector("#icon-dialog").open');
   await page().fill('#icon-search', nameQuery);
@@ -158,7 +156,6 @@ async function addMaterialViaPicker(nameQuery, { needed = null, collected = null
   if (clicked !== 'ok') throw new Error(`no icon tile matched ${nameQuery}${slug ? ` (${slug})` : ''}`);
   await page().waitFor('!document.querySelector("#icon-dialog").open');
   if (needed !== null) await page().fill('#mat-needed', String(needed));
-  if (collected !== null) await page().fill('#mat-collected', String(collected));
   await page().click('#add-material-form button[type="submit"]');
 }
 
@@ -396,7 +393,7 @@ test('12 adding an item merges duplicates case-insensitively', async () => {
 test('13 a material outside the catalog falls back to a lettered slot', async () => {
   await reset();
   const state = await appState();
-  state.worlds[0].builds[0].materials.push({ id: 'mat_mystery', item: 'Mystery Goo', needed: 3, collected: 1 });
+  state.worlds[0].builds[0].materials.push({ id: 'mat_mystery', item: 'Mystery Goo', needed: 3 });
   const fixture = writeFixture('unknown-item.json', state);
   await page().goto(fileUrl('src/index.html?tab=builds'));
   await page().evaluate('localStorage.clear(); return true;');
@@ -423,22 +420,36 @@ test('14 inline quantity edits update the bar and the summary', async () => {
   const materialId = await page().evaluate(
     'return document.querySelector("#material-body .mat-row").dataset.mat;'
   );
-  await page().fill(`[data-mat="${materialId}"][data-mat-field="needed"]`, '20');
-  await page().fill(`[data-mat="${materialId}"][data-mat-field="collected"]`, '999');
-  const clamped = await page().evaluate(`
-    const row = document.querySelector('#material-body .mat-row');
-    return Number(row.querySelector('.num:not(input)').textContent.trim());
+  const selector = `[data-mat="${materialId}"] [data-mat-field="needed"]`;
+  await page().fill(selector, '20');
+  await page().press('Enter', { code: 'Enter', keyCode: 13 });
+  await page().waitFor(`document.querySelector('${selector}').value === '20'`);
+  const oracle = await page().evaluate(`
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
+    const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
+    const build = world.builds.find((entry) => entry.id === state.activeBuildId) || world.builds[0];
+    const alloc = window.TrackerModel.allocate(world);
+    const progress = alloc.perBuild[build.id] || { covered: 0, needed: 0 };
+    return {
+      text: window.TrackerModel.progressText(progress.covered, progress.needed),
+      pct: progress.needed ? Math.round((progress.covered / progress.needed) * 100) : 0,
+    };
   `);
-  assert.equal(clamped, 0, 'collected above needed leaves nothing to gather');
-  const complete = await buildTotals();
-  assert.equal(await page().text('#build-pct'), `${complete.pct}%`,
-    'the percentage is the whole build, computed from the rows');
-  assert.equal(await page().attr('#build-bar', 'aria-valuenow'), String(complete.pct));
-  await page().fill(`[data-mat="${materialId}"][data-mat-field="collected"]`, '5');
-  const partial = await buildTotals();
-  assert.equal(await page().text('#build-pct'), `${partial.pct}%`);
-  assert.equal(await page().text('#build-summary').then((text) => text.includes(`${partial.remaining} to go`)), true,
-    'the summary states how much is still to gather across the build');
+  assert.equal(await page().text('#detail-progress-text'), oracle.text,
+    'the bar sentence is the whole build, computed from the allocation');
+  assert.equal(await page().attr('#detail-bar', 'aria-valuenow'), String(oracle.pct));
+  assert.equal(await page().attr('#detail-fill', 'style').then((style) => style.includes(`${oracle.pct}%`)), true);
+  await page().evaluate(`
+    const input = document.querySelector('${selector}');
+    input.focus();
+    input.value = '999';
+    return true;
+  `);
+  await page().press('Escape', { code: 'Escape', keyCode: 27 });
+  assert.equal(await page().value(selector), '20', 'Escape reverts the uncommitted edit');
+  await page().fill(selector, '0');
+  await page().press('Enter', { code: 'Enter', keyCode: 13 });
+  assert.equal(await page().value(selector), '1', 'needed clamps at one');
 });
 
 test('15 removing a material updates the list and the empty state', async () => {
@@ -451,7 +462,7 @@ test('15 removing a material updates the list and the empty state', async () => 
   assert.equal(await page().hidden('#material-empty'), false, 'a fresh build starts empty');
   await addMaterialViaPicker('apple');
   await page().waitFor('document.querySelectorAll("#material-body .mat-row").length === 1');
-  await page().click('#material-body .row-delete');
+  await deleteRowViaMenu();
   await page().waitFor('document.querySelectorAll("#material-body .mat-row").length === 0');
   assert.equal(await page().hidden('#material-empty'), false);
 });
@@ -476,7 +487,7 @@ test('16 the shopping list aggregates across the world by item', async () => {
     return row ? Number(row.children[1].textContent.replace(/[^0-9]/g, '')) : null;
   `);
   assert.equal(stone, aggregate.get('stone bricks'), 'Stone Bricks needed are summed across builds');
-  assert.match(await page().text('#mat-totals'), /items · .* gathered · .* to go · \d+%/);
+  assert.match(await page().text('#mat-totals'), /(\d+) items? · \d+ \/ \d+ items gathered \(\d+%\)/);
 });
 
 test('17 the shopping list filters by text and by remaining/done', async () => {
@@ -633,30 +644,26 @@ test('24 the layout reflows to a 390px phone without horizontal scroll', async (
   const metrics = await page().evaluate(`
     const rect = (el) => el.getBoundingClientRect();
     const visible = (el) => !!el && getComputedStyle(el).display !== 'none' && rect(el).width > 0;
-    const got = document.querySelector('#material-body [data-mat-field=collected]');
+    const got = document.querySelector('#material-body [data-mat-got]');
     const needed = document.querySelector('#material-body [data-mat-field=needed]');
-    const head = document.querySelector('#material-body .mtable__head') || document.querySelector('.mtable__head');
+    const head = document.querySelector('.mtable__head');
     const headCells = head ? Array.from(head.children).map((cell) => ({ text: cell.textContent.trim(), left: rect(cell).left, shown: visible(cell) })) : [];
-    const rowLabels = Array.from(document.querySelectorAll('#material-body .mat-row__label')).map((node) => node.textContent.trim());
     const gotCell = headCells.find((cell) => /^got$/i.test(cell.text)) || null;
     return {
       width: document.documentElement.scrollWidth,
       inner: window.innerWidth,
-      got: got ? { display: getComputedStyle(got).display, width: rect(got).width, left: rect(got).left, name: got.getAttribute('aria-label') || '' } : null,
+      got: got ? { display: getComputedStyle(got).display, width: rect(got).width, left: rect(got).left, name: (got.getAttribute('title') || '') + ' ' + (got.getAttribute('aria-label') || '') } : null,
       neededName: needed ? (needed.getAttribute('aria-label') || '') : '',
       headCells,
-      rowLabels,
       gotCell,
     };
   `);
   assert.ok(metrics.width <= metrics.inner + 1, `no horizontal scroll (${metrics.width} <= ${metrics.inner})`);
-  // EDICT-0016 §2/§12: the Got field is not collapsed away at 390 — it stays a label/field pair
-  // (head label above its control, or a per-row label). Case amended after the build seat's question.
+  // EDICT-0017 §3: Got is the v2 read-only world-inventory cell (the collected input is retired).
   assert.ok(metrics.got, 'the Got field exists at 390');
   assert.notEqual(metrics.got.display, 'none', 'the Got field is not collapsed under 640px');
   assert.ok(metrics.got.width > 0, `the Got field keeps a visible control (${metrics.got.width}px)`);
-  const gotLabelled = /collected/i.test(metrics.got.name)
-    || metrics.rowLabels.some((label) => /^got$/i.test(label))
+  const gotLabelled = /got/i.test(metrics.got.name)
     || (metrics.gotCell ? metrics.gotCell.shown : false);
   assert.ok(gotLabelled, 'the Got field keeps its label at 390 (head label, row label or accessible name)');
   assert.ok(/needed/i.test(metrics.neededName), 'the Needed field keeps its accessible name');
@@ -1075,137 +1082,241 @@ async function modifierClick(selector, modifier) {
   `);
 }
 
-test('39 each row carries the two-button .stepper: + left, − right, input wrapped', async () => {
+test('39 each row carries a Needed text editor, read-only stock cells and no stepper (AC6/AC7)', async () => {
   await reset();
-  await openFirstBuild();
-  const row = await stepperRow();
-  assert.equal(row.buttons, 2, 'exactly two buttons per row');
-  assert.deepEqual(row.order, ['1', '-1'], 'data-stepper-step is 1 then -1');
-  assert.equal(row.texts.length, 2);
-  assert.match(row.texts[0], /^\+$/, 'the left button is +');
-  assert.match(row.texts[1], /^[−-]$/, 'the right button is −');
-  assert.equal(row.plusLeftOfInput, true, 'plus sits left of the input, minus right');
-  assert.equal(row.stepperWrapsInput, true, 'the input lives inside .stepper');
-  assert.equal(row.retired, 0, 'no retired data-step literals or strip nodes remain');
-  assert.equal(row.inputType, 'number', 'the row input stays type=number');
-});
-
-test('40 the stepper climbs by 1, by the item stack (Shift) and by 16 (Ctrl)', async () => {
-  await reset();
-  await openFirstBuild();
-  const start = await stepperRow();
-  const plus = `[data-mat="${start.id}"] .stepper__btn[data-stepper-step="1"]`;
-  const input = `[data-mat="${start.id}"][data-mat-field=needed]`;
-  await page().click(plus);
-  await page().waitFor(`document.querySelector('${input}').value === "${start.needed + 1}"`);
-  await modifierClick(plus, 'shift');
-  await page().waitFor(`document.querySelector('${input}').value === "${start.needed + 65}"`);
-  await modifierClick(plus, 'ctrl');
-  await page().waitFor(`document.querySelector('${input}').value === "${start.needed + 81}"`);
-  const state = await appState();
-  const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
-  const material = world.builds.flatMap((build) => build.materials).find((entry) => entry.id === start.id);
-  assert.equal(material.needed, start.needed + 81, 'plain +1, then +64 (Shift), then +16 (Ctrl)');
-});
-
-test('41 the stepper never takes needed below one', async () => {
-  await reset();
-  await openFirstBuild();
-  const start = await stepperRow();
-  const input = `[data-mat="${start.id}"][data-mat-field=needed]`;
-  const minus = `[data-mat="${start.id}"] .stepper__btn[data-stepper-step="-1"]`;
-  await page().fill(input, '1');
-  await page().click(minus);
-  await page().waitFor(`document.querySelector('${input}').value === "1"`);
-  await modifierClick(minus, 'shift');
-  await page().waitFor(`document.querySelector('${input}').value === "1"`);
-  assert.equal(await page().value(input), '1');
-});
-
-test('42 stack modifiers resolve the item own stack size (egg 16, water bucket 1)', async () => {
-  await reset();
-  await page().click('#btn-new-build');
-  await page().waitFor('document.querySelector("#build-dialog").open');
-  await page().fill('#build-dlg-name', 'Stack Lab');
-  await page().click('#build-dialog button[type="submit"]:not([formnovalidate])');
-  await page().waitFor('!document.querySelector("#build-dialog").open');
-  await addMaterialViaPicker('egg', { slug: 'egg' });
-  await page().waitFor('document.querySelectorAll("#material-body .mat-row").length === 1');
-  const egg = await stepperRow();
-  assert.equal(egg.buttons, 2, 'an egg still has the two-button stepper');
-  const eggBefore = egg.needed;
-  await modifierClick(`[data-mat="${egg.id}"] .stepper__btn[data-stepper-step="1"]`, 'shift');
-  await page().waitFor(`document.querySelector('[data-mat="${egg.id}"][data-mat-field=needed]').value === "${eggBefore + 16}"`);
-  await addMaterialViaPicker('water bucket', { slug: 'water_bucket' });
-  await page().waitFor('document.querySelectorAll("#material-body .mat-row").length === 2');
-  const buckets = await page().evaluate(`
-    const rows = Array.from(document.querySelectorAll('#material-body .mat-row'));
-    const row = rows.find((entry) => entry.querySelector('.mat-row__name').textContent.trim() === 'Water Bucket');
-    const rect = (el) => el.getBoundingClientRect();
-    const detail = (cluster) => {
-      const input = cluster.querySelector('input');
-      const buttons = Array.from(cluster.querySelectorAll('.stepper__btn'));
-      const plus = cluster.querySelector('.stepper__btn[data-stepper-step="1"]');
-      const minus = cluster.querySelector('.stepper__btn[data-stepper-step="-1"]');
-      return {
-        field: input.getAttribute('data-mat-field'),
-        count: buttons.length,
-        order: buttons.map((button) => button.dataset.stepperStep),
-        texts: buttons.map((button) => button.textContent.trim()),
-        plusLeft: !!plus && rect(plus).left < rect(input).left,
-        minusRight: !!minus && rect(minus).left > rect(input).left,
-      };
-    };
-    const neededCluster = row.querySelector('.stepper:has([data-mat-field=needed])');
-    const gotCluster = row.querySelector('.stepper:has([data-mat-field=collected])');
+  await page().waitFor('document.querySelector("#material-body .mat-row") !== null');
+  const row = await page().evaluate(`
+    const node = document.querySelector('#material-body .mat-row');
+    const input = node.querySelector('[data-mat-field="needed"]');
+    const got = node.querySelector('[data-mat-got]');
+    const update = node.querySelector('[data-mat-update]');
     return {
-      id: row.dataset.mat,
-      needed: Number(row.querySelector('[data-mat-field=needed]').value),
-      clusters: row.querySelectorAll('.stepper').length,
-      neededCluster: neededCluster ? detail(neededCluster) : null,
-      gotCluster: gotCluster ? detail(gotCluster) : null,
-      stackNodes: row.querySelectorAll('[data-step$="stack"], [data-mat-step]').length,
-      aria: Array.from(row.querySelectorAll('.stepper__btn')).map((button) => button.getAttribute('aria-label') || ''),
+      matId: node.getAttribute('data-mat'),
+      role: node.getAttribute('role'),
+      tabindex: node.getAttribute('tabindex'),
+      input: input && { tag: input.tagName, type: input.type, mode: input.getAttribute('inputmode'), prev: input.getAttribute('data-prev'), value: input.value, label: input.getAttribute('aria-label') },
+      got: got && { tag: got.tagName, title: got.getAttribute('title') },
+      coveredTag: node.querySelector('[data-mat-covered]') ? node.querySelector('[data-mat-covered]').tagName : '',
+      remainingTag: node.querySelector('[data-mat-remaining]') ? node.querySelector('[data-mat-remaining]').tagName : '',
+      update: update && { tag: update.tagName, type: update.getAttribute('type') },
+      hasMenu: !!node.querySelector('[data-mat-menu]'),
+      hasRemove: !!node.querySelector('[data-mat-remove]'),
+      retiredInRow: node.querySelectorAll('[data-step], .stepper, .stepper__btn, .mat-step, .mat-steps').length,
+      retiredInPage: document.querySelectorAll('[data-step], .stepper, .stepper__btn, .mat-step, .mat-steps, #mat-steps').length,
     };
   `);
-  assert.equal(buckets.clusters, 2, 'a stack-1 row carries a Needed stepper and a Got stepper');
-  for (const cluster of [buckets.neededCluster, buckets.gotCluster]) {
-    assert.ok(cluster, 'both per-field clusters exist');
-    assert.equal(cluster.count, 2, cluster.field + ': two buttons, no stack node at stack 1');
-    assert.deepEqual(cluster.order, ['1', '-1']);
-    assert.deepEqual(cluster.texts, ['+', '−'], 'the labels are + and −');
-    assert.equal(cluster.plusLeft, true, cluster.field + ': + sits left of the input');
-    assert.equal(cluster.minusRight, true, cluster.field + ': − sits right of the input');
-  }
-  assert.equal(buckets.stackNodes, 0, 'no retired stack-type node exists at any stack size');
-  assert.equal(buckets.aria.some((label) => /full stack/i.test(label)), false, 'no label claims a full stack');
-  const bucketsPlus = `[data-mat="${buckets.id}"] .stepper:has([data-mat-field=needed]) .stepper__btn[data-stepper-step="1"]`;
-  await modifierClick(bucketsPlus, 'shift');
-  await page().waitFor(`document.querySelector('[data-mat="${buckets.id}"][data-mat-field=needed]').value === "${buckets.needed + 1}"`);
-  // stack 1: a plain click is also +1 and Shift adds nothing extra (contract §2, case amendment)
-  await page().click(bucketsPlus);
-  await page().waitFor(`document.querySelector('[data-mat="${buckets.id}"][data-mat-field=needed]').value === "${buckets.needed + 2}"`);
-  await modifierClick(bucketsPlus, 'shift');
-  await page().waitFor(`document.querySelector('[data-mat="${buckets.id}"][data-mat-field=needed]').value === "${buckets.needed + 3}"`);
+  assert.equal(row.role, 'row', 'a material row declares itself a table row');
+  assert.equal(row.tabindex, '0', 'rows join the tab order');
+  assert.ok(row.matId, 'the row identifies its material');
+  assert.equal(row.input.tag, 'INPUT', 'Needed is an editable input');
+  assert.equal(row.input.type, 'text', 'the Needed editor is a plain text input once the stepper is retired');
+  assert.equal(row.input.mode, 'numeric', 'the editor still asks for a numeric keypad');
+  assert.equal(row.input.prev, row.input.value, 'data-prev mirrors the committed value');
+  assert.match(row.input.label, /^Needed /, 'the editor is labelled for its item');
+  assert.equal(row.got.tag, 'SPAN', 'Got is read-only text, not a second editor');
+  assert.match(row.got.title, /^World inventory for /, 'the Got cell explains where the number comes from');
+  assert.equal(row.coveredTag, 'SPAN', 'Covered is a read-only cell');
+  assert.equal(row.remainingTag, 'SPAN', 'Left is a read-only cell');
+  assert.equal(row.update.tag, 'BUTTON', 'Update is a button');
+  assert.equal(row.update.type, 'button', 'Update never submits a form');
+  assert.ok(row.hasMenu && row.hasRemove, 'Remove hides inside the row overflow menu');
+  assert.equal(row.retiredInRow, 0, 'no stepper inside the row');
+  assert.equal(row.retiredInPage, 0, 'the whole stepper mechanism is retired (AC7)');
 });
 
-test('43 the needed input stays type=number with the spinners hidden (D5)', async () => {
+test('40 Enter and blur both commit the typed Needed value once (AC6)', async () => {
   await reset();
-  await openFirstBuild();
-  const type = await page().evaluate(
-    'return document.querySelector("#material-body [data-mat-field=needed]").type;'
+  await page().waitFor('document.querySelector("#material-body .mat-row") !== null');
+  const matId = await page().evaluate('return document.querySelector("#material-body .mat-row").getAttribute("data-mat");');
+  const previous = await page().evaluate(`return document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]').getAttribute('data-prev');`);
+  assert.ok(Number(previous) >= 1, 'the editor starts from a committed value');
+  const before = await appState();
+  const materialsOf = (state) => state.worlds.flatMap((world) => world.builds).flatMap((build) => build.materials);
+  const neededOf = (state, id) => materialsOf(state).find((mat) => mat.id === id).needed;
+
+  await page().evaluate(`
+    const input = document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]');
+    input.focus();
+    input.value = '12';
+    return true;
+  `);
+  await page().press('Enter', { code: 'Enter', keyCode: 13 });
+  await page().waitFor(`document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]').getAttribute('data-prev') === '12'`);
+  const afterEnter = await appState();
+  assert.equal(neededOf(afterEnter, matId), 12, 'Enter commits the typed value');
+  assert.equal(neededOf(before, matId), Number(previous), 'and nothing before the press had committed');
+  assert.equal(
+    await page().evaluate(`return document.activeElement === document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]');`),
+    false,
+    'the editor leaves focus after committing'
   );
-  assert.equal(type, 'number', 'the field keeps the numeric keyboard and min clamp');
-  const css = fs.readFileSync(CSS_PATH, 'utf8');
-  assert.match(css, /::-webkit-inner-spin-button\s*\{[^}]*-webkit-appearance:\s*none/, 'inner spinner hidden');
-  assert.match(css, /::-webkit-outer-spin-button/, 'outer spinner hidden');
-  assert.match(css, /-moz-appearance:\s*textfield/, 'Firefox spinner hidden');
-  // Deliberately not asserted: getComputedStyle(input, '::-webkit-inner-spin-button')
-  // reports `appearance: textfield` in Chromium 155 even when the rule above hides it,
-  // so a pseudo-element computed check would be a lie. The stylesheet rules are the proof.
+
+  await page().evaluate(`
+    const input = document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]');
+    input.focus();
+    input.value = '13';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  `);
+  await page().waitFor(`document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]').getAttribute('data-prev') === '13'`);
+  const afterBlur = await appState();
+  assert.equal(neededOf(afterBlur, matId), 13, 'a blur/change commits the typed value too');
+  const others = (state) => JSON.stringify(materialsOf(state).filter((mat) => mat.id !== matId));
+  assert.equal(others(afterBlur), others(before), 'one edit touches one material and nothing else');
 });
 
-/* ---------------------------------------------------- item chooser (D7/D8) */
+test('41 the Needed editor never takes needed below one (AC6)', async () => {
+  await reset();
+  await page().waitFor('document.querySelector("#material-body .mat-row") !== null');
+  const matId = await page().evaluate('return document.querySelector("#material-body .mat-row").getAttribute("data-mat");');
+  const neededOf = async () => {
+    const state = await appState();
+    return state.worlds.flatMap((world) => world.builds).flatMap((build) => build.materials).find((mat) => mat.id === matId).needed;
+  };
+  const initial = await neededOf();
+  const commit = async (value) => {
+    await page().evaluate(`
+      const input = document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]');
+      input.focus();
+      input.value = ${JSON.stringify(value)};
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    `);
+  };
+
+  await commit('0');
+  await page().waitFor(`document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]').getAttribute('data-prev') === '1'`);
+  assert.equal(await neededOf(), 1, 'a typed zero clamps to one');
+  assert.notEqual(initial, 1, 'the fixture started above one, so the clamp was real');
+
+  await commit('-9');
+  await page().waitFor(`document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]').value === '1'`);
+  assert.equal(await neededOf(), 1, 'a negative value never reaches the model');
+
+  await commit('0.5');
+  await page().waitFor(`document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]').value === '1'`);
+  assert.equal(await neededOf(), 1, 'a fraction below one clamps as well');
+
+  await commit('abc');
+  await page().waitFor(`document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]').value === '1'`);
+  assert.equal(await neededOf(), 1, 'a non-numeric entry is discarded, not committed');
+  assert.equal(await page().attr('[data-mat="' + matId + '"] [data-mat-field="needed"]', 'data-prev'), '1');
+});
+
+test('42 the stack notation follows each item own stack size (egg 16, water bucket 1)', async () => {
+  await injectState({
+    version: 2,
+    activeWorldId: 'w-stack',
+    customItems: [],
+    worlds: [{
+      id: 'w-stack',
+      name: 'Stack Lab',
+      edition: 'java',
+      version: '1.21.4',
+      createdAt: '2026-10-01T00:00:00.000Z',
+      updatedAt: '2026-10-01T00:00:00.000Z',
+      inventory: {},
+      customItems: [],
+      builds: [{
+        id: 'b-stack',
+        name: 'Stack Lab',
+        status: 'building',
+        active: true,
+        coords: '',
+        notes: '',
+        createdAt: '2026-10-01T00:00:00.000Z',
+        updatedAt: '2026-10-01T00:00:00.000Z',
+        customItems: [],
+        materials: [
+          { id: 'm-stone', item: 'Stone', needed: 7 },
+          { id: 'm-egg', item: 'Egg', needed: 7 },
+          { id: 'm-bucket', item: 'Water Bucket', needed: 7 },
+        ],
+      }],
+    }],
+  });
+  await page().waitFor('document.querySelector("#material-body .mat-row") !== null');
+  const oracles = await page().evaluate(`
+    return {
+      eggStack: TrackerModel.stackSizeFor('egg'),
+      bucketStack: TrackerModel.stackSizeFor('water_bucket'),
+      stoneStack: TrackerModel.stackSizeFor('stone'),
+      egg138: TrackerModel.formatUnits(138, 'egg', 'stacks'),
+      stone138: TrackerModel.formatUnits(138, 'stone', 'stacks'),
+      bucket138: TrackerModel.formatUnits(138, 'water_bucket', 'stacks'),
+      egg20: TrackerModel.formatUnits(20, 'egg', 'stacks'),
+    };
+  `);
+  assert.equal(oracles.eggStack, 16, 'the catalogue says an egg stacks to 16');
+  assert.equal(oracles.bucketStack, 1, 'a water bucket does not stack');
+  assert.equal(oracles.stoneStack, 64);
+  assert.equal(oracles.egg138, '8 stacks + 10', 'the notation is per item, not per row');
+  assert.equal(oracles.stone138, '2 stacks + 10');
+  assert.equal(oracles.bucket138, '138 stacks');
+  assert.equal(oracles.egg20, '1 stack + 4');
+
+  await page().evaluate(`
+    const input = document.querySelector('[data-mat="m-egg"] [data-mat-field="needed"]');
+    input.focus();
+    input.value = '138';
+    return true;
+  `);
+  await page().press('Enter', { code: 'Enter', keyCode: 13 });
+  await page().waitFor(`document.querySelector('[data-mat="m-egg"] [data-mat-field="needed"]').getAttribute('data-prev') === '138'`);
+  const state = await appState();
+  assert.equal(state.worlds[0].builds[0].materials.find((mat) => mat.id === 'm-egg').needed, 138);
+
+  await page().click('#unit-toggle [data-unit="stacks"]');
+  await page().waitFor('document.querySelector("#unit-toggle [data-unit=\\"stacks\\"]").getAttribute("aria-pressed") === "true"');
+  const shown = await page().evaluate(`
+    const value = (matId) => document.querySelector('[data-mat="' + matId + '"] [data-mat-field="needed"]').value;
+    return { egg: value('m-egg'), stone: value('m-stone'), bucket: value('m-bucket') };
+  `);
+  assert.equal(shown.egg, oracles.egg138, 'the row editor renders the egg stack notation');
+  assert.equal(shown.stone, '7', 'stone stays a plain count below one stack');
+  assert.equal(shown.bucket, '7 stacks', 'the bucket counts stacks of one');
+  assert.equal(await page().count('[data-step], .stepper, .stepper__btn, #mat-steps'), 0, 'no stepper node is involved');
+});
+
+test('43 the Needed editor is a text field that commits whole numbers (D5/AC6)', async () => {
+  await reset();
+  await page().waitFor('document.querySelector("#material-body .mat-row") !== null');
+  const matId = await page().evaluate('return document.querySelector("#material-body .mat-row").getAttribute("data-mat");');
+  const attrs = await page().evaluate(`
+    const input = document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]');
+    return { type: input.type, mode: input.getAttribute('inputmode'), tag: input.tagName };
+  `);
+  assert.equal(attrs.tag, 'INPUT');
+  assert.equal(attrs.type, 'text', 'the contract fixes type=text for the row editor');
+  assert.equal(attrs.mode, 'numeric', 'numeric entry is requested from the keyboard, not from a spinner widget');
+  assert.equal(await page().count('[data-step], .stepper, .stepper__btn, .mat-step, .mat-steps, #mat-steps'), 0);
+
+  const neededOf = async () => {
+    const state = await appState();
+    return state.worlds.flatMap((world) => world.builds).flatMap((build) => build.materials).find((mat) => mat.id === matId).needed;
+  };
+  const commit = async (value) => {
+    await page().evaluate(`
+      const input = document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]');
+      input.focus();
+      input.value = ${JSON.stringify(value)};
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    `);
+  };
+
+  await commit('042');
+  await page().waitFor(`document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]').getAttribute('data-prev') === '42'`);
+  assert.equal(await neededOf(), 42, 'a padded integer commits as its number');
+
+  await commit('7.9');
+  await page().waitFor(`document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]').getAttribute('data-prev') === '7'`);
+  assert.equal(await neededOf(), 7, 'a fractional entry floors to a whole count');
+
+  await commit('');
+  await page().waitFor(`document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]').value === '7'`);
+  assert.equal(await neededOf(), 7, 'an empty entry reverts instead of committing zero');
+});
 
 test('44 the material chooser opens the picker in pick-item mode (D8)', async () => {
   await reset();
@@ -1223,23 +1334,34 @@ test('44 the material chooser opens the picker in pick-item mode (D8)', async ()
 
 test('45 choosing an item fills the chip and adds its icon row (D8)', async () => {
   await reset();
-  await openFirstBuild();
-  await addMaterialViaPicker('egg', { slug: 'egg' });
-  await page().waitFor('document.querySelectorAll("#material-body .mat-row").length > 0');
-  assert.equal(await page().text('#mat-choice-name'), 'Choose item…', 'the chip resets after adding');
-  const row = await page().evaluate(`
-    const row = Array.from(document.querySelectorAll('#material-body .mat-row'))
-      .find((entry) => entry.querySelector('.mat-row__name').textContent.trim() === 'Egg');
-    if (!row) return null;
-    const img = row.querySelector('.slot img');
-    const stepper = row.querySelector('.stepper');
-    return {
-      img: img ? img.getAttribute('src') : null,
-      buttons: stepper ? stepper.querySelectorAll('.stepper__btn').length : 0,
-      order: stepper ? Array.from(stepper.querySelectorAll('.stepper__btn')).map((button) => button.dataset.stepperStep) : [],
-    };
+  await page().waitFor('document.querySelector("#mat-choice-name") !== null');
+  assert.equal((await page().text('#mat-choice-name')).trim(), 'Choose item…', 'the chip starts empty');
+  await page().click('#mat-choice');
+  await page().waitFor('document.querySelector("#icon-dialog").open === true');
+  await page().fill('#icon-search', 'egg');
+  await page().waitFor('document.querySelectorAll("#icon-grid .icon-tile[data-icon-slug]").length > 0');
+  const picked = await page().evaluate(`
+    const tile = Array.from(document.querySelectorAll('#icon-grid .icon-tile[data-icon-slug="egg"]'))
+      .find((node) => node.querySelector('.icon-tile__name').textContent.trim() === 'Egg');
+    if (!tile) return false;
+    tile.click();
+    return true;
   `);
-  assert.deepEqual(row, { img: 'assets/icons/egg.png', buttons: 2, order: ['1', '-1'] });
+  assert.equal(picked, true, 'the picker lists Egg');
+  await page().waitFor('document.querySelector("#icon-dialog").open === false');
+  assert.equal((await page().text('#mat-choice-name')).trim(), 'Egg', 'the chip shows the chosen item');
+  const slotSrc = await page().evaluate('return document.querySelector("#mat-choice-slot img") ? document.querySelector("#mat-choice-slot img").getAttribute("src") : "";');
+  assert.match(slotSrc, /egg\.png$/, 'the chip carries the item icon');
+
+  await page().fill('#mat-needed', '20');
+  await page().click('#add-material-form button[type="submit"]');
+  await page().waitFor('Array.from(document.querySelectorAll("#material-body .mat-row__name")).some((node) => node.textContent.trim() === "Egg")');
+  const eggRow = (await materialRows()).find((row) => row.item === 'Egg');
+  assert.ok(eggRow, 'the new material gets a row');
+  assert.equal(eggRow.needed, '20', 'the typed Needed survives into the row');
+  const iconSrc = await page().evaluate(`const row = document.querySelector('[data-mat="${eggRow.id}"]'); const img = row.querySelector('img'); return img ? img.getAttribute('src') : '';`);
+  assert.match(iconSrc, /egg\.png$/, 'the row shows the same icon the picker resolved');
+  assert.equal(await page().count('[data-step], .stepper, .stepper__btn, #mat-steps'), 0);
 });
 
 test('46 adding a material without choosing an item is refused inline (D8)', async () => {
@@ -1584,6 +1706,8 @@ test('55 every zero state offers its next action (D5)', async () => {
   await page().click('#btn-empty-pick-material');
   await page().waitFor('document.activeElement && document.activeElement.id === "mat-choice"',
     { timeout: 3000 });
+  await reset();
+  await openFirstBuild();
   await page().click('#tab-materials');
   await page().fill('#mat-search', 'zzz-no-such-item');
   await page().waitFor('!document.querySelector("#world-material-empty").hidden');
@@ -1658,48 +1782,82 @@ test('57 a stored icon is never replaced by the suggestion (D8)', async () => {
   assert.match(after.html, /assets\/icons\/apple\.png/, 'the manual apple survives the rename');
 });
 
-test('58 bulk paste reviews matched and unknown lines and commits once (D9)', async () => {
-  await reset();
-  await page().click('#btn-new-build');
-  await page().waitFor('document.querySelector("#build-dialog").open');
-  await page().fill('#build-dlg-name', 'Bulk Build');
-  await page().click('#build-dialog button[type="submit"]:not([formnovalidate])');
-  await page().waitFor('!document.querySelector("#build-dialog").open');
+test('58 bulk paste previews merged and unmatched lines and commits once (D12)', async () => {
+  await injectState({
+    version: 2,
+    activeWorldId: 'w-paste',
+    customItems: [],
+    worlds: [{
+      id: 'w-paste',
+      name: 'Test Vault',
+      edition: 'java',
+      version: '1.21.4',
+      createdAt: '2026-10-01T00:00:00.000Z',
+      updatedAt: '2026-10-01T00:00:00.000Z',
+      inventory: {},
+      customItems: [],
+      builds: [{
+        id: 'b-paste',
+        name: 'Test Vault',
+        status: 'building',
+        active: true,
+        coords: '',
+        notes: '',
+        createdAt: '2026-10-01T00:00:00.000Z',
+        updatedAt: '2026-10-01T00:00:00.000Z',
+        customItems: [],
+        materials: [],
+      }],
+    }],
+  });
+  await page().waitFor('document.querySelector("#material-body") !== null');
   await page().click('#bulk-paste');
-  await page().waitFor('document.querySelector("#bulk-dialog").open');
-  await page().fill('#bulk-input', [
-    '64 stone bricks',
-    '- 32 glass',
-    '+1 oak log',
-    '20x oak log',
-    '3 stone bricks',
-    'mystery goo',
-    '- 5 diamond',
-  ].join('\n'));
-  await page().waitFor('document.querySelectorAll("#bulk-review .bulk-row").length >= 4');
-  const review = await page().evaluate(`
-    const rows = Array.from(document.querySelectorAll('#bulk-review .bulk-row'));
-    return rows.map((row) => ({
-      state: row.dataset.bulkState,
-      qty: row.querySelector('[data-bulk-qty]') && row.querySelector('[data-bulk-qty]').value,
-      text: row.textContent.trim(),
+  await page().waitFor('document.querySelector("#paste-preview").open === true');
+  assert.equal(await page().count('#bulk-dialog'), 0, 'the retired bulk dialog is gone');
+  assert.equal(await page().count('#bulk-input'), 0);
+  assert.equal(await page().count('#bulk-review'), 0);
+  assert.equal(await page().count('#bulk-add'), 0);
+  assert.equal(await page().evaluate('return document.querySelector("#paste-ok").disabled;'), true, 'an empty paste cannot be imported');
+  assert.match(await page().text('#paste-context'), /Nothing parsed yet/);
+
+  await page().fill('#paste-text', '64 stone bricks\n20x oak log\n3 stone bricks\n1 oak log\nmystery goo');
+  await page().waitFor('document.querySelector("#paste-rows").getAttribute("data-count") === "2"');
+  const preview = await page().evaluate(`
+    return Array.from(document.querySelectorAll('#paste-rows .paste-row')).map((row) => ({
+      slug: row.getAttribute('data-slug'),
+      qty: row.querySelector('.paste-row__qty').textContent.trim(),
     }));
   `);
-  const matched = review.filter((row) => row.state === 'matched');
-  assert.equal(matched.length, 4, 'four lines matched (duplicates merged)');
-  assert.equal(review.filter((row) => row.state === 'unknown').length, 1, 'the unknown line is listed, not added');
-  assert.equal(matched.find((row) => /stone bricks/i.test(row.text)).qty, '67', 'duplicate quantities merge');
-  assert.equal(matched.find((row) => /oak log/i.test(row.text)).qty, '21', 'case-insensitive merge by slug');
-  await page().click('#bulk-add');
-  await page().waitFor('!document.querySelector("#bulk-dialog").open');
-  const rows = await page().evaluate(`
-    return Array.from(document.querySelectorAll('#material-body .mat-row')).map((row) => ({
-      name: row.querySelector('.mat-row__name').textContent.trim(),
-      needed: row.querySelector('[data-mat-field=needed]').value,
-    }));
-  `);
-  assert.equal(rows.length, 4, 'matched lines become materials in one commit');
-  assert.ok(!rows.some((row) => /mystery/i.test(row.name)), 'unknown lines are not added');
+  assert.deepEqual(preview, [
+    { slug: 'stone_bricks', qty: '67' },
+    { slug: 'oak_log', qty: '21' },
+  ], 'repeated lines are merged before the preview');
+  assert.match(await page().text('#paste-errors'), /^1 line was not understood: mystery goo$/);
+  assert.match(await page().text('#paste-context'), /2 lines ready to import/);
+  assert.equal(await page().evaluate('return document.querySelector("#paste-ok").disabled;'), false);
+
+  await page().fill('#paste-text', 'only nonsense here\nand more');
+  await page().waitFor('document.querySelector("#paste-rows").getAttribute("data-count") === "0"');
+  assert.equal(await page().evaluate('return document.querySelector("#paste-ok").disabled;'), true, 'nothing parsable disables Import');
+  assert.match(await page().text('#paste-errors'), /^2 lines were not understood: only nonsense here, and more$/);
+
+  await page().fill('#paste-text', '64 stone bricks\n20x oak log\n3 stone bricks\n1 oak log\nmystery goo');
+  await page().waitFor('document.querySelector("#paste-rows").getAttribute("data-count") === "2"');
+  await page().click('#paste-ok');
+  await page().waitFor('document.querySelector("#paste-preview").open === false');
+  const rows = await materialRows();
+  assert.deepEqual(rows.map((row) => [row.item, row.needed]), [['Stone Bricks', '67'], ['Oak Log', '21']], 'the merged rows land in the build');
+  assert.match((await toastText()).trim(), /^2 materials added\.$/, 'the toast counts the merged rows');
+  const state = await appState();
+  assert.equal(state.worlds[0].builds[0].materials.length, 2, 'the import commits once, two materials');
+
+  await page().click('#bulk-paste');
+  await page().waitFor('document.querySelector("#paste-preview").open === true');
+  await page().fill('#paste-text', '5 dirt');
+  await page().waitFor('document.querySelector("#paste-rows").getAttribute("data-count") === "1"');
+  await page().click('#paste-cancel');
+  await page().waitFor('document.querySelector("#paste-preview").open === false');
+  assert.equal((await materialRows()).length, 2, 'Cancel imports nothing');
 });
 
 test('59 undo restores a deleted material, and expires after six seconds (D10)', async () => {
@@ -1708,14 +1866,14 @@ test('59 undo restores a deleted material, and expires after six seconds (D10)',
   const before = await appState();
   const rowsBefore = await page().count('#material-body .mat-row');
   assert.ok(rowsBefore >= 1, 'the demo build starts with materials');
-  await page().click('#material-body .mat-row .row-delete');
+  await deleteRowViaMenu();
   await page().waitFor(`document.querySelectorAll("#material-body .mat-row").length === ${rowsBefore - 1}`);
   assert.equal(await page().hidden('#toast-action'), false, 'the toast offers Undo');
   await page().waitFor('document.querySelector("#toast").textContent.includes("Undo")');
   await page().click('#toast-action');
   await page().waitFor(`document.querySelectorAll("#material-body .mat-row").length === ${rowsBefore}`);
   assert.deepEqual(await appState(), before, 'the restore is a deep-equal snapshot');
-  await page().click('#material-body .mat-row .row-delete');
+  await deleteRowViaMenu();
   await page().waitFor(`document.querySelectorAll("#material-body .mat-row").length === ${rowsBefore - 1}`);
   await sleep(6800);
   const expired = await page().evaluate(`
@@ -1805,48 +1963,97 @@ test('63 recents survive a reload, cap at eight and drop unknown slugs (D11)', a
   assert.equal(recents.length, 8, 'the list caps at eight');
   assert.deepEqual(recents, seeded.slice(0, 8), 'order and dedupe survive; the unknown slug is dropped');
   const exported = await page().evaluate(`
-    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v1'));
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
     return window.TrackerModel.exportJSON(state);
   `);
   assert.equal(exported.includes('mc-build-tracker:recent'), false, 'recents are browser-local, not exported');
   await page().click('#icon-cancel');
 });
 
-test('64 stack modifiers resolve per item across stone, egg and water bucket (D6/AC6)', async () => {
-  await reset();
-  await page().click('#btn-new-build');
-  await page().waitFor('document.querySelector("#build-dialog").open');
-  await page().fill('#build-dlg-name', 'Stack Spread');
-  await page().click('#build-dialog button[type="submit"]:not([formnovalidate])');
-  await page().waitFor('!document.querySelector("#build-dialog").open');
-  for (const [query, slug] of [['stone', 'stone'], ['egg', 'egg'], ['water bucket', 'water_bucket']]) {
-    await addMaterialViaPicker(query, { slug, needed: 7 });
-  }
-  await page().waitFor('document.querySelectorAll("#material-body .mat-row").length === 3');
-  const deltas = {};
-  for (const [name, stack] of [['Stone', 64], ['Egg', 16], ['Water Bucket', 1]]) {
-    const row = await page().evaluate(`
-      const rows = Array.from(document.querySelectorAll('#material-body .mat-row'));
-      const row = rows.find((entry) => entry.querySelector('.mat-row__name').textContent.trim() === ${JSON.stringify(name)});
-      if (!row) return null;
-      return { id: row.dataset.mat, needed: Number(row.querySelector('[data-mat-field=needed]').value) };
+test('64 blur commits each row and the stack notation stays per item (D6/AC6)', async () => {
+  await injectState({
+    version: 2,
+    activeWorldId: 'w-mix',
+    customItems: [],
+    worlds: [{
+      id: 'w-mix',
+      name: 'Mixed Stack',
+      edition: 'java',
+      version: '1.21.4',
+      createdAt: '2026-10-01T00:00:00.000Z',
+      updatedAt: '2026-10-01T00:00:00.000Z',
+      inventory: {},
+      customItems: [],
+      builds: [{
+        id: 'b-mix',
+        name: 'Mixed Stack',
+        status: 'building',
+        active: true,
+        coords: '',
+        notes: '',
+        createdAt: '2026-10-01T00:00:00.000Z',
+        updatedAt: '2026-10-01T00:00:00.000Z',
+        customItems: [],
+        materials: [
+          { id: 'm-mix-stone', item: 'Stone', needed: 7 },
+          { id: 'm-mix-egg', item: 'Egg', needed: 7 },
+          { id: 'm-mix-bucket', item: 'Water Bucket', needed: 7 },
+        ],
+      }],
+    }],
+  });
+  await page().waitFor('document.querySelector("#material-body .mat-row") !== null');
+
+  const wanted = [
+    { matId: 'm-mix-stone', value: '9' },
+    { matId: 'm-mix-egg', value: '18' },
+    { matId: 'm-mix-bucket', value: '11' },
+  ];
+  for (const entry of wanted) {
+    await page().evaluate(`
+      const input = document.querySelector('[data-mat="${entry.matId}"] [data-mat-field="needed"]');
+      input.focus();
+      input.value = ${JSON.stringify(entry.value)};
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
     `);
-    assert.ok(row, name + ' row exists');
-    await modifierClick(`[data-mat="${row.id}"] .stepper__btn[data-stepper-step="1"]`, 'shift');
-    await page().waitFor(
-      `Number(document.querySelector('[data-mat="${row.id}"][data-mat-field=needed]').value) === ${row.needed + stack}`,
-      { timeout: 4000 }
-    );
-    deltas[name] = stack;
+    await page().waitFor(`document.querySelector('[data-mat="${entry.matId}"] [data-mat-field="needed"]').getAttribute('data-prev') === ${JSON.stringify(entry.value)}`);
   }
-  assert.deepEqual(deltas, { Stone: 64, Egg: 16, 'Water Bucket': 1 }, 'the Shift modifier uses each item stack');
+  const state = await appState();
+  const materials = state.worlds[0].builds[0].materials;
+  assert.equal(materials.find((mat) => mat.id === 'm-mix-stone').needed, 9, 'every row commits its own value');
+  assert.equal(materials.find((mat) => mat.id === 'm-mix-egg').needed, 18);
+  assert.equal(materials.find((mat) => mat.id === 'm-mix-bucket').needed, 11);
+
+  const shownInItems = await page().evaluate(`
+    const value = (matId) => document.querySelector('[data-mat="' + matId + '"] [data-mat-field="needed"]').value;
+    return { stone: value('m-mix-stone'), egg: value('m-mix-egg'), bucket: value('m-mix-bucket') };
+  `);
+  assert.deepEqual(shownInItems, { stone: '9', egg: '18', bucket: '11' }, 'items mode shows plain counts');
+
+  await page().click('#unit-toggle [data-unit="stacks"]');
+  await page().waitFor('document.querySelector("#unit-toggle [data-unit=\\"stacks\\"]").getAttribute("aria-pressed") === "true"');
+  const shownInStacks = await page().evaluate(`
+    const value = (matId) => document.querySelector('[data-mat="' + matId + '"] [data-mat-field="needed"]').value;
+    return {
+      stone: value('m-mix-stone'), egg: value('m-mix-egg'), bucket: value('m-mix-bucket'),
+      eggOracle: TrackerModel.formatUnits(18, 'egg', 'stacks'),
+      bucketOracle: TrackerModel.formatUnits(11, 'water_bucket', 'stacks'),
+    };
+  `);
+  assert.equal(shownInStacks.egg, shownInStacks.eggOracle, 'the egg row renders 16-egg stacks');
+  assert.equal(shownInStacks.bucket, shownInStacks.bucketOracle, 'the bucket row renders one-item stacks');
+  assert.equal(shownInStacks.stone, '9', 'stone stays plain below one stack');
+  const afterUnits = await appState();
+  assert.deepEqual(afterUnits.worlds[0].builds[0].materials, materials, 'switching units never changes the stored counts');
+  assert.equal(await page().count('[data-step], .stepper, .stepper__btn, #mat-steps'), 0);
 });
 
 test('65 the suggestion is pure, deterministic and null with two arguments (D8)', async () => {
   await reset();
   const probe = await page().evaluate(`
     const catalog = window.MC_ICON_SET.map((slug) => ({ slug, name: window.MC_ICON_NAMES[slug] }));
-    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v1'));
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
     const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
     const build = world.builds[0];
     const before = JSON.stringify(state);
@@ -1860,7 +2067,7 @@ test('65 the suggestion is pure, deterministic and null with two arguments (D8)'
   assert.equal(probe.stateUnchanged, true, 'the helper is pure');
   const gold = await page().evaluate(`
     const catalog = window.MC_ICON_SET.map((slug) => ({ slug, name: window.MC_ICON_NAMES[slug] }));
-    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v1'));
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
     const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
     return window.TrackerModel.suggestIcon(
       { name: 'Gold Vault', notes: '', coords: '', materials: [] }, world, catalog
@@ -1880,11 +2087,17 @@ async function buildNames() {
   `);
 }
 
+/* EDICT-0017: `injectState` seeds a **v2** document (any version the fixture carries is run
+   through the model's importer first, so v1 fixtures land as v2 exactly as the app would). */
 async function injectState(state) {
   await page().goto(fileUrl('src/index.html?tab=builds'));
-  await page().evaluate(
-    'localStorage.setItem("mc-build-tracker:v1", ' + JSON.stringify(JSON.stringify(state)) + '); return true;'
-  );
+  await page().evaluate(`
+    const result = window.TrackerModel.importJSON(${JSON.stringify(JSON.stringify(state))});
+    if (result.error) throw new Error(result.error);
+    localStorage.removeItem('mc-build-tracker:v1');
+    localStorage.setItem('mc-build-tracker:v2', JSON.stringify(result.state));
+    return true;
+  `);
   // A second goto() to the identical URL can be served from the already-complete document and
   // race the reload, so the injected state must be read by a genuinely fresh navigation.
   const stamp = Date.now();
@@ -1892,8 +2105,22 @@ async function injectState(state) {
   await page().waitFor('document.querySelector("#world-select") !== null && window.TrackerModel !== undefined');
 }
 
+/* EDICT-0017 migration cases: a legacy document only under `:v1`, with `:v2` cleared, so the
+   loader has to migrate. */
+async function injectV1State(state) {
+  await page().goto(fileUrl('src/index.html?tab=builds'));
+  await page().evaluate(
+    'localStorage.removeItem("mc-build-tracker:v2");'
+    + 'localStorage.setItem("mc-build-tracker:v1", ' + JSON.stringify(JSON.stringify(state)) + '); return true;'
+  );
+  const stamp = Date.now();
+  await page().goto(fileUrl('src/index.html?tab=builds&fixture=' + stamp));
+  await page().waitFor('document.querySelector("#world-select") !== null && window.TrackerModel !== undefined');
+}
+
 const FIXTURES_0015 = path.join(ROOT, 'tests', 'qa', 'edict-0015-fixtures');
 const FIXTURES_0016 = path.join(ROOT, 'tests', 'qa', 'edict-0016-fixtures');
+const FIXTURES_0017 = path.join(ROOT, 'tests', 'qa', 'edict-0017-fixtures');
 
 function fixture(name) {
   return path.join(FIXTURES_0015, name);
@@ -1903,13 +2130,18 @@ function fixture16(name) {
   return path.join(FIXTURES_0016, name);
 }
 
+function fixture17(name) {
+  return path.join(FIXTURES_0017, name);
+}
+
 // Load an exported backup text through the model, persist it and reload, so cases can start from a
 // frozen fixture without driving the import dialog each time.
 async function loadBackupText(text) {
   const imported = await page().evaluate(`
     const result = window.TrackerModel.importJSON(${JSON.stringify(text)});
     if (result.error) return false;
-    localStorage.setItem('mc-build-tracker:v1', window.TrackerModel.exportJSON(result.state));
+    localStorage.removeItem('mc-build-tracker:v1');
+    localStorage.setItem('mc-build-tracker:v2', window.TrackerModel.exportJSON(result.state));
     return true;
   `);
   assert.equal(imported, true, 'the fixture is a valid backup');
@@ -1939,284 +2171,189 @@ test('67 builds sort building, planned, done and keep registry order inside a ra
 
 test('68 the world header derives its stats and the retired summary block is gone (AC2)', async () => {
   await reset();
-  const summary = await page().evaluate(`
-    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v1'));
-    const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
-    return window.TrackerModel.worldSummary(world);
+  await page().waitFor('document.querySelector("#world-progress-text") !== null');
+  const expected = await page().evaluate(`
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
+    const world = state.worlds.find((candidate) => candidate.id === state.activeWorldId);
+    const summary = TrackerModel.worldSummary(world);
+    return { text: TrackerModel.progressText(summary.covered, summary.needed), pct: summary.pct, needed: summary.needed, covered: summary.covered };
   `);
-  const fmt = (value) => String(value).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  assert.equal(await page().text('#world-progress'), summary.pct + '% gathered', 'the percentage is the derived value');
-  assert.equal(
-    await page().text('#world-remaining'),
-    fmt(summary.remaining) + ' of ' + fmt(summary.needed) + ' items still to collect',
-    'the remaining line uses thousands separators and the same arithmetic'
-  );
-  assert.equal(await page().exists('#world-summary'), false, 'the old summary block is retired');
-  assert.equal(await page().exists('#summary-totals'), false, 'its ids are retired');
-  // §3 S5 corrections: (a) the bar is border-box with 2px hard borders while the fill lives in the
-  // content box, so the ratio must divide by clientWidth (209.625 - 4 = 205.625 → 36.0%), never the
-  // border box (which reads 35%); (b) run 4 showed the fill animates from 0 on load, so a single
-  // read can catch it mid-transition — wait until two consecutive reads agree, the same pattern
-  // stableRowCount() uses for rows, then compare.
-  const settleFill = async () => {
-    let previous = null;
-    for (let attempt = 0; attempt < 40; attempt += 1) {
-      const value = await page().evaluate(`
-        const bar = document.querySelector('#world-bar');
-        const fill = document.querySelector('#world-fill');
-        return { fillWidth: fill.getBoundingClientRect().width, clientWidth: bar.clientWidth };
-      `);
-      if (previous && Math.abs(previous.fillWidth - value.fillWidth) < 0.5) return value;
-      previous = value;
-      await sleep(60);
-    }
-    throw new Error('the world bar fill never settled');
-  };
-  const geometry = await settleFill();
-  const bar = await page().evaluate(`
-    const bar = document.querySelector('#world-bar');
-    const fill = document.querySelector('#world-fill');
-    return {
-      role: bar.getAttribute('role'), min: bar.getAttribute('aria-valuemin'), max: bar.getAttribute('aria-valuemax'),
-      now: bar.getAttribute('aria-valuenow'), barHeight: Math.round(bar.getBoundingClientRect().height),
-      fillHeight: Math.round(fill.getBoundingClientRect().height),
-      ratio: Math.round((${JSON.stringify(geometry.fillWidth)} / ${JSON.stringify(geometry.clientWidth)}) * 100),
-    };
-  `);
-  assert.equal(bar.role, 'progressbar', 'the bar exposes progressbar semantics');
-  assert.equal(bar.min, '0');
-  assert.equal(bar.max, '100');
-  assert.equal(bar.now, String(summary.pct), 'aria-valuenow is the derived percentage');
-  // Contract §3 (S2 correction): the bar is 10px border-box with 2px hard borders, so the inner
-  // fill paints 6px — identical to the progress block, never a 10px fill.
-  assert.equal(bar.barHeight, 10, 'the thin XP bar is 10px tall');
-  assert.equal(bar.fillHeight, 6, 'the inner fill paints inside the 2px hard borders (10 - 2x2)');
-  assert.ok(Math.abs(bar.ratio - summary.pct) <= 1, 'the fill paints the same percentage');
-  const meta = await page().text('#world-meta');
-  assert.equal(meta.indexOf('%'), -1, 'the identity line no longer repeats the percentage');
-  assert.equal(meta.indexOf('still to collect'), -1, 'the identity line no longer repeats the remaining count');
-  await shot('67-world-header-stats');
+  assert.match(expected.text, /^\d+ \/ \d+ items gathered \(\d+%\)$/, 'the progress copy follows the contract phrase');
+  assert.equal((await page().text('#world-progress-text')).trim(), expected.text, 'the sidebar prints the model progress line');
+  assert.equal(Number(await page().attr('#world-bar', 'aria-valuenow')), expected.pct, 'the bar reports the same percentage');
+  assert.equal(await page().evaluate('return document.querySelector("#world-fill").style.width;'), expected.pct + '%');
+  assert.equal(await page().attr('#world-bar', 'role'), 'progressbar');
+  assert.equal(await page().exists('#world-panel #world-progress'), true, 'the progress lives in the world panel');
+
+  const retired = ['#build-pct', '#build-summary', '#build-bar', '#build-fill', '#world-summary', '#world-remaining'];
+  for (const selector of retired) assert.equal(await page().count(selector), 0, selector + ' stays retired');
+  assert.equal(/still to collect|items gathered ·|of \d+ items/.test(await page().text('#world-panel')), false, 'the EDICT-0016 summary copy is gone');
+
+  const meta = (await page().text('#world-meta')).trim();
+  assert.match(meta, /Java/, 'the identity keeps the edition');
+  assert.match(meta, /1\.21\.4/, 'the identity keeps the version');
+  assert.match(meta, /3 builds/, 'the identity keeps the build count');
+  assert.doesNotMatch(meta, /gathered/, 'the header never repeats the progress line');
 });
 
 test('69 zero worlds and zero materials show honest states, not NaN (AC2/AC5)', async () => {
   await reset({ demo: false });
-  assert.equal(await page().text('#world-meta'), 'No world selected');
-  for (const id of ['#world-progress', '#world-remaining', '#world-bar']) {
-    assert.equal(await page().hidden(id), true, id + ' is hidden with no world');
-  }
+  await page().waitFor('document.querySelector("#world-select") !== null');
+  assert.equal((await page().text('#world-meta')).trim(), 'No world selected');
+  assert.equal((await page().text('#world-progress-text')).trim(), '', 'no world means no invented progress');
+  assert.equal(await page().hidden('#world-progress'), false, 'the progress block stays laid out when empty');
+  assert.equal((await page().text('#detail-progress-text')).trim(), '0 / 0 items gathered (0%)');
+  assert.equal(await page().hidden('#detail-body'), true, 'with no build selected the detail stays empty');
   assert.equal(/NaN/.test(await page().text('body')), false, 'no NaN leaks into the page');
+
   await page().click('#btn-new-world');
-  await page().waitFor('document.querySelector("#world-dialog") !== null && document.querySelector("#world-dialog").open');
+  await page().waitFor('document.querySelector("#world-dialog").open === true');
   await page().fill('#world-name', 'Empty Probe');
-  await page().click('#world-form button[type="submit"]:not([formnovalidate])');
-  await page().waitFor('!document.querySelector("#world-dialog").open');
-  assert.equal(await page().hidden('#world-progress'), true, 'a world with no builds keeps the stats row hidden');
-  assert.equal((await page().text('body')).indexOf('0 of 0'), -1, 'an empty world never claims "0 of 0"');
+  await page().click('#world-save');
+  await page().waitFor('document.querySelector("#world-dialog").open === false');
+  await page().waitFor('document.querySelector("#world-select").value !== ""');
+  const meta = (await page().text('#world-meta')).trim();
+  assert.match(meta, /^Java 1\.21 · 0 builds/, 'the new world reports zero builds');
+  assert.equal((await page().text('#world-progress-text')).trim(), '0 / 0 items gathered (0%)');
+  assert.equal(await page().attr('#world-bar', 'aria-valuenow'), '0');
+  assert.equal(await page().evaluate('return document.querySelector("#world-fill").style.width;'), '0%');
+  assert.equal((await page().text('#detail-progress-text')).trim(), '0 / 0 items gathered (0%)');
+  assert.equal(await page().hidden('#detail-empty'), false, 'the empty detail explains itself');
+  assert.equal(await page().count('#material-body .mat-row'), 0);
+  assert.equal(/NaN/.test(await page().text('body')), false, 'still no NaN after the empty world');
 });
 
-test('70 labels, controls, table headers and the top bar share their measured lines (AC3)', async () => {
+test('70 labels, controls and the materials toolbar share their measured lines (AC3)', async () => {
   await reset();
-  const measure = async (width, height, name) => {
-    await page().setViewport(width, height);
-    await sleep(250);
-    const data = await page().evaluate(`
-      const box = (node) => { const r = node.getBoundingClientRect(); return { left: r.left, top: r.top, width: r.width, height: r.height }; };
-      const labelled = [];
-      [['mat-choice', '#mat-choice'], ['mat-needed', '#mat-needed'], ['mat-collected', '#mat-collected']].forEach((pair) => {
-        const label = document.querySelector('label[for="' + pair[0] + '"]');
-        const control = document.querySelector(pair[1]);
-        if (label && control) {
-          // Contract §2 freezes the plus button LEFT of the input, so the input's left edge is
-          // 28-32 px right of the label by design: the label owns the stepper CLUSTER's left
-          // edge (Lead ruling 2026-10-26; measured label.left = cluster.left = 871.4 at 1280).
-          const cluster = control.closest('.stepper');
-          const plus = cluster ? cluster.querySelector('.stepper__btn[data-stepper-step="1"]') : null;
-          labelled.push({
-            id: pair[0],
-            label: box(label),
-            control: box(control),
-            cluster: cluster ? box(cluster) : null,
-            plusLeftOfInput: plus ? plus.getBoundingClientRect().left < control.getBoundingClientRect().left : null,
-          });
-        }
-      });
-      const controls = ['#mat-choice', '#mat-needed', '#mat-collected'].map((selector) => box(document.querySelector(selector)));
-      // Run-8 ruling: after §8 the sidebar controls live in #world-panel, not the top bar. The
-      // frozen top-bar sample is now the top bar's OWN row (view switcher + actions, pause included).
-      const topbar = Array.from(document.querySelectorAll('.panel__topbar .viewswitch__btn, .panel__topbar .mc-btn')).map(box);
-      const detailTable = document.querySelector('.mtable:not(.mtable--wide)');
-      const head = Array.from(detailTable.querySelectorAll('.mtable__head > *')).map(box);
-      const firstRow = detailTable.querySelector('.mat-row');
-      // Lead run-9 ruling: the stepper cluster IS a grid column in the shipped markup (it wraps
-      // the input and its two buttons), so the row carries the same five children as the header.
-      // The old "second grid row spanning every column" comment described the retired EDICT-0015 strip.
-      const row = Array.from(firstRow.children).map(box);
-      const mid = Array.from(firstRow.children).slice(1, 3).map((child) => {
-        const input = child.querySelector('input');
-        const plus = child.querySelector('.stepper__btn[data-stepper-step="1"]');
-        return {
-          isStepper: child.classList.contains('stepper'),
-          width: Math.round(child.getBoundingClientRect().width),
-          plusLeft: !!(input && plus && plus.getBoundingClientRect().left < input.getBoundingClientRect().left),
-        };
-      });
-      return { labelled, controls, topbar, head, row, mid, itemLabel: !!document.querySelector('label[for="mat-choice"]'),
-        worldLabel: (() => { const label = document.querySelector('label[for="world-select"]'); return label
-          ? { visible: !!(label.offsetParent || label.getClientRects().length), text: label.textContent.trim() } : null; })(),
-        innerWidth, scrollWidth: document.documentElement.scrollWidth };
-    `);
-    for (const pair of data.labelled) {
-      const anchor = pair.cluster || pair.control;
-      assert.ok(Math.abs(pair.label.left - anchor.left) <= 1,
-        pair.id + ': label left owns the ' + (pair.cluster ? 'stepper cluster' : 'control') + ' left');
-      if (pair.cluster) {
-        assert.equal(pair.plusLeftOfInput, true, pair.id + ': the + button sits left of the input (contract §2)');
-      }
-    }
-    assert.equal(data.labelled.length, 3, 'all three add-form labels are found (Item points at #mat-choice)');
-    assert.equal(data.itemLabel, true, 'the Item label carries for="mat-choice" (contract §7 bullet 1)');
-    assert.ok(data.worldLabel && data.worldLabel.visible, 'the World label is a real, visible label[for="world-select"]');
-    assert.match(data.worldLabel.text, /World/, 'the World label still names the select');
-    const spread = (values) => Math.max(...values) - Math.min(...values);
-    assert.ok(spread(data.controls.map((c) => c.top)) <= 1, 'the add-form controls share one top');
-    assert.ok(spread(data.controls.map((c) => c.height)) <= 1, 'the add-form controls share one height');
-    // Contract §7 bullet 5 is per-row (Lead S5 ruling): at ≤640 the top bar wraps by design.
-    // Run-6 ruling: group by VERTICAL CENTRE (|centre Δ| ≤ 1), not by exact top — the sidebar
-    // controls have different heights (select 41, buttons 28–30) but one centre line at 1280,
-    // and exactly two centre lines at 390.
-    const rows = [];
-    data.topbar.slice().sort((a, b) => (a.top + a.height / 2) - (b.top + b.height / 2)).forEach((control) => {
-      const centre = control.top + control.height / 2;
-      const row = rows.find((candidate) => Math.abs(candidate.centre - centre) <= 1);
-      if (row) {
-        row.members.push(control);
-      } else {
-        rows.push({ centre, members: [control] });
-      }
-    });
-    assert.equal(rows.length, data.innerWidth <= 640 ? 2 : 1,
-      'the top-bar controls form one row at 1280 and wrap into two rows at 390 (rows found: ' + rows.length + ')');
-    rows.forEach((rowGroup, index) => {
-      assert.ok(spread(rowGroup.members.map((c) => c.top + c.height / 2)) <= 2,
-        'top-bar row ' + (index + 1) + ' shares a centre line');
-    });
-    const compareColumns = (head, row, tableName, actionColumn) => {
-      // Only the VISIBLE table can be compared: the hidden view's rows measure 0×0 at (0,0).
-      assert.ok(head.length > 1 && head.length === row.length,
-        tableName + ': the header and the first row have the same column count (header ' + head.length + ', row ' + row.length + ')');
-      for (let index = 0; index < head.length; index += 1) {
-        assert.ok(Math.abs(head[index].left - row[index].left) <= 1,
-          tableName + ' column ' + (index + 1) + ': header left equals row-cell left');
-        if (!(actionColumn && index === head.length - 1)) {
-          assert.ok(Math.abs(head[index].width - row[index].width) <= 1,
-            tableName + ' column ' + (index + 1) + ': header width equals row-cell width');
-        }
-      }
-    };
-    if (data.innerWidth > 640) {
-      // The frozen AC3 column check runs only at the wide viewport: at 390 the first row wraps and
-      // a single-index left/width comparison cannot pass (Lead ruling, §3.8). The detail table's
-      // trailing remove-button column is inset by design, so its width is not compared.
-      compareColumns(data.head, data.row, 'detail table', true);
-      // Lead run-9 ruling: the two middle columns are the needed/got stepper clusters — 104 ± 1 px
-      // each, with the `+` button left of its input inside the cluster.
-      assert.equal(data.mid.length, 2, 'the two middle columns are the steppers');
-      data.mid.forEach((entry, index) => {
-        assert.equal(entry.isStepper, true, 'middle column ' + (index + 2) + ' is a .stepper cluster');
-        assert.ok(Math.abs(entry.width - 104) <= 1, 'stepper cluster width is 104 ± 1 (found ' + entry.width + ')');
-        assert.equal(entry.plusLeft, true, 'the + button sits left of its input inside the cluster');
-      });
-      await page().click('#tab-materials');
-      await sleep(200);
-      const wide = await page().evaluate(`
-        const box = (node) => { const r = node.getBoundingClientRect(); return { left: r.left, width: r.width }; };
-        const table = document.querySelector('.mtable--wide');
-        return { head: Array.from(table.querySelectorAll('.mtable__head > *')).map(box),
-          row: Array.from(table.querySelector('.mat-row').children).map(box) };
-      `);
-      compareColumns(wide.head, wide.row, 'shopping list table', true);
-      await page().click('#tab-builds');
-      await sleep(100);
-    }
-    assert.ok(data.scrollWidth <= data.innerWidth + 1, 'no horizontal overflow at ' + width + 'x' + height);
-    await shot(name);
-  };
-  await measure(1280, 900, '68-alignment-1280');
-  await measure(390, 844, '69-alignment-390');
-});
-
-test('71 the height budget holds on the frozen fixture at both viewports (AC7)', async () => {
-  const state = JSON.parse(fs.readFileSync(fixture('budget-state.json'), 'utf8'));
-  await injectState(state);
   await page().setViewport(1280, 900);
-  await sleep(300);
-  const desktop = await page().evaluate(`
-    return { height: document.documentElement.scrollHeight, scrollWidth: document.documentElement.scrollWidth,
-      clientWidth: document.documentElement.clientWidth };
-  `);
-  // Contract §12 (EDICT-0016): the desktop budget tightened from 900 px to 960 px and the
-  // phone budget from 1,500 px to 1,700 px; the Lead's baseline measured 1,289 px (desktop
-  // pre-change) and the case uses the budget fixture, not the demo seed. Lead ruling
-  // (2026-10-26): the desktop ceiling is 1,000 px — the +12% type knob made 960 px require
-  // cutting the strip's 10/14 padding below comfort; the current tree measures 976 px.
-  assert.ok(desktop.height <= 1000, 'the budget fixture fits 1280x900 within the 1,000 px budget (found ' + desktop.height + 'px)');
-  assert.equal(desktop.scrollWidth, desktop.clientWidth, 'no horizontal overflow at 1280x900');
-  await shot('70-height-1280');
-  await page().setViewport(390, 844);
-  await sleep(300);
-  const mobile = await page().evaluate(`
-    return { height: document.documentElement.scrollHeight, scrollWidth: document.documentElement.scrollWidth,
-      clientWidth: document.documentElement.clientWidth };
-  `);
-  assert.ok(mobile.height <= 1700, 'the budget fixture fits 390x844 within the 1,700 px budget (found ' + mobile.height + 'px)');
-  assert.equal(mobile.scrollWidth, mobile.clientWidth, 'no horizontal overflow at 390x844');
-  await shot('71-height-390');
-});
-
-test('72 the add form uses the shared stepper with resolved stack semantics (AC6)', async () => {
-  await reset();
-  const initial = await page().evaluate(`
-    const needed = document.querySelector('#mat-needed');
-    const stepper = needed && needed.closest('.stepper');
-    const buttons = stepper ? Array.from(stepper.querySelectorAll('.stepper__btn')) : [];
-    const rect = (el) => el.getBoundingClientRect();
-    const plus = stepper && stepper.querySelector('.stepper__btn[data-stepper-step="1"]');
-    const minus = stepper && stepper.querySelector('.stepper__btn[data-stepper-step="-1"]');
+  await page().waitFor('document.querySelector("#material-table .mtable__head") !== null');
+  const boxes = await page().evaluate(`
+    const rect = (selector) => {
+      const node = document.querySelector(selector);
+      if (!node) return null;
+      const box = node.getBoundingClientRect();
+      return { left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height };
+    };
     return {
-      exists: !!stepper,
-      buttons: buttons.length,
-      order: buttons.map((button) => button.dataset.stepperStep),
-      plusLeftOfInput: !!(plus && minus && rect(plus).left < rect(needed).left && rect(minus).left > rect(needed).left),
-      wrapped: !!stepper && stepper.contains(needed),
-      retired: document.querySelectorAll('#mat-steps, #mat-steps [data-step]').length,
-      gotSteps: document.querySelectorAll('#mat-collected ~ .stepper, #mat-collected + .stepper').length,
+      choiceLabel: rect('label[for="mat-choice"]'), choice: rect('#mat-choice'),
+      neededLabel: rect('label[for="mat-needed"]'), needed: rect('#mat-needed'),
+      add: rect('#add-material-form button[type="submit"]'),
+      toolbar: rect('#mat-toolbar'), sortField: rect('#mat-toolbar .field'), sort: rect('#mat-sort'), hideDone: rect('#mat-hide-done'), toggle: rect('.mat-viewtoggle'),
+      scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth,
     };
   `);
-  assert.equal(initial.exists, true, '.stepper wraps the add form Needed field');
-  assert.equal(initial.buttons, 2, 'two buttons, not the retired three-button strip');
-  assert.deepEqual(initial.order, ['1', '-1']);
-  assert.equal(initial.plusLeftOfInput, true, 'plus sits left of Needed');
-  assert.equal(initial.wrapped, true);
-  assert.equal(initial.retired, 0, 'the retired #mat-steps strip is gone');
-  assert.equal(initial.gotSteps, 0, 'Got carries no stepper');
-  await page().click('#mat-choice');
-  await page().waitFor('document.querySelector("#icon-dialog").open');
-  await page().fill('#icon-search', 'stone bricks');
-  await page().waitFor('document.querySelectorAll("#icon-grid .icon-tile[data-icon-slug]").length > 0');
-  await page().evaluate(`
-    const tile = Array.from(document.querySelectorAll('#icon-grid .icon-tile[data-icon-slug]'))
-      .find((node) => node.dataset.iconSlug === 'stone_bricks');
-    tile.click();
-    return true;
+  assert.ok(boxes.choiceLabel && boxes.choice && boxes.neededLabel && boxes.needed, 'the add form and its labels exist');
+  assert.ok(Math.abs(boxes.choiceLabel.left - boxes.choice.left) <= 2, 'the Item label sits on its control column');
+  assert.ok(Math.abs(boxes.neededLabel.left - boxes.needed.left) <= 2, 'the Needed label sits on its control column');
+  assert.ok(Math.abs(boxes.choiceLabel.bottom - boxes.neededLabel.bottom) <= 1, 'both labels share a baseline');
+  assert.ok(boxes.choiceLabel.bottom <= boxes.choice.top + 2, 'the label sits above its control');
+  const tops = [boxes.choice.top, boxes.needed.top, boxes.add.top];
+  assert.ok(Math.max(...tops) - Math.min(...tops) <= 2, 'the add-form controls share one line, saw tops ' + tops.join('/'));
+  const centres = [boxes.sortField, boxes.hideDone, boxes.toggle].map((box) => (box.top + box.bottom) / 2);
+  assert.ok(Math.max(...centres) - Math.min(...centres) <= 3, 'the toolbar controls are centred together');
+  assert.ok(boxes.sort.top >= boxes.toolbar.top && boxes.sort.bottom <= boxes.toolbar.bottom + 1, 'the toolbar contains its controls');
+  assert.ok(boxes.scrollWidth <= boxes.clientWidth + 1, 'no horizontal page overflow at 1280');
+
+  await page().setViewport(390, 844);
+  await page().waitFor('document.documentElement.clientWidth === 390');
+  const narrow = await page().evaluate('return { scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth };');
+  assert.ok(narrow.scrollWidth <= narrow.clientWidth + 1, 'no horizontal page overflow at 390');
+  await page().clearViewport();
+});
+
+test('71 the frozen fixture meets the section 6 width and above-the-fold budget (AC7)', async () => {
+  const budget = JSON.parse(fs.readFileSync(fixture('budget-state.json'), 'utf8'));
+  await injectState(budget);
+  await page().setViewport(1280, 900);
+  await page().waitFor('document.querySelector("#material-body .mat-row") !== null');
+  const boxes = await page().evaluate(`
+    const rect = (selector) => {
+      const node = document.querySelector(selector);
+      const box = node.getBoundingClientRect();
+      return { left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height };
+    };
+    const rows = Array.from(document.querySelectorAll('#material-body .mat-row')).map((row) => {
+      const box = row.getBoundingClientRect();
+      return { top: box.top, bottom: box.bottom };
+    });
+    return {
+      main: rect('#main'), panel: rect('#world-panel'), list: rect('#build-list'), detail: rect('#detail-body'),
+      header: rect('#build-header'), progress: rect('#detail-progress'), toolbar: rect('#mat-toolbar'), table: rect('#material-table'),
+      visibleRows: rows.filter((row) => row.top >= 0 && row.bottom <= 900).length,
+      rowCount: rows.length,
+      scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth,
+      tableOverflow: getComputedStyle(document.querySelector('#material-body')).overflowY,
+    };
   `);
-  await page().waitFor('!document.querySelector("#icon-dialog").open');
-  const before = Number(await page().value('#mat-needed'));
-  await modifierClick('#add-material-form .stepper .stepper__btn[data-stepper-step="1"]', 'shift');
-  await page().waitFor(`document.querySelector('#mat-needed').value === "${before + 64}"`,
-    { timeout: 4000 });
-  await page().click('#add-material-form .stepper__btn[data-stepper-step="1"]');
-  await page().waitFor(`document.querySelector('#mat-needed').value === "${before + 65}"`);
-  assert.equal(await page().value('#mat-collected'), '0', 'the form stepper never touches Got');
+  assert.ok(Math.abs(boxes.main.width - 1232) <= 1, '#main is 1232 wide at 1280 (contract section 6), saw ' + boxes.main.width);
+  assert.ok(boxes.panel.width >= 190 && boxes.panel.width <= 210, '#world-panel is 190-210 wide, saw ' + boxes.panel.width);
+  assert.ok(boxes.list.width >= 360, 'the build list is at least 360 wide, saw ' + boxes.list.width);
+  assert.ok(boxes.detail.width >= 640, 'the detail column is at least 640 wide, saw ' + boxes.detail.width);
+  assert.ok(boxes.header.bottom <= boxes.progress.top + 1, 'the header does not overlap the progress band');
+  assert.ok(boxes.progress.bottom <= boxes.toolbar.top + 1, 'the progress band does not overlap the toolbar');
+  assert.ok(boxes.toolbar.bottom <= boxes.table.top + 1, 'the toolbar does not overlap the table');
+  assert.ok(boxes.table.left >= boxes.detail.left - 1 && boxes.table.right <= boxes.detail.right + 1, 'the table stays inside the detail column');
+  assert.ok(boxes.visibleRows >= 6, 'at least six material rows fit above the fold, saw ' + boxes.visibleRows + ' of ' + boxes.rowCount);
+  assert.ok(!['auto', 'scroll'].includes(boxes.tableOverflow), 'the table is not an inner scroll box, saw ' + boxes.tableOverflow);
+  assert.ok(boxes.header.top < 900 && boxes.progress.bottom < 900 && boxes.toolbar.bottom < 900, 'header, progress and toolbar are above the fold');
+  assert.ok(boxes.scrollWidth <= boxes.clientWidth + 1, 'no horizontal page overflow at 1280');
+
+  await page().setViewport(390, 844);
+  await page().waitFor('document.documentElement.clientWidth === 390');
+  const narrow = await page().evaluate(`
+    return {
+      scrollWidth: document.documentElement.scrollWidth, clientWidth: document.documentElement.clientWidth,
+      stacked: Array.from(document.querySelectorAll('#material-body .mat-row')).every((row) => row.getBoundingClientRect().height > 60),
+    };
+  `);
+  assert.ok(narrow.scrollWidth <= narrow.clientWidth + 1, '390 has no horizontal page overflow');
+  assert.equal(narrow.stacked, true, 'the narrow row layout stacks instead of squeezing eight cells onto one line');
+  await page().clearViewport();
+});
+
+test('72 the add form keeps a numeric Needed field with resolved stack semantics (AC6)', async () => {
+  await reset();
+  await page().waitFor('document.querySelector("#mat-needed") !== null');
+  const attrs = await page().evaluate(`
+    const input = document.querySelector('#mat-needed');
+    return {
+      type: input.type, mode: input.getAttribute('inputmode'), min: input.getAttribute('min'), step: input.getAttribute('step'),
+      required: input.required,
+      steppers: document.querySelectorAll('#add-material-form .stepper, #add-material-form .stepper__btn, #add-material-form [data-step]').length,
+    };
+  `);
+  assert.equal(attrs.type, 'number', 'the add form keeps its number field');
+  assert.equal(attrs.mode, 'numeric');
+  assert.equal(attrs.min, '1', 'needed can never start below one');
+  assert.equal(attrs.step, '1');
+  assert.equal(attrs.required, true);
+  assert.equal(attrs.steppers, 0, 'the add form carries no stepper either');
+
+  const oracles = await page().evaluate(`
+    return {
+      egg: TrackerModel.formatUnits(138, 'egg', 'stacks'), stone: TrackerModel.formatUnits(138, 'stone', 'stacks'),
+      bucket: TrackerModel.formatUnits(138, 'water_bucket', 'stacks'),
+      eggStack: TrackerModel.stackSizeFor('egg'), bucketStack: TrackerModel.stackSizeFor('water_bucket'), stoneStack: TrackerModel.stackSizeFor('stone'),
+    };
+  `);
+  assert.equal(oracles.egg, '8 stacks + 10', 'the form shares the resolved stack semantics');
+  assert.equal(oracles.stone, '2 stacks + 10');
+  assert.equal(oracles.bucket, '138 stacks');
+  assert.equal(oracles.eggStack, 16);
+  assert.equal(oracles.bucketStack, 1);
+  assert.equal(oracles.stoneStack, 64);
+
+  await page().evaluate('document.querySelector("#mat-needed").value = "0"; return true;');
+  assert.equal(await page().evaluate('return document.querySelector("#mat-needed").checkValidity();'), false, 'a zero Needed is rejected by the field');
+  assert.equal(await page().evaluate('return document.querySelector("#add-material-form").checkValidity();'), false, 'the form refuses to submit it');
+
+  const rowsBefore = await page().count('#material-body .mat-row');
+  await addMaterialViaPicker('Egg', { needed: 138 });
+  await page().waitFor('Array.from(document.querySelectorAll("#material-body .mat-row__name")).some((node) => node.textContent.trim() === "Egg")');
+  const eggRow = (await materialRows()).find((row) => row.item === 'Egg');
+  assert.ok(eggRow, 'a valid submission still adds the row');
+  assert.equal(eggRow.needed, '138', 'the submitted Needed is stored as typed');
+  assert.equal((await materialRows()).length, rowsBefore + 1, 'the rejected zero never became a row');
 });
 
 test('73 the import dialog restores by paste and by drop, and reports bad JSON (AC8)', async () => {
@@ -2298,7 +2435,7 @@ test('74 custom materials are created in three scopes with the exact error strin
   await create('Test Bricks', 16, 'build', 'stone_bricks');
   assert.equal(await page().text('#mat-choice-name'), 'Test Bricks', 'the new entry becomes the pending material');
   let registries = await page().evaluate(`
-    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v1'));
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
     const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
     const build = world.builds.find((entry) => entry.id === state.activeBuildId) || world.builds[0];
     return { build: (build.customItems || []).map((item) => ({ name: item.name, stack: item.stack, icon: item.icon })),
@@ -2310,7 +2447,7 @@ test('74 custom materials are created in three scopes with the exact error strin
   await create('World Slate', 1, 'world', null);
   await create('Account Plank', 999, 'account', null);
   registries = await page().evaluate(`
-    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v1'));
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
     const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
     return { world: (world.customItems || []).map((item) => item.name), account: (state.customItems || []).map((item) => item.name) };
   `);
@@ -2340,48 +2477,64 @@ test('74 custom materials are created in three scopes with the exact error strin
   await page().click('#custom-cancel').catch(() => {});
 });
 
-test('75 resolution runs build -> world -> account -> catalogue (AC4)', async () => {
-  const state = JSON.parse(fs.readFileSync(fixture('custom-items.v1.json'), 'utf8'));
-  await injectState(state);
-  const stackDelta = async (query, slug) => {
-    await page().click('#mat-choice');
-    await page().waitFor('document.querySelector("#icon-dialog").open');
-    await page().fill('#icon-search', query);
-    await page().waitFor('document.querySelectorAll("#icon-grid .icon-tile[data-icon-slug]").length > 0');
-    const clicked = await page().evaluate(`
-      const tiles = Array.from(document.querySelectorAll('#icon-grid .icon-tile[data-icon-slug]'));
-      const wanted = ${JSON.stringify(slug || null)};
-      const tile = wanted ? tiles.find((node) => node.dataset.iconSlug === wanted) : tiles[0];
-      if (!tile) return null;
-      tile.click();
-      return true;
+test('75 resolution runs build -> world -> account -> catalogue for the 2s delta (AC4)', async () => {
+  const custom = JSON.parse(fs.readFileSync(fixture('custom-items.v1.json'), 'utf8'));
+  await injectState(custom);
+  const cases = [
+    { build: 'Iron Farm (spawn)', item: 'Deepslate Bricks', stack: 1, scope: 'build' },
+    { build: 'Iron Farm (spawn)', item: 'Pillar Stone', stack: 16, scope: 'build' },
+    { build: 'Storage Hall', item: 'Deepslate Bricks', stack: 64, scope: 'world' },
+    { build: 'Iron Farm (spawn)', item: 'Roof Tile', stack: 64, scope: 'account' },
+    { build: 'Storage Hall', item: 'Stone', stack: 64, scope: 'catalogue' },
+  ];
+  for (const entry of cases) {
+    await openBuildNamed(entry.build);
+    const resolved = await page().evaluate(`
+      const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
+      const world = state.worlds.find((candidate) => candidate.id === state.activeWorldId);
+      const build = world.builds.find((candidate) => candidate.name === ${JSON.stringify(entry.build)});
+      const item = TrackerModel.resolveItem(state, world, build, ${JSON.stringify(entry.item)});
+      return { stack: item.stack, scope: item.scope };
     `);
-    assert.ok(clicked, 'no tile matched ' + query);
-    await page().waitFor('!document.querySelector("#icon-dialog").open');
-    const before = Number(await page().value('#mat-needed'));
-    await modifierClick('#add-material-form .stepper .stepper__btn[data-stepper-step="1"]', 'shift');
-    await page().waitFor(`Number(document.querySelector('#mat-needed').value) !== ${before}`, { timeout: 4000 });
-    const after = Number(await page().value('#mat-needed'));
-    await page().fill('#mat-needed', '1');
-    return after - before;
-  };
-  await page().evaluate(`
-    const entry = Array.from(document.querySelectorAll('#build-list .build-entry')).find((node) =>
-      node.querySelector('.build-entry__name').textContent.trim() === 'Iron Farm (spawn)');
-    entry.click();
-    return true;
-  `);
-  assert.equal(await stackDelta('deepslate bricks', 'deepslate_bricks'), 1, 'a build-scope entry wins (+1)');
-  assert.equal(await stackDelta('pillar stone', 'pillar_stone'), 16, 'a second build-scope entry resolves (+16)');
-  assert.equal(await stackDelta('roof tile', 'roof_tile'), 64, 'the account entry resolves without a lower-scope shadow (+64)');
-  assert.equal(await stackDelta('stone', 'stone'), 64, 'the catalogue answers when no registry matches (+64)');
-  await page().evaluate(`
-    const entry = Array.from(document.querySelectorAll('#build-list .build-entry')).find((node) =>
-      node.querySelector('.build-entry__name').textContent.trim() === 'Storage Hall');
-    entry.click();
-    return true;
-  `);
-  assert.equal(await stackDelta('deepslate bricks', 'deepslate_bricks'), 64, 'without a build entry the world-scope entry answers (+64)');
+    assert.equal(resolved.stack, entry.stack, 'the ' + entry.scope + ' registry wins for ' + entry.item + ', saw ' + resolved.stack);
+
+    await addMaterialViaPicker(entry.item, { needed: 10 });
+    await page().waitFor(`Array.from(document.querySelectorAll('#material-body .mat-row__name')).some((node) => node.textContent.trim() === ${JSON.stringify(entry.item)})`);
+    const inventoryBefore = await page().evaluate(`
+      const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
+      const world = state.worlds.find((candidate) => candidate.id === state.activeWorldId);
+      return world.inventory;
+    `);
+    const matId = await page().evaluate(`
+      const row = Array.from(document.querySelectorAll('#material-body .mat-row'))
+        .find((candidate) => candidate.querySelector('.mat-row__name').textContent.trim() === ${JSON.stringify(entry.item)});
+      return row.getAttribute('data-mat');
+    `);
+    await openInventoryForRow(matId);
+    assert.match((await page().text('#inv-context')).trim(), /needed · \d+ in the world · \d+ covered$/);
+    await page().fill('#inv-delta', '2s');
+    await page().click('#inv-ok');
+    await page().waitFor('document.querySelector("#inventory-dialog").open === false');
+    const delta = await page().evaluate(`
+      const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
+      const world = state.worlds.find((candidate) => candidate.id === state.activeWorldId);
+      const before = ${JSON.stringify(inventoryBefore)};
+      const changed = Object.keys(world.inventory).filter((key) => (world.inventory[key] || 0) !== (before[key] || 0));
+      return { changed, value: changed.length === 1 ? world.inventory[changed[0]] - (before[changed[0]] || 0) : null };
+    `);
+    assert.equal(delta.changed.length, 1, 'one delta writes one inventory key');
+    assert.equal(delta.value, 2 * entry.stack, '2s adds two resolved stacks for the ' + entry.scope + ' scope (' + entry.item + '), saw ' + delta.value);
+    await page().click('#toast-action');
+    await page().waitFor(`
+      (function () {
+        const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
+        const world = state.worlds.find((candidate) => candidate.id === state.activeWorldId);
+        const before = ${JSON.stringify(inventoryBefore)};
+        const keys = Array.from(new Set([...Object.keys(world.inventory || {}), ...Object.keys(before)])).sort();
+        return keys.every((key) => (world.inventory[key] || 0) === (before[key] || 0));
+      })()
+    `);
+  }
 });
 
 test('76 custom tiles carry the badge and sort after the catalogue (AC5)', async () => {
@@ -2409,27 +2562,54 @@ test('76 custom tiles carry the badge and sort after the catalogue (AC5)', async
   );
 });
 
-test('77 export round-trips the registries and malformed imports are atomic (AC4)', async () => {
-  const state = JSON.parse(fs.readFileSync(fixture('custom-items.v1.json'), 'utf8'));
-  await injectState(state);
+test('77 export round-trips the v2 shape and malformed imports are atomic (AC4)', async () => {
+  await page().upload('#file-import', fixture('custom-items.v1.json'));
+  await page().waitFor('document.querySelector("#toast").textContent.indexOf("Backup restored.") === 0');
+  const live = await appState();
+  assert.equal(live.version, 2, 'the imported v1 document lands as v2');
   await page().evaluate(`
     window.__blobText = null;
     URL.createObjectURL = (blob) => { blob.text().then((text) => { window.__blobText = text; }); return 'blob:stub'; };
+    URL.revokeObjectURL = () => {};
     HTMLAnchorElement.prototype.click = function () {};
     return true;
   `);
   await page().click('#btn-export');
   await page().waitFor('window.__blobText !== null');
   const exported = JSON.parse(await page().evaluate('return window.__blobText;'));
+
+  assert.equal(exported.version, 2, 'Export emits the v2 document');
+  /* §5.9: `migratedFrom` is a one-shot flag kept in memory for the notice and dropped by the
+     first v2 save, so the persisted copy legitimately lacks it — compare everything else. */
+  assert.equal(Object.prototype.hasOwnProperty.call(live, 'migratedFrom'), false, 'the one-shot migration flag is not persisted');
+  const exportedCore = JSON.parse(JSON.stringify(exported));
+  delete exportedCore.migratedFrom;
+  assert.deepEqual(exportedCore, live, 'the export is the live document, not a stale copy');
   assert.equal(exported.customItems.length, 2, 'the account registry exports');
   assert.equal(exported.worlds[0].customItems.length, 1, 'the world registry exports');
   assert.equal(exported.worlds[0].builds[0].customItems.length, 2, 'the build registry exports');
-  const before = await page().evaluate(`return localStorage.getItem('mc-build-tracker:v1');`);
-  await page().upload('#file-import', fixture('v1-backup.json'));
+  assert.equal(typeof exported.worlds[0].inventory, 'object', 'the world carries an inventory map');
+  assert.equal(JSON.stringify(exported).includes('"collected"'), false, 'no material keeps a collected count');
+  let materialsSeen = 0;
+  for (const world of exported.worlds) {
+    for (const build of world.builds) {
+      for (const mat of build.materials) {
+        materialsSeen += 1;
+        assert.deepEqual(Object.keys(mat).sort(), ['id', 'item', 'needed'], 'a material is exactly id/item/needed');
+        assert.ok(Number.isInteger(mat.needed) && mat.needed >= 1, 'needed stays a positive integer');
+      }
+    }
+  }
+  assert.ok(materialsSeen > 0, 'the fixture actually exercised materials');
+
+  const dump = writeFixture('export-roundtrip.json', JSON.stringify(exported, null, 2));
+  await page().upload('#file-import', dump);
   await page().waitFor('document.querySelector("#toast").textContent.indexOf("Backup restored.") === 0');
-  const v1 = await page().evaluate(`return JSON.parse(localStorage.getItem('mc-build-tracker:v1'));`);
-  assert.deepEqual(v1.customItems || [], [], 'a v1 backup without registries imports as empty arrays');
-  const afterImport = await page().evaluate(`return localStorage.getItem('mc-build-tracker:v1');`);
+  const restored = await appState();
+  assert.deepEqual(restored, exportedCore, 'importing the export restores it exactly');
+  assert.equal(Object.prototype.hasOwnProperty.call(restored, 'migratedFrom'), false, 'a v2 save never keeps the one-shot flag');
+
+  const beforeInvalid = JSON.stringify(await appState());
   for (const name of ['invalid-no-name.json', 'invalid-duplicate-name.json', 'invalid-stack-zero.json', 'invalid-stack-1000.json', 'invalid-bad-icon.json', 'invalid-registry-shape.json']) {
     await page().upload('#file-import', fixture(name));
     await page().waitFor(`
@@ -2438,9 +2618,8 @@ test('77 export round-trips the registries and malformed imports are atomic (AC4
         return !!toast && !toast.hidden && /custom material|Name already|Stack size|Icon must|not a tracker backup|not valid JSON/i.test(toast.textContent);
       })()
     `);
-    assert.equal(await page().evaluate(`return localStorage.getItem('mc-build-tracker:v1');`), afterImport, name + ' must not mutate storage');
+    assert.equal(JSON.stringify(await appState()), beforeInvalid, name + ' must not mutate the live document');
   }
-  assert.notEqual(before, afterImport);
 });
 
 test('78 the pause control persists the choice across reloads (AC11/R7)', async () => {
@@ -2469,13 +2648,13 @@ test('79 the world header shows identity tokens, never the retired summary line 
     const select = document.querySelector('#world-select');
     const option = select && select.options[select.selectedIndex];
     const sidebar = document.querySelector('#world-panel-name');
-    const topbar = document.querySelector('.panel__topbar');
     return {
       text: meta.textContent.replace(/\\s+/g, ' ').trim(),
       sidebarName: sidebar ? sidebar.textContent.trim() : null,
       selectedName: option ? option.textContent.trim() : null,
       hasSummary: !!document.querySelector('#world-summary'),
-      topbar: topbar ? topbar.textContent : '',
+      hasProgress: !!document.querySelector('#world-panel #world-progress'),
+      progressText: document.querySelector('#world-progress-text').textContent.trim(),
     };
   `);
   assert.match(header.text, /Java/, 'the identity keeps the edition token');
@@ -2483,173 +2662,134 @@ test('79 the world header shows identity tokens, never the retired summary line 
   assert.match(header.text, /3 builds?/, 'the identity keeps the build count');
   assert.equal(header.hasSummary, false, '#world-summary stays retired');
   assert.equal(header.sidebarName, header.selectedName, 'the sidebar name mirrors the selected world');
-  assert.equal(/gathered|still to collect/.test(header.topbar), false,
-    'nothing world-related stays in the masthead row (contract §8)');
+  assert.equal(header.hasProgress, true, 'progress belongs to the sidebar alone');
+  assert.match(header.progressText, /items gathered/, 'the sidebar prints the contract progress line');
+  assert.doesNotMatch(header.text, /gathered|still to collect/, 'the identity row never repeats progress');
 });
 
-test('80 the detail panel contains its sections and nothing paints over the gathered strip (containment)', async () => {
-  // Added after run 11 (S5, EDICT-0015): `.materials` had been moved out of the detail panel
-  // (depth 4 in the working tree vs 5 in HEAD; `.detail` measured 191.5 px tall), so
-  // `#detail-body` no longer contained its own sections, while every earlier case stayed green
-  // (they asserted alignment, heights and budgets, never containment). This is a guard:
-  // containment first, then overlap between sections and across the compact top bar.
+test('80 nothing paints over the detail sections at either viewport (containment)', async () => {
   for (const vp of [{ width: 1280, height: 900 }, { width: 390, height: 844 }]) {
     await page().setViewport(vp.width, vp.height);
     await reset();
-    assert.equal(
-      await page().exists('#detail-body .mtable'),
-      true,
-      `${vp.width}px: the materials table must be a descendant of #detail-body`
-    );
-    assert.equal(
-      await page().exists('#detail-body #material-body .mat-row'),
-      true,
-      `${vp.width}px: the material rows must be descendants of #detail-body`
-    );
+    await page().waitFor('document.querySelector("#material-body .mat-row") !== null');
     const report = await page().evaluate(`
-      return (function () {
-        const rect = (el) => el.getBoundingClientRect();
-        const visible = (el) => {
-          if (!el) return false;
-          const r = rect(el);
-          return r.width > 0 && r.height > 0;
-        };
-        const overlap = (a, b) => {
-          const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
-          const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
-          return (w > 2 && h > 2) ? { x: Math.round(w), y: Math.round(h) } : null;
-        };
-        const detail = document.querySelector('#detail-body');
-        const strip = document.querySelector('#detail-body .progress-block');
-        const rows = Array.from(document.querySelectorAll('#detail-body #material-body .mat-row'));
-        const dRect = rect(detail);
-        const last = rows.length ? rect(rows[rows.length - 1]) : null;
-        const offenders = [];
-        const locked = [
-          document.querySelector('#detail-body h3.section-head__title'),
-          document.querySelector('#detail-body .mtable__head'),
-          ...rows
-        ];
-        for (const el of locked) {
-          if (!visible(el) || !strip) continue;
-          const hit = overlap(rect(el), rect(strip));
-          if (hit) offenders.push({ what: el.className || el.tagName, hit });
-        }
-        const topHits = [];
-        // EDICT-0016 §8 moves the world block into the sidebar: the guard now covers the
-        // sidebar cluster (name, picker, identity, stats, bar) and the masthead actions.
-        const bar = [
-          document.querySelector('#world-panel-name'),
-          document.querySelector('#world-select'),
-          document.querySelector('#world-meta'),
-          document.querySelector('#world-stats'),
-          document.querySelector('#world-bar'),
-          document.querySelector('.topbar__actions')
-        ].filter(visible);
-        for (let i = 0; i < bar.length; i++) {
-          for (let j = i + 1; j < bar.length; j++) {
-            // Nested nodes cannot "overlap" in the sibling sense: the bar lives inside the
-            // stats block by contract §8, so its rect always intersects its parent.
-            if (bar[i].contains(bar[j]) || bar[j].contains(bar[i])) continue;
-            const hit = overlap(rect(bar[i]), rect(bar[j]));
-            if (hit) topHits.push({ a: bar[i].id || bar[i].className, b: bar[j].id || bar[j].className, hit });
-          }
-        }
-        return {
-          rows: rows.length,
-          detailBottom: Math.round(dRect.bottom),
-          lastRowBottom: last ? Math.round(last.bottom) : Math.round(dRect.bottom),
-          stripHeight: strip ? Math.round(rect(strip).height) : 0,
-          offenders,
-          topHits
-        };
-      })()
+      const pick = (selector) => {
+        const node = document.querySelector(selector);
+        if (!node) return null;
+        const box = node.getBoundingClientRect();
+        return { left: box.left, right: box.right, top: box.top, bottom: box.bottom, width: box.width, height: box.height };
+      };
+      const rows = Array.from(document.querySelectorAll('#material-body .mat-row'));
+      const last = rows[rows.length - 1];
+      return {
+        detail: pick('#detail-body'), header: pick('#build-header'), progress: pick('#detail-progress'),
+        toolbar: pick('#mat-toolbar'), table: pick('#material-table'),
+        lastRow: last ? pick('#material-body .mat-row:last-of-type') : null,
+        rows: rows.length,
+        inDetail: !!document.querySelector('#detail-body .mtable') && !!document.querySelector('#detail-body #material-body .mat-row'),
+        stale: !!document.querySelector('#detail-body .progress-block, #build-pct, #build-summary, #build-bar, #build-fill'),
+      };
     `);
-    assert.ok(report.stripHeight > 0, `${vp.width}px: the gathered strip exists inside #detail-body`);
-    assert.ok(report.rows >= 1, `${vp.width}px: the selected demo build still has material rows`);
-    assert.ok(
-      report.lastRowBottom <= report.detailBottom + 1,
-      `${vp.width}px: the detail panel contains its last row (panel bottom ${report.detailBottom}, last row ${report.lastRowBottom})`
-    );
-    assert.deepEqual(report.offenders, [], `${vp.width}px: heading/table/rows must not paint over the gathered strip`);
-    assert.deepEqual(report.topHits, [], `${vp.width}px: top-bar nodes must not overlap each other`);
+    const label = vp.width + 'px';
+    assert.equal(report.rows > 0, true, label + ': the material rows render');
+    assert.equal(report.inDetail, true, label + ': the table and its rows stay inside #detail-body');
+    assert.equal(report.stale, false, label + ': the EDICT-0016 gathered strip is gone');
+    assert.ok(report.table.left >= report.detail.left - 1 && report.table.right <= report.detail.right + 1, label + ': the table stays inside the detail column');
+    assert.ok(report.header.left >= report.detail.left - 1 && report.header.right <= report.detail.right + 1, label + ': the header stays inside the detail column');
+    assert.ok(report.header.bottom <= report.progress.top + 1, label + ': the header does not overlap the progress band');
+    assert.ok(report.progress.bottom <= report.toolbar.top + 1, label + ': the progress band does not overlap the toolbar');
+    assert.ok(report.toolbar.bottom <= report.table.top + 1, label + ': the toolbar does not overlap the table');
+    assert.ok(report.lastRow.bottom <= report.table.bottom + 1, label + ': the table contains its last row');
   }
+  await page().clearViewport();
+});
+
+test('81 the 18px type knob scales body, headings and the compact build rows (AC1)', async () => {
+  await reset();
   await page().setViewport(1280, 900);
-});
-
-test('81 the 18px type knob scales body, headings and controls (AC1)', async () => {
-  await reset();
-  const sizes = await page().evaluate(`
-    const px = (el) => parseFloat(getComputedStyle(el).fontSize);
-    const h = (sel) => { const el = document.querySelector(sel); return el ? Math.round(el.getBoundingClientRect().height) : -1; };
+  await page().waitFor('document.querySelector("#build-list .build-entry") !== null');
+  const type = await page().evaluate(`
+    const size = (selector) => parseFloat(getComputedStyle(document.querySelector(selector)).fontSize);
+    const entries = Array.from(document.querySelectorAll('#build-list .build-entry')).map((entry) => {
+      const box = entry.getBoundingClientRect();
+      return {
+        height: box.height,
+        children: Array.from(entry.children).map((child) => child.className.split(' ')[0]),
+        hasMeta: !!entry.querySelector('.build-entry__meta, .build-entry__sub, .build-entry__detail'),
+        hasName: !!entry.querySelector('.build-entry__name'),
+        hasBadge: !!entry.querySelector('.build-entry__badge'),
+        hasBar: !!entry.querySelector('.build-entry__bar'),
+      };
+    });
+    const row = document.querySelector('#material-body .mat-row');
     return {
-      body: px(document.body),
-      h2: px(document.querySelector('.builds__list .section-head__title')),
-      masthead: h('.masthead__title'),
-      input: h('#mat-needed'),
-      rowInput: h('#material-body [data-mat-field=needed]'),
-      matChoice: h('#mat-choice'),
-      addStepper: h('.add__num .stepper'),
-      entry: h('.build-entry'),
-      row: h('.mat-row'),
+      body: size('body'), title: size('.builds__list .section-head__title'), entries,
+      rowHeight: row ? row.getBoundingClientRect().height : 0,
+      inputHeight: row ? row.querySelector('[data-mat-field="needed"]').getBoundingClientRect().height : 0,
+      choiceHeight: document.querySelector('#mat-choice').getBoundingClientRect().height,
+      masthead: document.querySelector('.masthead__title') ? document.querySelector('.masthead__title').getBoundingClientRect().height : 0,
     };
   `);
-  assert.equal(sizes.body, 18, 'body text is 18px (html { font-size: 18px })');
-  assert.equal(sizes.h2, 22, 'section h2 is 22px');
-  assert.ok(sizes.masthead <= 46, 'masthead title height is at most 46px (found ' + sizes.masthead + ')');
-  assert.ok(sizes.entry <= 70, 'build entries stay at or below 70px (found ' + sizes.entry + ')');
-  assert.ok(sizes.row <= 62, 'material rows stay at or below 62px (found ' + sizes.row + ')');
-  // Lead run-6 ruling: contract §8's A2 exception is real — material-row inputs and #mat-choice keep
-  // the 36px box; the 42px rule applies to dialog/form inputs (measured below on the build dialog).
-  // Lead run-8 ruling: the material-row input is sized by its 28px stepper cluster (28), the
-  // add-form cluster and #mat-choice are 36, dialog inputs are 42.
-  assert.ok(Math.abs(sizes.rowInput - 28) <= 1, 'material-row inputs are 28px tall (±1, found ' + sizes.rowInput + ')');
-  assert.ok(Math.abs(sizes.matChoice - 36) <= 1, '#mat-choice keeps the 36px A2 box (found ' + sizes.matChoice + ')');
-  assert.ok(Math.abs(sizes.addStepper - 36) <= 1, 'the add-form stepper clusters are 36px tall (±1, found ' + sizes.addStepper + ')');
-  // Lead run-4 ruling: measure a VISIBLE normal .mc-btn, not the --sm top-bar buttons. The build
-  // dialog's submit is the first always-there normal primary button.
+  assert.equal(type.body, 18, 'the root type knob is 18px');
+  assert.equal(type.title, 22, 'section titles scale with it');
+  assert.ok(type.masthead <= 46, 'the masthead title stays one scaled line');
+  assert.ok(type.entries.length >= 2, 'the fixture lists builds');
+  for (const entry of type.entries) {
+    assert.ok(entry.height <= 70, 'a build entry is one compact line, saw ' + entry.height);
+    assert.ok(entry.height >= 36, 'and never collapses below the tap target');
+    assert.equal(entry.hasMeta, false, 'the entry carries no second meta row');
+    assert.equal(entry.hasName && entry.hasBadge && entry.hasBar, true, 'name, badge and mini bar are the whole entry');
+  }
+  assert.ok(type.rowHeight >= 48, 'material rows keep a comfortable height');
+  assert.ok(Math.abs(type.inputHeight - 28) <= 1, 'the row editor keeps its 28px box');
+  assert.ok(Math.abs(type.choiceHeight - 36) <= 1, 'the item chip keeps its 36px box');
+
   await page().click('#btn-new-build');
-  await page().waitFor('document.querySelector("#build-dialog").open');
-  const normalBtn = await page().evaluate(`
-    const button = document.querySelector('#build-dialog button[type="submit"]:not([formnovalidate])');
-    const rect = button.getBoundingClientRect();
-    return {
-      height: Math.round(rect.height),
-      small: button.classList.contains('mc-btn--sm'),
-      visible: button.getClientRects().length > 0,
-      dialogInput: Math.round(document.querySelector('#build-dlg-name').getBoundingClientRect().height),
-    };
+  await page().waitFor('document.querySelector("#build-dialog").open === true');
+  const dialog = await page().evaluate(`
+    const name = document.querySelector('#build-dlg-name');
+    const save = document.querySelector('#build-dialog-save');
+    return { nameHeight: name.getBoundingClientRect().height, buttonHeight: save ? save.getBoundingClientRect().height : 0 };
   `);
+  assert.ok(dialog.nameHeight >= 42, 'dialog inputs scale with the knob');
+  assert.ok(dialog.buttonHeight >= 32, 'dialog buttons stay above the small target floor, saw ' + dialog.buttonHeight);
   await page().press('Escape', { code: 'Escape', keyCode: 27 });
-  await page().waitFor('!document.querySelector("#build-dialog").open');
-  assert.equal(normalBtn.visible, true, 'the dialog submit button is visible');
-  assert.equal(normalBtn.small, false, 'the dialog submit button is a normal .mc-btn (not --sm)');
-  assert.ok(normalBtn.height >= 34, 'a visible normal .mc-btn is at least 34px tall (found ' + normalBtn.height + ')');
-  assert.ok(normalBtn.dialogInput >= 42, 'dialog inputs keep the 42px box (found ' + normalBtn.dialogInput + ')');
+  await page().waitFor('document.querySelector("#build-dialog").open === false');
+  await page().clearViewport();
 });
 
-test('82 the gathered strip gets 10/14 padding and a 12px label gap (AC2)', async () => {
+test('82 the detail progress band keeps its compact padding and one-line bar (AC2)', async () => {
   await reset();
-  await openFirstBuild();
-  const box = await page().evaluate(`
-    const block = document.querySelector('#detail-body .progress-block--inline');
-    if (!block) return null;
-    const style = getComputedStyle(block);
-    const pct = block.querySelector('.progress-block__pct');
-    const head = block.querySelector('.progress-block__head');
-    const label = head ? head.firstElementChild : null;
+  await page().waitFor('document.querySelector("#detail-progress") !== null');
+  const band = await page().evaluate(`
+    const progress = document.querySelector('#detail-progress');
+    const style = getComputedStyle(progress);
+    const text = document.querySelector('#detail-progress-text');
+    const bar = document.querySelector('#detail-bar');
+    const fill = document.querySelector('#detail-fill');
+    const textBox = text.getBoundingClientRect();
+    const barBox = bar.getBoundingClientRect();
     return {
-      paddingTop: style.paddingTop,
-      paddingLeft: style.paddingLeft,
-      gap: (pct && label) ? Math.round(pct.getBoundingClientRect().left - label.getBoundingClientRect().right) : -1,
-      baseline: (pct && label) ? Math.abs(pct.getBoundingClientRect().top - label.getBoundingClientRect().top) <= 4 : false,
+      paddingTop: style.paddingTop, paddingLeft: style.paddingLeft, gap: style.columnGap || style.gap,
+      text: text.textContent.trim(), fontSize: getComputedStyle(text).fontSize,
+      barHeight: barBox.height, barLeft: barBox.left, barRight: barBox.right,
+      textRight: textBox.right, textBottom: textBox.bottom, barBottom: barBox.bottom,
+      pct: bar.getAttribute('aria-valuenow'), fill: fill.style.width,
+      retired: !!document.querySelector('#detail-progress .progress-block, #detail-body .progress-block'),
     };
   `);
-  assert.ok(box, 'the detail gathered strip exists inside #detail-body');
-  assert.equal(box.paddingTop, '10px', 'the strip has 10px inner padding');
-  assert.equal(box.paddingLeft, '14px', 'the strip has 14px inner padding');
-  assert.ok(box.gap >= 12, 'the label and the percentage are at least 12px apart (found ' + box.gap + ')');
-  assert.equal(box.baseline, true, 'the percentage stays on the label baseline');
+  assert.equal(band.paddingTop, '4px', 'the band keeps its tight vertical padding');
+  assert.equal(band.paddingLeft, '8px', 'and its side padding');
+  assert.ok(parseFloat(band.gap) >= 8, 'the label and the bar keep a readable gap, saw ' + band.gap);
+  assert.equal(band.fontSize, '15px', 'the label uses the small print size');
+  assert.ok(band.barHeight >= 10 && band.barHeight <= 14, 'the bar stays a thin band, saw ' + band.barHeight);
+  assert.ok(band.barLeft >= band.textRight, 'the bar starts after the label, not on top of it');
+  assert.ok(Math.abs(band.textBottom - band.barBottom) <= 6, 'label and bar share one line');
+  assert.match(band.text, /^\d+ \/ \d+ items gathered \(\d+%\)$/, 'the band prints the contract phrase');
+  const pct = Number(/(\d+)%\)$/.exec(band.text)[1]);
+  assert.equal(Number(band.pct), pct, 'the bar reports the same percentage the text prints');
+  assert.equal(parseFloat(band.fill), pct, 'the fill matches the percentage');
+  assert.equal(band.retired, false, 'the retired gathered strip is gone');
 });
 
 test('83 notes render as a plain paragraph with no field skin (AC3)', async () => {
@@ -2727,46 +2867,47 @@ test('85 the save glyph is the 14px check path (AC5)', async () => {
   await page().press('Escape', { code: 'Escape', keyCode: 27 });
 });
 
-test('86 every stepper button is 28x28 and inputs keep the 42px box (AC6/AC12)', async () => {
-  await reset();
-  await openFirstBuild();
-  const measure = await page().evaluate(`
-    const visible = (node) => node.getClientRects().length > 0;
-    const buttons = Array.from(document.querySelectorAll('.stepper__btn')).filter(visible);
-    const squares = buttons.map((button) => {
-      const r = button.getBoundingClientRect();
-      return { w: Math.round(r.width), h: Math.round(r.height) };
-    });
-    const clusters = (selector) => Array.from(document.querySelectorAll(selector))
-      .filter(visible)
-      .map((cluster) => {
-        const r = cluster.getBoundingClientRect();
-        return { h: Math.round(r.height), w: Math.round(r.width) };
-      });
-    const widths = Array.from(document.querySelectorAll('.stepper input'))
-      .filter(visible)
-      .map((input) => Math.round(input.getBoundingClientRect().width));
+test('86 every v2 row keeps the contract cell order and 28px controls (AC6/AC12)', async () => {
+  const orderOf = () => page().evaluate(`
+    const row = document.querySelector('#material-body .mat-row');
+    const kind = (child) => (child.classList.contains('mat-row__item') ? 'item'
+      : child.classList.contains('mat-row__needed') ? 'needed'
+      : child.hasAttribute('data-mat-got') ? 'got'
+      : child.hasAttribute('data-mat-covered') ? 'covered'
+      : child.hasAttribute('data-mat-remaining') ? 'remaining'
+      : child.hasAttribute('data-mat-surplus') ? 'surplus'
+      : child.hasAttribute('data-mat-update') ? 'update'
+      : child.classList.contains('mat-row__menu') ? 'menu' : 'other');
+    const input = row.querySelector('[data-mat-field="needed"]');
+    const update = row.querySelector('[data-mat-update]');
+    const size = (node) => { const box = node.getBoundingClientRect(); return { width: box.width, height: box.height }; };
     return {
-      count: buttons.length,
-      squares,
-      rowClusters: clusters('#material-body .stepper'),
-      addClusters: clusters('.add__num .stepper'),
-      widths,
+      order: Array.from(row.children).map(kind),
+      rowHeight: size(row).height, input: size(input), update: size(update),
+      surplus: (row.querySelector('[data-mat-surplus]') || {}).textContent || '',
+      stepper: row.querySelectorAll('.stepper, .stepper__btn, [data-step], .mat-step').length,
     };
   `);
-  assert.ok(measure.count >= 4, 'the demo build renders at least two steppers');
-  assert.equal(measure.squares.every((entry) => entry.w === 28 && entry.h === 28), true,
-    'every visible stepper button is 28x28');
-  // Lead run-6 ruling: the cluster box follows its context — material-row clusters are 28 tall
-  // (buttons 28 + 2px padding, ≥100 wide), the add-form clusters are 36 tall.
-  assert.ok(measure.rowClusters.length >= 2, 'the material rows expose their clusters');
-  assert.equal(measure.rowClusters.every((cluster) => Math.abs(cluster.h - 28) <= 1 && cluster.w >= 100), true,
-    'material-row clusters are 28px tall (±1) and at least 100px wide: ' + JSON.stringify(measure.rowClusters));
-  assert.ok(measure.addClusters.length >= 2, 'the add form exposes its two clusters');
-  assert.equal(measure.addClusters.every((cluster) => Math.abs(cluster.h - 36) <= 1), true,
-    'add-form stepper clusters are 36px tall (±1): ' + JSON.stringify(measure.addClusters));
-  assert.equal(measure.widths.every((width) => width >= 30), true,
-    'the stepper input keeps at least a 30px box: found ' + measure.widths.join(','));
+
+  await seed17('surplus-state.json');
+  await page().waitFor('document.querySelector("#material-body .mat-row") !== null');
+  const surplus = await orderOf();
+  assert.deepEqual(surplus.order, ['item', 'needed', 'got', 'covered', 'remaining', 'surplus', 'update', 'menu'],
+    'a row with surplus keeps the contract cell order');
+  assert.match(surplus.surplus.trim(), /^\+385 surplus$/, 'the surplus cell states the overage');
+  assert.ok(surplus.rowHeight >= 48, 'rows keep a 48px minimum, saw ' + surplus.rowHeight);
+  assert.ok(Math.abs(surplus.input.height - 28) <= 1, 'the Needed editor is a 28px control');
+  assert.ok(surplus.input.width >= 30, 'and wide enough to hold a number');
+  assert.ok(Math.abs(surplus.update.height - 28) <= 1, 'the Update button matches it');
+  assert.equal(surplus.stepper, 0, 'no stepper node inside the row');
+
+  await reset();
+  await page().waitFor('document.querySelector("#material-body .mat-row") !== null');
+  const plain = await orderOf();
+  assert.deepEqual(plain.order, ['item', 'needed', 'got', 'covered', 'remaining', 'update', 'menu'],
+    'without surplus the cell sequence simply closes up');
+  assert.equal(plain.surplus.trim(), '', 'no empty surplus cell is rendered');
+  assert.ok(plain.rowHeight >= 48);
 });
 
 test('87 timestamps render UTC from the ISO prefix, malformed values show a dash (AC7)', async () => {
@@ -2792,347 +2933,1518 @@ test('87 timestamps render UTC from the ISO prefix, malformed values show a dash
   assert.match(stamps, /—/, 'an unparseable stamp displays as a dash, not an invented date');
 });
 
-test('88 a click on the needed input selects all, capability-safely (AC8)', async () => {
+test('88 focusing the Needed editor selects all, capability-safely (AC8)', async () => {
   await reset();
-  await openFirstBuild();
+  await page().waitFor('document.querySelector("#material-body .mat-row") !== null');
+  // The selection API only reports ranges while the document itself has focus; bring the page to the
+  // front first so the assertion measures the app's select-on-focus behaviour, not a background tab.
+  try {
+    await page().cdp.send('Page.bringToFront');
+  } catch (error) {
+    // older harness: the click below still focuses the document
+  }
+  await page().waitFor('document.hasFocus() === true');
   const result = await page().evaluate(`
-    const input = document.querySelector('#material-body [data-mat-field=needed]');
+    const input = document.querySelector('#material-body .mat-row [data-mat-field="needed"]');
+    const read = () => ({ start: input.selectionStart, end: input.selectionEnd, length: (input.value || '').length, type: input.type, focused: document.activeElement === input });
     input.focus();
-    input.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    const afterFocus = read();
+    input.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const afterClick = read();
+    return { afterFocus, afterClick };
+  `);
+  for (const [label, state] of [['focus', result.afterFocus], ['click', result.afterClick]]) {
+    assert.equal(state.type, 'text', label + ': the editor is a text input, whose selection API works');
+    assert.equal(state.focused, true, label + ': the editor takes focus');
+    const full = state.length > 0 && state.start === 0 && state.end === state.length;
+    const unsupported = state.start === null || state.end === null;
+    assert.ok(full || unsupported, label + ': focusing selects the whole value (or the capability is unavailable), saw ' + state.start + '..' + state.end + ' of ' + state.length);
+  }
+});
+
+test('89 the Needed editor commits on Enter and on blur, and Escape reverts (AC9)', async () => {
+  // EDICT-0017 retired the stepper, and with it the wheel-plus-modifier shortcuts this case used to
+  // drive: src/app.js registers no `wheel` listener any more. The AC9 intent — the editor has an
+  // explicit commit and an explicit revert path, and nothing else mutates the count — is covered here
+  // by the three real keyboard/blur paths, plus a guard that a wheel event never secretly commits.
+  await reset();
+  await page().waitFor('document.querySelector("#material-body .mat-row") !== null');
+  const matId = await page().evaluate('return document.querySelector("#material-body .mat-row").getAttribute("data-mat");');
+  const neededOf = async () => {
+    const state = await appState();
+    return state.worlds.flatMap((world) => world.builds).flatMap((build) => build.materials).find((mat) => mat.id === matId).needed;
+  };
+  const start = await neededOf();
+
+  await page().evaluate(`
+    const input = document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]');
+    input.focus();
+    input.value = '42';
+    return true;
+  `);
+  await page().press('Enter', { code: 'Enter', keyCode: 13 });
+  await page().waitFor(`document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]').getAttribute('data-prev') === '42'`);
+  assert.equal(await neededOf(), 42, 'Enter commits');
+  assert.equal(start === 42, false, 'the fixture did not start at the committed value');
+
+  await page().evaluate(`
+    const input = document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]');
+    input.focus();
+    input.value = '43';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  `);
+  await page().waitFor(`document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]').getAttribute('data-prev') === '43'`);
+  assert.equal(await neededOf(), 43, 'blur/change commits');
+
+  await page().evaluate(`
+    const input = document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]');
+    input.focus();
+    input.value = '99';
+    return true;
+  `);
+  await page().press('Escape', { code: 'Escape', keyCode: 27 });
+  assert.equal(await neededOf(), 43, 'Escape commits nothing');
+  await page().waitFor(`document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]').value === '43'`);
+  assert.equal(await page().evaluate(`return document.activeElement === document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]');`), false, 'Escape also leaves the editor');
+
+  const scrolled = await page().evaluate('return window.scrollY;');
+  const displayed = await page().evaluate(`return document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]').value;`);
+  await page().evaluate(`
+    const input = document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]');
+    input.focus();
+    input.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 120 }));
+    return true;
+  `);
+  assert.equal(await neededOf(), 43, 'a wheel event over the editor never commits');
+  assert.equal(await page().evaluate('return window.scrollY;'), scrolled, 'and never scrolls the page under the pointer');
+  assert.equal(await page().evaluate(`return document.querySelector('[data-mat="${matId}"] [data-mat-field="needed"]').value;`), displayed, 'the displayed value stays the uncommitted one');
+});
+
+test('90 Tab walks Needed to Update and Enter on a row opens the shared dialog (AC10)', async () => {
+  await reset();
+  await page().waitFor('document.querySelector("#material-body .mat-row") !== null');
+  const firstId = await page().evaluate('return document.querySelector("#material-body .mat-row").getAttribute("data-mat");');
+  await page().evaluate(`document.querySelector('[data-mat="${firstId}"] [data-mat-field="needed"]').focus(); return true;`);
+  await page().press('Tab', { code: 'Tab', keyCode: 9 });
+  const afterTab = await page().evaluate(`
+    const active = document.activeElement;
+    return { tag: active.tagName, update: active.getAttribute('data-mat-update'), row: active.closest('.mat-row') ? active.closest('.mat-row').getAttribute('data-mat') : null };
+  `);
+  assert.equal(afterTab.tag, 'BUTTON', 'Tab leaves the editor for a button');
+  assert.equal(afterTab.update, firstId, 'it is the row Update button');
+  assert.equal(afterTab.row, firstId, 'inside the same row');
+
+  await page().evaluate(`document.querySelector('[data-mat="${firstId}"]').focus(); return true;`);
+  await page().press('Enter', { code: 'Enter', keyCode: 13 });
+  await page().waitFor('document.querySelector("#inventory-dialog").open === true');
+  assert.match((await page().text('#inv-title')).trim(), /^Update .+/);
+  assert.match((await page().text('#inv-context')).trim(), /needed · \d+ in the world · \d+ covered$/);
+  assert.equal(await page().count('#tile-dialog'), 0, 'one shared dialog, not a second one');
+  await closeInventoryWithEscape();
+
+  await page().evaluate('document.querySelector("#mat-needed").focus(); return true;');
+  await page().press('Tab', { code: 'Tab', keyCode: 9 });
+  const formTab = await page().evaluate('return { tag: document.activeElement.tagName, type: document.activeElement.getAttribute("type"), text: document.activeElement.textContent.trim() };');
+  assert.equal(formTab.tag, 'BUTTON', 'Tab from the add form Needed reaches the Add button');
+  assert.equal(formTab.type, 'submit');
+  assert.equal(formTab.text, 'Add');
+});
+
+test('91 the world sidebar holds the contract width and hides on the Worlds tab (AC11)', async () => {
+  await reset();
+  await page().setViewport(1280, 900);
+  await page().waitFor('document.documentElement.clientWidth === 1280');
+  const panel = await page().evaluate(`
+    const node = document.querySelector('#world-panel');
+    const box = node.getBoundingClientRect();
+    const select = document.querySelector('#world-select');
     return {
-      type: input.type,
-      focused: document.activeElement === input,
-      start: input.selectionStart,
-      end: input.selectionEnd,
-      length: String(input.value).length,
+      width: box.width, hidden: node.hidden, left: box.left,
+      ids: Array.from(node.querySelectorAll('[id]')).map((child) => child.id),
+      name: document.querySelector('#world-panel-name').textContent.trim(),
+      selected: select.options[select.selectedIndex].textContent.trim(),
+      hasStats: !!document.querySelector('#world-stats'),
+      progressVisible: !document.querySelector('#world-progress').hidden,
     };
   `);
-  assert.equal(result.type, 'number', 'the row input stays type=number');
-  assert.equal(result.focused, true, 'the click focuses the input');
-  const fullSelection = result.start !== null && result.start === 0 && result.end === result.length;
-  assert.equal(fullSelection || result.start === null, true,
-    'either the input reports the whole value selected, or Chrome reports a null selection for type=number');
-});
+  assert.ok(panel.width >= 190 && panel.width <= 210, '#world-panel is 190-210 wide (contract section 6), saw ' + panel.width);
+  assert.equal(panel.hidden, false, 'the sidebar shows on Builds');
+  const expected = ['world-avatar', 'world-select', 'world-panel-name', 'world-meta', 'world-progress', 'inactive-mode', 'unit-toggle', 'btn-shopping-list', 'btn-new-world', 'btn-import', 'btn-export'];
+  assert.deepEqual(panel.ids.filter((id) => expected.includes(id)), expected, 'the sidebar keeps its identity, progress and action order');
+  assert.equal(panel.hasStats, false, '#world-stats is retired');
+  assert.equal(panel.progressVisible, true, 'progress lives in the sidebar');
+  assert.equal(panel.name, panel.selected, 'the sidebar name mirrors the selected world');
 
-test('89 wheel on a focused stepper input applies the modifiers without scrolling (AC9)', async () => {
-  await reset();
-  await openFirstBuild();
-  const wheel = async (shift, ctrl) => page().evaluate(`
-    const input = document.querySelector('#material-body [data-mat-field=needed]');
-    input.focus();
-    const before = Number(input.value);
-    const scrollBefore = window.scrollY;
-    input.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: -1, shiftKey: ${shift}, ctrlKey: ${ctrl} }));
-    return { before, after: Number(input.value), scrollBefore, scrollAfter: window.scrollY };
-  `);
-  const plain = await wheel(false, false);
-  assert.equal(plain.after, plain.before + 1, 'a plain wheel adds 1');
-  assert.equal(plain.scrollAfter, plain.scrollBefore, 'the wheel does not scroll the page');
-  const withShift = await wheel(true, false);
-  assert.equal(withShift.after, plain.after + 64, 'Shift+wheel adds a full stack (64 for stone)');
-  const withCtrl = await wheel(false, true);
-  assert.equal(withCtrl.after, withShift.after + 16, 'Ctrl+wheel adds 16');
-  const ignored = await page().evaluate(`
-    const input = document.querySelector('#material-body [data-mat-field=needed]');
-    input.blur();
-    const before = Number(input.value);
-    input.dispatchEvent(new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: -1 }));
-    return { before, after: Number(input.value) };
-  `);
-  assert.equal(ignored.after, ignored.before, 'an unfocused wheel is ignored');
-});
-
-test('90 Enter walks the same-kind column and the add form walks needed to got (AC10)', async () => {
-  await reset();
-  await openFirstBuild();
-  const rows = await page().evaluate(`return document.querySelectorAll('#material-body [data-mat-field=needed]').length;`);
-  assert.ok(rows >= 2, 'the demo build has at least two material rows');
-  await page().evaluate(`document.querySelectorAll('#material-body [data-mat-field=needed]')[0].focus();`);
-  await page().press('Enter', { code: 'Enter', keyCode: 13 });
-  await page().waitFor('document.activeElement === document.querySelectorAll("#material-body [data-mat-field=needed]")[1]');
-  await page().evaluate(`document.querySelectorAll('#material-body [data-mat-field=collected]')[0].focus();`);
-  await page().press('Enter', { code: 'Enter', keyCode: 13 });
-  await page().waitFor('document.activeElement === document.querySelectorAll("#material-body [data-mat-field=collected]")[1]');
-  await page().evaluate(`document.querySelectorAll('#material-body [data-mat-field=needed]')[${0}].focus();`);
-  const last = await page().evaluate(`return document.querySelectorAll('#material-body [data-mat-field=needed]').length;`);
-  await page().evaluate(`document.querySelectorAll('#material-body [data-mat-field=needed]')[${last - 1}].focus();`);
-  await page().press('Enter', { code: 'Enter', keyCode: 13 });
-  await page().waitFor(`document.activeElement === document.querySelectorAll("#material-body [data-mat-field=needed]")[${last - 1}]`);
-  await page().click('#mat-needed');
-  await page().press('Enter', { code: 'Enter', keyCode: 13 });
-  await page().waitFor('document.activeElement === document.querySelector("#mat-collected")');
-});
-
-test('91 the world sidebar stays on Builds and Materials and hides on Worlds (AC11)', async () => {
-  await reset();
-  await openFirstBuild();
-  const sidebar = await page().evaluate(`
-    const panel = document.querySelector('#world-panel');
-    if (!panel) return null;
-    const rect = panel.getBoundingClientRect();
-    const ids = Array.from(panel.querySelectorAll('#world-select, #world-avatar, #world-panel-name, #world-meta, #world-stats, #btn-new-world, #btn-import, #btn-export')).map((el) => '#' + el.id);
-    return {
-      visible: rect.width > 0 && getComputedStyle(panel).display !== 'none',
-      width: Math.round(rect.width),
-      name: (document.querySelector('#world-panel-name') || {}).textContent || '',
-      selected: (() => {
-        const select = document.querySelector('#world-select');
-        if (!select) return '';
-        const option = Array.from(select.options).find((entry) => entry.value === select.value);
-        return option ? option.textContent : '';
-      })(),
-      ids: ids.join(','),
-    };
-  `);
-  assert.ok(sidebar, '#world-panel exists');
-  assert.equal(sidebar.visible, true, 'the sidebar shows on the Builds tab');
-  assert.ok(sidebar.width >= 220, 'the sidebar is at least 220px wide (found ' + sidebar.width + ')');
-  assert.equal(sidebar.name.trim(), sidebar.selected.trim(), 'the sidebar name mirrors the selected option');
-  assert.equal(sidebar.ids, '#world-avatar,#world-select,#world-panel-name,#world-meta,#world-stats,#btn-new-world,#btn-import,#btn-export',
-    'the sidebar keeps the frozen element order');
   await page().click('#tab-materials');
-  await page().waitFor('!document.querySelector("#view-materials").hidden');
-  const materialsVisible = await page().evaluate(`const panel = document.querySelector('#world-panel'); return !!panel && panel.getBoundingClientRect().width > 0;`);
-  assert.equal(materialsVisible, true, 'the sidebar stays on the Materials tab');
+  await page().waitFor('document.querySelector("#view-materials").hidden === false');
+  const onMaterials = await page().evaluate(`return { hidden: document.querySelector('#world-panel').hidden, width: document.querySelector('#world-panel').getBoundingClientRect().width, progress: !document.querySelector('#world-progress').hidden };`);
+  assert.equal(onMaterials.hidden, false, 'the sidebar stays on Materials');
+  assert.ok(onMaterials.width >= 190 && onMaterials.width <= 210);
+  assert.equal(onMaterials.progress, true);
+
   await page().click('#tab-worlds');
-  await page().waitFor('!document.querySelector("#view-worlds").hidden');
-  const worldsHidden = await page().evaluate(`
-    const panel = document.querySelector('#world-panel');
-    return !panel || panel.hidden || panel.getBoundingClientRect().width === 0 || getComputedStyle(panel).display === 'none';
-  `);
-  assert.equal(worldsHidden, true, 'the sidebar is hidden on the Worlds tab');
+  await page().waitFor('document.querySelector("#view-worlds").hidden === false');
+  assert.equal(await page().hidden('#world-panel'), true, 'the sidebar hands the width to the world cards');
+  await page().clearViewport();
 });
 
-test('92 the retired strip and notes-action row are gone from the DOM (AC6/AC12)', async () => {
+test('92 the retired strip, stepper and notes-action row are gone from the DOM (AC6/AC12)', async () => {
   await reset();
-  await openFirstBuild();
+  const heading = await openFirstBuild();
+  const build = await buildByName(heading);
+  assert.ok(build, 'the demo build resolves by name');
   const counts = await page().evaluate(`
     const count = (selector) => document.querySelectorAll(selector).length;
     return {
-      matStepsId: count('#mat-steps'),
-      matStepClass: count('.mat-step'),
-      dataStep: count('[data-step]'),
-      matStepData: count('[data-mat-step]'),
+      matSteps: count('#mat-steps'), matStep: count('.mat-step'), dataStep: count('[data-step]'), matStepAttr: count('[data-mat-step]'),
+      stepper: count('.stepper'), stepperBtn: count('.stepper__btn'),
       notesActions: count('.notes-editor__actions'),
-      steppers: count('.stepper'),
+      buildPct: count('#build-pct'), buildSummary: count('#build-summary'), buildBar: count('#build-bar'), buildFill: count('#build-fill'),
+      collectedField: count('[data-mat-field="collected"]'),
       rows: count('#material-body .mat-row'),
+      editors: count('#material-body .mat-row [data-mat-field="needed"]'),
+      gotCells: count('#material-body .mat-row [data-mat-got]'),
     };
   `);
-  assert.equal(counts.matStepsId, 0, '#mat-steps is retired');
-  assert.equal(counts.matStepClass, 0, '.mat-step is retired');
-  assert.equal(counts.dataStep, 0, 'every data-step attribute is retired');
-  assert.equal(counts.matStepData, 0, 'data-mat-step is retired');
-  assert.equal(counts.notesActions, 0, '.notes-editor__actions is retired');
-  assert.ok(counts.steppers >= counts.rows + 1, 'each row plus the add form keeps a stepper');
+  for (const selector of ['matSteps', 'matStep', 'dataStep', 'matStepAttr', 'stepper', 'stepperBtn', 'notesActions', 'buildPct', 'buildSummary', 'buildBar', 'buildFill', 'collectedField']) {
+    assert.equal(counts[selector], 0, selector + ' must not exist in the v2 DOM');
+  }
+  assert.ok(counts.rows > 0, 'the v2 rows are present');
+  assert.equal(counts.editors, counts.rows, 'every row carries its Needed editor');
+  assert.equal(counts.gotCells, counts.rows, 'every row carries a read-only Got cell');
+  assert.equal(counts.rows, build.build.materials.length, 'one row per material, no hidden row');
 });
 
-test('93 both section bars land on the same baseline (AC13)', async () => {
+test('93 the detail progress band mirrors the row totals and reports the model percentage (AC2)', async () => {
   await reset();
-  await openFirstBuild();
-  const bars = await page().evaluate(`
-    const list = document.querySelector('.builds__list > .section-head');
-    const detail = document.querySelector('.builds__detail .detail > .section-head');
-    if (!list || !detail) return null;
-    const rect = (el) => el.getBoundingClientRect();
-    const info = (el) => {
-      const style = getComputedStyle(el);
-      return { paddingBottom: style.paddingBottom, minHeight: style.minHeight, alignItems: style.alignItems, bottom: rect(el).bottom };
-    };
-    const item = document.querySelector('#detail-body .mtable .mat-row .mat-row__item');
-    const table = document.querySelector('#detail-body .mtable');
+  await page().waitFor('document.querySelector("#material-body .mat-row") !== null');
+  const totals = await buildTotals();
+  assert.ok(totals.needed > 0, 'the demo build has materials to measure');
+  const expected = await page().evaluate(`return TrackerModel.progressText(${totals.covered}, ${totals.needed});`);
+  assert.match(expected, /^\d+ \/ \d+ items gathered \(\d+%\)$/, 'the model prints the contract phrase');
+  assert.equal((await page().text('#detail-progress-text')).trim(), expected, 'the detail band prints the model line');
+  assert.equal(Number(await page().attr('#detail-bar', 'aria-valuenow')), totals.pct, 'the bar reports the row-derived percentage');
+  assert.equal(await page().evaluate('return document.querySelector("#detail-fill").style.width;'), totals.pct + '%');
+  assert.equal(await page().attr('#detail-bar', 'role'), 'progressbar');
+
+  const layout = await page().evaluate(`
+    const rect = (selector) => document.querySelector(selector).getBoundingClientRect();
+    const tops = ['#build-header', '#detail-progress', '#mat-toolbar', '#material-table'].map((selector) => rect(selector).top);
     return {
-      list: info(list),
-      detail: info(detail),
-      itemWidth: item ? Math.round(rect(item).width) : -1,
-      tableWidth: table ? Math.round(rect(table).width) : -1,
+      tops,
+      band: rect('#detail-progress').width,
+      table: rect('#material-table').width,
+      stale: !!document.querySelector('#detail-body .progress-block, #build-summary, #build-pct'),
     };
   `);
-  assert.ok(bars, 'both section bars exist');
-  assert.equal(bars.list.paddingBottom, '4px');
-  assert.equal(bars.detail.paddingBottom, '4px');
-  assert.equal(bars.list.minHeight, '44px');
-  assert.equal(bars.detail.minHeight, '44px');
-  assert.equal(bars.list.alignItems, 'center');
-  assert.equal(bars.detail.alignItems, 'center');
-  assert.ok(Math.abs(bars.list.bottom - bars.detail.bottom) <= 0.5,
-    'the two bars land within 0.5px (found ' + (bars.list.bottom - bars.detail.bottom).toFixed(2) + ')');
-  // Lead run-6 ruling: the 390 floor cannot be met inside the 608px detail. Arithmetic disclosed:
-  // item + needed 104 + got 104 + left 64 + remove 32 = 304 fixed tracks ⇒ item 252 at 1280.
-  assert.ok(bars.itemWidth >= 250, 'at 1280 the A2 table floor keeps the item column at least 250px (found ' + bars.itemWidth + ')');
-  // Lead ruling (run 4): the 390 floor cannot survive the shipped arithmetic (104+104+64+32 = 304
-  // inside a 608px detail), so the frozen floors are 1280 ≥ 300 and 390 ≥ 240.
-  await page().setViewport(390, 844);
-  await page().waitFor('document.querySelector("#detail-body .mtable .mat-row .mat-row__item") !== null');
-  const mobile = await page().evaluate(`
-    const item = document.querySelector('#detail-body .mtable .mat-row .mat-row__item');
-    return { itemWidth: item ? Math.round(item.getBoundingClientRect().width) : -1 };
-  `);
-  await page().clearViewport();
-  // Lead run-8 ruling: at 390 the table is `minmax(0,1fr) 88px 52px 28px` + 6px gaps inside a 346px
-  // panel ⇒ item ≈ 140; the frozen 390 floor is 130 (no-overflow assertions below still apply).
-  assert.ok(mobile.itemWidth >= 130, 'at 390 the A2 floor keeps the item column at least 130px (found ' + mobile.itemWidth + ')');
+  assert.deepEqual(layout.tops, [...layout.tops].sort((left, right) => left - right), 'header, progress, toolbar and table stack in that order');
+  assert.ok(Math.abs(layout.band - layout.table) <= 1, 'the band spans the same width as the table');
+  assert.equal(layout.stale, false, 'the retired gathered strip is gone');
+
+  await seed17('duplicate-allocation-state.json');
+  await page().waitFor('document.querySelector("#material-body .mat-row") !== null');
+  const dupTotals = await buildTotals();
+  const dupExpected = await page().evaluate(`return TrackerModel.progressText(${dupTotals.covered}, ${dupTotals.needed});`);
+  assert.equal((await page().text('#detail-progress-text')).trim(), dupExpected, 'duplicate items do not double-count in the band');
 });
 
-test('94 the compact view swaps the layout and persists the choice (AC14)', async () => {
+test('94 compact builds view renders one allocation card per build and persists the choice (AC5)', async () => {
   await reset();
-  await openFirstBuild();
-  // Lead run-8 ruling: the case must not inherit a previous case's viewport (case 93 leaves 390,
-  // where the compact grid is one column by design). The frozen pair assertion is a 1280 one.
   await page().setViewport(1280, 900);
-  await sleep(250);
+  await page().waitFor('document.querySelector("#compact-view") !== null');
   await page().click('#view-compact');
   await page().waitFor('!document.querySelector("#compact-view").hidden');
   const compact = await page().evaluate(`
-    const grid = document.querySelector('#compact-grid');
     const cards = Array.from(document.querySelectorAll('#compact-grid .ccard'));
-    const rect = (el) => el.getBoundingClientRect();
-    const panel = document.querySelector('#world-panel');
-    const pair = cards.length > 1 && cards.slice(1).some((card) => Math.abs(rect(card).top - rect(cards[0]).top) < 1 && rect(card).left > rect(cards[0]).right);
+    const rect = (node) => node.getBoundingClientRect();
     return {
-      panelHidden: !panel || panel.hidden || rect(panel).width === 0,
-      world: (document.querySelector('#compact-world') || {}).textContent || '',
-      cards: cards.length,
-      pair,
-      tiles: document.querySelectorAll('#compact-grid .ctile').length,
-      stored: localStorage.getItem('mbt.buildsView'),
+      count: cards.length,
+      first: cards[0] ? { buildId: cards[0].getAttribute('data-build'), name: cards[0].querySelector('.ccard__name').textContent.trim(), tiles: cards[0].querySelectorAll('.ctile').length, pct: (cards[0].querySelector('.ccard__pct') || {}).textContent } : null,
+      pairs: cards.slice(0, 2).map((card) => ({ left: rect(card).left, top: rect(card).top, right: rect(card).right })),
+      sidebarHidden: document.querySelector('#world-panel').hidden,
+      compactWorld: document.querySelector('#compact-world').textContent.trim(),
+      key: localStorage.getItem('mbt.buildsView'),
+      pressed: document.querySelector('#view-compact').getAttribute('aria-pressed'),
     };
   `);
-  assert.equal(compact.panelHidden, true, 'compact hides the world sidebar');
-  assert.ok(compact.cards >= 2, 'the demo world renders at least two cards');
-  assert.ok(compact.tiles >= 6, 'the card matrix carries the row tiles');
-  assert.ok(compact.pair, 'at 1280 two cards sit side by side');
-  assert.ok(compact.world.trim().length > 0, 'the compact header names the world');
-  assert.equal(compact.stored, 'compact', 'the choice is persisted in mbt.buildsView');
+  assert.ok(compact.count >= 2, 'every build gets a card, saw ' + compact.count);
+  assert.ok(compact.first.buildId, 'a card identifies its build');
+  assert.ok(compact.first.name.length > 0, 'a card names its build');
+  assert.ok(compact.first.tiles > 0, 'a card renders one tile per allocated material');
+  assert.match(compact.first.pct.trim(), /^\d+%$/);
+  if (compact.pairs.length === 2) {
+    const [left, right] = compact.pairs;
+    assert.ok(Math.abs(left.top - right.top) <= 1, 'the first two cards share a row');
+    assert.ok(right.left >= left.right - 1, 'cards do not overlap horizontally');
+  }
+  assert.equal(compact.sidebarHidden, true, 'compact mode gives the width to the cards');
+  assert.match(compact.compactWorld, /Java/, 'the compact header names the world');
+  assert.equal(compact.key, 'compact', 'the choice is persisted');
+  assert.equal(compact.pressed, 'true');
+
   await page().reload();
-  await page().waitFor('window.TrackerModel && document.querySelector("#compact-view") !== null');
-  const afterReload = await page().evaluate(`
-    return { compactVisible: !document.querySelector('#compact-view').hidden, stored: localStorage.getItem('mbt.buildsView') };
-  `);
-  assert.equal(afterReload.compactVisible, true, 'the compact choice survives a reload');
-  assert.equal(afterReload.stored, 'compact');
+  await page().waitFor('window.TrackerModel !== undefined');
+  await page().waitFor('document.querySelector("#compact-view") !== null');
+  const afterReload = await page().evaluate(`return { hidden: document.querySelector('#compact-view').hidden, cards: document.querySelectorAll('#compact-grid .ccard').length, key: localStorage.getItem('mbt.buildsView') };`);
+  assert.equal(afterReload.key, 'compact', 'the preference survives a reload');
+  assert.equal(afterReload.hidden, false, 'the compact view is still the active one');
+  assert.equal(afterReload.cards, compact.count, 'the same cards render after the reload');
+
   await page().click('#view-standard');
-  await page().waitFor('document.querySelector("#compact-view").hidden');
+  await page().waitFor('document.querySelector("#compact-view").hidden === true');
   assert.equal(await page().evaluate(`return localStorage.getItem('mbt.buildsView');`), 'standard');
+  await page().clearViewport();
 });
 
-test('95 the quick-update dialog writes one commit and one Undo restores it (AC14)', async () => {
+test('95 a compact tile opens the one shared quick-update dialog and Undo still works (AC4/AC10)', async () => {
   await reset();
-  await openFirstBuild();
+  await page().setViewport(1280, 900);
   await page().click('#view-compact');
-  await page().waitFor('document.querySelectorAll("#compact-grid .ctile").length >= 2');
-  const parsed = await page().evaluate(`
-    const M = window.TrackerModel;
-    return { two: M.parseRelative('2s', 64), plus: M.parseRelative('+64', 64), bad: M.parseRelative('abc', 64) };
+  await page().waitFor('!document.querySelector("#compact-view").hidden');
+  const tile = await page().evaluate(`
+    const node = document.querySelector('#compact-grid .ccard .ctile');
+    return { matId: node.getAttribute('data-mat'), buildId: node.getAttribute('data-build'), aria: node.getAttribute('aria-label'), count: node.querySelector('.ctile__count').textContent.trim() };
   `);
-  // M.parseRelative returns { value } for a legal delta and { error } otherwise (shipped model shape;
-  // contract §10's "integer delta" wording is read as this object — disclosed to the Lead, case amended).
-  assert.equal(parsed.two && parsed.two.value, 128, "'2s' means two stacks (2 x 64)");
-  assert.equal(parsed.plus && parsed.plus.value, 64, "'+64' means 64 units");
-  assert.ok(parsed.bad && typeof parsed.bad === 'object', 'a bad relative amount returns an error object');
-  const opened = await page().evaluate(`
-    const tiles = Array.from(document.querySelectorAll('#compact-grid .ctile'));
-    const tile = tiles.find((entry) => entry.dataset.state === 'open') || tiles[0];
-    tile.click();
-    return { matId: tile.dataset.matId || '', buildId: tile.dataset.buildId || '' };
+  assert.ok(tile.matId && tile.buildId, 'the tile points at its build and material');
+  assert.match(tile.aria, /in the world · \d+ of \d+ covered · \d+ left/, 'the tile tooltip explains the allocation');
+  assert.match(tile.count, /^\d/, 'the tile prints a count');
+
+  const item = await page().evaluate(`
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
+    for (const world of state.worlds) for (const build of world.builds) for (const mat of build.materials) if (mat.id === ${JSON.stringify(tile.matId)}) return mat.item;
+    return null;
   `);
-  // Lead run-6 correction: a modal <dialog> never toggles `hidden`; open state is `open === true`.
-  await page().waitFor('document.querySelector("#tile-dialog").open === true');
-  const fields = await page().evaluate(`
+  assert.ok(item, 'the tile material exists in the document');
+
+  await page().click('#compact-grid .ccard .ctile');
+  await page().waitFor('document.querySelector("#inventory-dialog").open === true');
+  assert.equal(await page().count('#tile-dialog'), 0, 'no second quick-update dialog exists any more');
+  assert.equal((await page().text('#inv-title')).trim(), 'Update ' + item);
+  const before = await page().evaluate(`
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
+    return state.worlds.find((world) => (world.builds || []).some((build) => build.id === ${JSON.stringify(tile.buildId)})).inventory || {};
+  `);
+
+  await page().fill('#inv-delta', '+64');
+  await page().click('#inv-ok');
+  await page().waitFor('document.querySelector("#inventory-dialog").open === false');
+  const committed = await page().evaluate(`
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
+    const world = state.worlds.find((candidate) => (candidate.builds || []).some((build) => build.id === ${JSON.stringify(tile.buildId)}));
+    const before = ${JSON.stringify(before)};
+    const changed = Object.keys(world.inventory).filter((key) => (world.inventory[key] || 0) !== (before[key] || 0));
+    return { changed, delta: changed.length === 1 ? world.inventory[changed[0]] - (before[changed[0]] || 0) : null };
+  `);
+  assert.equal(committed.changed.length, 1, 'a tile update writes one inventory key');
+  assert.equal(committed.delta, 64, 'the absolute delta lands as typed');
+  assert.match((await toastText()).trim(), /^Inventory updated\./);
+  assert.equal(await page().text('#toast-action'), 'Undo', 'with one step back, like every other commit');
+
+  await page().click('#toast-action');
+  await page().waitFor(`
+    (function () {
+      const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
+      const world = state.worlds.find((candidate) => (candidate.builds || []).some((build) => build.id === ${JSON.stringify(tile.buildId)}));
+      const before = ${JSON.stringify(before)};
+      const keys = Array.from(new Set([...Object.keys(world.inventory || {}), ...Object.keys(before)])).sort();
+      return keys.every((key) => (world.inventory[key] || 0) === (before[key] || 0));
+    })()
+  `);
+
+  await page().click('#compact-grid .ccard .ctile');
+  await page().waitFor('document.querySelector("#inventory-dialog").open === true');
+  await page().fill('#inv-delta', 'abc');
+  await page().click('#inv-ok');
+  assert.equal(await page().evaluate('return document.querySelector("#inventory-dialog").open;'), true, 'a bad delta keeps the dialog open');
+  assert.equal(await page().hidden('#inv-error'), false, 'and explains itself');
+  assert.match(await page().text('#inv-error'), /whole number/);
+  assert.deepEqual(
+    await page().evaluate(`const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2')); return state.worlds.find((world) => (world.builds || []).some((build) => build.id === ${JSON.stringify(tile.buildId)})).inventory || {};`),
+    before,
+    'a rejected delta changes nothing'
+  );
+  await page().press('Escape', { code: 'Escape', keyCode: 27 });
+  await page().waitFor('document.querySelector("#inventory-dialog").open === false');
+  const focusBack = await page().evaluate('return { cls: document.activeElement.className, mat: document.activeElement.getAttribute("data-mat") };');
+  assert.match(focusBack.cls, /ctile/, 'Escape returns focus to the tile that opened the dialog');
+  assert.equal(focusBack.mat, tile.matId);
+  await page().click('#view-standard');
+  await page().clearViewport();
+});
+
+test('96 stamps print UTC text from ISO data and the migration notice shows once (AC5/AC8)', async () => {
+  await reset();
+  const stamps = await page().evaluate(`
+    const read = (node) => ({ iso: node.getAttribute('data-iso'), text: node.textContent.trim(), datetime: node.getAttribute('datetime'), title: node.getAttribute('title') });
     return {
-      title: (document.querySelector('#tile-dialog .mc-dialog__title') || document.querySelector('#tile-dialog h2') || {}).textContent || '',
-      absoluteType: document.querySelector('#tile-absolute').type,
-      absoluteValue: Number(document.querySelector('#tile-absolute').value),
-      relativeType: document.querySelector('#tile-relative').type,
-      relativeMode: document.querySelector('#tile-relative').getAttribute('inputmode'),
-      steppers: (() => {
-        const field = document.querySelector('#tile-relative');
-        const cluster = field ? field.closest('.stepper') : null;
-        return cluster ? cluster.querySelectorAll('.stepper__btn').length : -1;
-      })(),
+      detail: Array.from(document.querySelectorAll('#detail-meta time.stamp')).map(read),
+      world: Array.from(document.querySelectorAll('#world-meta time.stamp')).map(read),
+      detailText: document.querySelector('#detail-meta').textContent.trim(),
+      migratedHidden: document.querySelector('#migrated-from') ? document.querySelector('#migrated-from').hidden : null,
     };
   `);
-  assert.match(fields.title, /^Update inventory: /);
-  assert.equal(fields.absoluteType, 'number', '#tile-absolute stays type=number');
-  assert.equal(fields.relativeType, 'text', '#tile-relative is a text input');
-  assert.equal(fields.relativeMode, 'numeric', '#tile-relative asks for a numeric keyboard');
-  assert.equal(fields.steppers, 2, 'the relative field carries its own stepper buttons');
-  const collectedBefore = fields.absoluteValue;
-  await page().fill('#tile-relative', '+64');
-  await page().click('#tile-save');
-  await page().waitFor('document.querySelector("#tile-dialog").open === false');
-  const collected = async () => page().evaluate(`
-    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v1'));
-    for (const world of state.worlds) for (const build of world.builds) for (const material of (build.materials || [])) {
-      if (material.id === ${JSON.stringify(opened.matId)}) return material.collected;
-    }
-    return -1;
+  assert.ok(stamps.detail.length >= 1, 'the detail header stamps its build');
+  assert.ok(stamps.world.length >= 2, 'the world header stamps created and updated');
+  for (const stamp of [...stamps.detail, ...stamps.world]) {
+    assert.match(stamp.iso, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/, 'every stamp carries the raw ISO value');
+    assert.equal(stamp.text, stamp.iso.slice(0, 16).replace('T', ' '), 'the visible text is the UTC slice');
+    assert.equal(stamp.datetime, stamp.iso);
+    assert.equal(stamp.title, stamp.iso, 'the tooltip is the raw ISO value');
+  }
+  assert.match(stamps.detailText, /Updated \d{4}-\d{2}-\d{2} \d{2}:\d{2}/, 'the detail row labels the update time');
+  assert.equal(stamps.migratedHidden, true, 'a fresh v2 document has no migration notice');
+
+  const legacy = JSON.parse(fs.readFileSync(fixture17('v1-migration-state.json'), 'utf8'));
+  await injectV1State(legacy);
+  const migrated = await page().evaluate(`
+    const notice = document.querySelector('#migrated-from');
+    const raw = localStorage.getItem('mc-build-tracker:v2');
+    const state = JSON.parse(raw);
+    return {
+      count: document.querySelectorAll('#migrated-from').length,
+      hidden: notice ? notice.hidden : null,
+      text: notice ? notice.textContent.trim() : '',
+      version: state.version,
+      worlds: state.worlds.length,
+      inventory: state.worlds.map((world) => world.inventory),
+      collected: raw.includes('"collected"'),
+      v1: localStorage.getItem('mc-build-tracker:v1') !== null,
+    };
   `);
-  assert.equal(await collected(), collectedBefore + 64, 'one commit applies the relative +64');
-  await page().click('#toast-action');
-  assert.equal(await collected(), collectedBefore, 'a single Undo restores the previous value');
-  const reopened = await page().evaluate(`
-    const tiles = Array.from(document.querySelectorAll('#compact-grid .ctile'));
-    const tile = tiles.find((entry) => entry.dataset.matId === ${JSON.stringify(opened.matId)});
-    if (!tile) return false;
-    tile.click();
+  assert.equal(migrated.count, 1, 'exactly one migration notice exists');
+  assert.equal(migrated.hidden, false, 'the migrated document says so');
+  assert.equal(migrated.text, 'Upgraded from an older backup: collected counts moved into the world inventory.');
+  assert.equal(migrated.version, 2, 'the document lands as v2');
+  assert.equal(migrated.worlds, 2);
+  assert.deepEqual(migrated.inventory, [{ stone_bricks: 250, glass: 96, iron_ingot: 0 }, { stone_bricks: 100 }], 'the collected counts moved into the inventories');
+  assert.equal(migrated.collected, false, 'no material keeps a collected count');
+  assert.equal(migrated.v1, true, 'the legacy key is kept for a rollback');
+
+  await page().reload();
+  await page().waitFor('document.querySelector("#world-select") !== null');
+  const afterReload = await page().evaluate(`return { hidden: document.querySelector('#migrated-from').hidden, text: document.querySelector('#migrated-from').textContent.trim() };`);
+  assert.equal(afterReload.hidden, true, 'the notice is shown once, not on every load');
+  assert.equal(afterReload.text, '');
+});
+
+
+/* ------------------------------------------------ EDICT-0017 (S5 cases) --
+   Cases 97–128 from docs/governance/EDICT-0017.md §3.3. Every case starts from a frozen fixture
+   under tests/qa/edict-0017-fixtures/ and drives the real DOM; `:v2` is the only live storage key
+   and `:v1` is only ever *seeded* by the two migration cases. */
+
+async function materialRows() {
+  return page().evaluate(`
+    return Array.from(document.querySelectorAll('#material-body .mat-row')).map((row) => {
+      const text = (sel) => { const node = row.querySelector(sel); return node ? node.textContent.trim() : ''; };
+      const input = row.querySelector('[data-mat-field="needed"]');
+      return {
+        id: row.getAttribute('data-mat'),
+        item: text('.mat-row__name'),
+        needed: input ? input.value : '',
+        got: text('[data-mat-got]'),
+        covered: text('[data-mat-covered]'),
+        remaining: text('[data-mat-remaining]'),
+        surplus: text('[data-mat-surplus]'),
+        shared: text('[data-mat-shared]'),
+        done: row.classList.contains('mat-row--done'),
+      };
+    });
+  `);
+}
+
+async function rowOrder() {
+  return (await materialRows()).map((row) => row.id);
+}
+
+async function openBuildNamed(name) {
+  const clicked = await page().evaluate(`
+    const entry = Array.from(document.querySelectorAll('#build-list .build-entry')).find((node) =>
+      node.querySelector('.build-entry__name').textContent.trim() === ${JSON.stringify(name)});
+    if (!entry) return false;
+    entry.click();
     return true;
   `);
-  assert.equal(reopened, true, 'the tile is still open after the undo');
-  await page().waitFor('document.querySelector("#tile-dialog").open === true');
-  await page().fill('#tile-relative', 'abc');
-  await page().click('#tile-save');
-  await page().waitFor('(document.querySelector("#tile-error").textContent || "").trim().length > 0');
-  const invalid = await page().evaluate(`
-    return {
-      open: document.querySelector('#tile-dialog').open,
-      error: document.querySelector('#tile-error').textContent.trim(),
-    };
-  `);
-  assert.equal(invalid.open, true, 'an invalid relative amount leaves the dialog open');
-  assert.ok(invalid.error.length > 0, 'the invalid amount is explained (found "' + invalid.error + '")');
+  assert.equal(clicked, true, 'a build named ' + name + ' exists in the list');
+  await page().waitFor(`document.querySelector('#detail-heading').textContent.trim() === ${JSON.stringify(name)}`);
+  await page().waitFor('!document.querySelector("#detail-body").hidden');
+}
+
+/** Seed a v2 fixture: the helper clears prefs, imports the JSON through the model, reloads. */
+async function seed17(name) {
+  await reset({ demo: false });
+  const fixtureState = JSON.parse(fs.readFileSync(fixture17(name), 'utf8'));
+  await injectState(fixtureState);
+}
+
+async function openInventoryForRow(matId) {
+  await page().click('[data-mat="' + matId + '"] [data-mat-update]');
+  await page().waitFor('document.querySelector("#inventory-dialog").open === true');
+}
+
+async function closeInventoryWithEscape() {
   await page().press('Escape', { code: 'Escape', keyCode: 27 });
-  await page().waitFor('document.querySelector("#tile-dialog").open === false');
+  await page().waitFor('document.querySelector("#inventory-dialog").open === false');
+}
+
+/** Contract §3: Remove lives in the row's overflow menu, never as a bare row button. */
+async function deleteRowViaMenu(matId) {
+  const target = matId || await page().evaluate(
+    `return document.querySelector('#material-body .mat-row').getAttribute('data-mat');`
+  );
+  await page().click('[data-mat="' + target + '"] [data-mat-menu]');
+  await page().waitFor(
+    `document.querySelector('[data-mat="${target}"] [data-mat-menu]').getAttribute('aria-expanded') === 'true'`
+  );
+  await page().click('[data-mat="' + target + '"] [data-mat-remove]');
+}
+
+/** Enter inside either inventory field is the commit path (contract AC7). */
+async function submitInventoryWithEnter() {
+  await page().press('Enter', { code: 'Enter', keyCode: 13 });
+  await page().waitFor('document.querySelector("#inventory-dialog").open === false');
+}
+
+test('97 v1 state migrates once to v2 (storage key)', async () => {
+  const v1 = JSON.parse(fs.readFileSync(fixture17('v1-migration-state.json'), 'utf8'));
+  await injectV1State(v1);
+  const after = await page().evaluate(`
+    return { v1: localStorage.getItem('mc-build-tracker:v1'), v2: localStorage.getItem('mc-build-tracker:v2') };
+  `);
+  assert.ok(after.v1, 'the legacy document is read once and never deleted');
+  assert.ok(after.v2, 'the migrated document is written under the v2 key');
+  const migrated = JSON.parse(after.v2);
+  assert.equal(migrated.version, 2, 'the live document is v2');
+  assert.equal(migrated.migratedFrom, undefined,
+    'the one-shot flag is not persisted: the notice comes from the in-memory migration, not the saved document');
+  assert.equal(await page().hidden('#migrated-from'), false, 'the upgrade notice is shown once');
+  await page().reload();
+  await page().waitFor('document.querySelector("#world-select") !== null');
+  const second = await page().evaluate(`
+    return { v1: localStorage.getItem('mc-build-tracker:v1'), v2: localStorage.getItem('mc-build-tracker:v2') };
+  `);
+  assert.equal(second.v1, after.v1, 'the legacy key is byte-identical after a second load');
+  const secondState = JSON.parse(second.v2);
+  assert.equal(secondState.version, 2, 'the v2 document is stable across loads');
+  assert.equal(secondState.migratedFrom, undefined, 'the one-shot flag is not re-written to storage');
+  assert.equal(await page().hidden('#migrated-from'), true, 'the notice does not come back on the next load');
 });
 
-test('96 stamps render as <time> with ISO titles on the detail meta and Materials lede (AC7)', async () => {
-  await reset();
-  await loadBackupText(fs.readFileSync(fixture16('stepper-state.json'), 'utf8'));
-  await openFirstBuild();
-  const meta = await page().evaluate(`
-    const detail = document.querySelector('.builds__detail .detail') || document.querySelector('.detail');
-    const metaNode = document.querySelector('#detail-meta');
-    if (!detail || !metaNode) return null;
-    const head = detail.querySelector(':scope > .section-head') || detail.querySelector(':scope > .detail__head');
-    const children = Array.from(detail.children);
-    const times = Array.from(metaNode.querySelectorAll('time')).map((node) => ({ iso: node.getAttribute('datetime') || '', display: node.textContent.trim() }));
+test('98 migration sums collected per world/item case-insensitively', async () => {
+  const v1 = JSON.parse(fs.readFileSync(fixture17('v1-migration-state.json'), 'utf8'));
+  await injectV1State(v1);
+  const migrated = await appState();
+  assert.equal(migrated.version, 2);
+  const byId = Object.fromEntries(migrated.worlds.map((world) => [world.id, world]));
+  assert.deepEqual(byId['world-a'].inventory, { stone_bricks: 250, glass: 96, iron_ingot: 0 },
+    'collected counts are summed per world and case-folded item; the garbage count contributes zero');
+  assert.deepEqual(byId['world-b'].inventory, { stone_bricks: 100 }, 'each world keeps its own sum');
+  for (const world of migrated.worlds) {
+    for (const build of world.builds) {
+      for (const material of build.materials) {
+        assert.equal(Object.prototype.hasOwnProperty.call(material, 'collected'), false,
+          'the retired collected field is gone from every material');
+      }
+    }
+  }
+  assert.deepEqual(byId['world-a'].builds.map((build) => build.name), ['Storage Hall', 'Iron Farm'],
+    'registry order is preserved by the migration');
+  assert.deepEqual(byId['world-a'].builds.map((build) => build.active), [true, true],
+    'builds without an active flag default to active');
+});
+
+test('99 v1 file imports as v2 and does not double count', async () => {
+  await reset({ demo: false });
+  const v1Text = fs.readFileSync(fixture17('v1-migration-state.json'), 'utf8');
+  await page().click('#btn-import');
+  await page().waitFor('document.querySelector("#import-dialog").open');
+  await page().fill('#import-text', v1Text);
+  await page().click('#import-restore');
+  await page().waitFor('document.querySelector("#import-dialog").open === false');
+  let imported = await appState();
+  assert.equal(imported.version, 2, 'an imported v1 document lands as v2');
+  assert.deepEqual(imported.worlds[0].inventory, { stone_bricks: 250, glass: 96, iron_ingot: 0 });
+  // Importing the very same file again replaces the document, it does not add to it.
+  await page().click('#btn-import');
+  await page().waitFor('document.querySelector("#import-dialog").open');
+  await page().fill('#import-text', v1Text);
+  await page().click('#import-restore');
+  await page().waitFor('document.querySelector("#import-dialog").open === false');
+  imported = await appState();
+  assert.deepEqual(imported.worlds[0].inventory, { stone_bricks: 250, glass: 96, iron_ingot: 0 },
+    'a second import of the same backup does not double the inventory');
+  assert.equal(imported.worlds[0].builds[0].materials[0].collected, undefined);
+});
+
+test('100 v2 backup imports and rejects collected', async () => {
+  await reset({ demo: false });
+  const backup = {
+    version: 2,
+    activeWorldId: 'w-backup',
+    worlds: [{
+      id: 'w-backup',
+      name: 'Backup World',
+      edition: 'java',
+      version: '1.21.4',
+      notes: '',
+      createdAt: '2026-09-14T08:05:00.000Z',
+      updatedAt: '2026-10-25T21:40:00.000Z',
+      inventory: { stone_bricks: 42 },
+      builds: [{
+        id: 'b-backup',
+        name: 'Hut',
+        status: 'building',
+        active: true,
+        coords: '',
+        notes: '',
+        materials: [{ id: 'm-backup', item: 'Stone Bricks', needed: 64 }],
+      }],
+    }],
+  };
+  await page().click('#btn-import');
+  await page().waitFor('document.querySelector("#import-dialog").open');
+  await page().fill('#import-text', JSON.stringify(backup));
+  await page().click('#import-restore');
+  await page().waitFor('document.querySelector("#import-dialog").open === false');
+  const imported = await appState();
+  assert.equal(imported.version, 2);
+  assert.equal(imported.worlds[0].inventory.stone_bricks, 42, 'v2 inventory imports as-is');
+  const invalid = JSON.parse(JSON.stringify(backup));
+  invalid.worlds[0].builds[0].materials[0].collected = 5;
+  const before = await page().evaluate('return localStorage.getItem("mc-build-tracker:v2");');
+  await page().click('#btn-import');
+  await page().waitFor('document.querySelector("#import-dialog").open');
+  await page().fill('#import-text', JSON.stringify(invalid));
+  await page().click('#import-restore');
+  await page().waitFor('(document.querySelector("#import-error").textContent || "").trim().length > 0');
+  const message = await page().text('#import-error');
+  assert.ok(message.length > 0, 'a collected field is refused with a model error');
+  assert.equal(await page().evaluate('return document.querySelector("#import-dialog").open;'), true,
+    'the import dialog stays open on a rejected backup');
+  assert.equal(await page().evaluate('return localStorage.getItem("mc-build-tracker:v2");'), before,
+    'a rejected import writes nothing');
+  await page().click('#import-cancel');
+  await page().waitFor('document.querySelector("#import-dialog").open === false');
+});
+
+test('101 allocation priority for duplicate items across builds', async () => {
+  await seed17('duplicate-allocation-state.json');
+  await openBuildNamed('Wall');
+  const wall = await materialRows();
+  const byId = Object.fromEntries(wall.map((row) => [row.id, row]));
+  assert.equal(byId['m1'].covered, '300', 'the first build in registry order takes its full need');
+  assert.equal(byId['m1'].remaining, '0');
+  assert.equal(byId['m3'].covered, '4', 'the later build gets only what the world inventory has left');
+  assert.equal(byId['m3'].remaining, '28');
+  assert.equal(byId['m1'].shared, 'shared with 2 builds',
+    'a stock needed by two builds is flagged on the shared row');
+  for (const row of wall) {
+    assert.equal(Number(row.covered) + Number(row.remaining), Number(row.needed),
+      'covered + remaining always equals needed for ' + row.item);
+  }
+  await openBuildNamed('Hut');
+  const hut = await materialRows();
+  assert.equal(hut[0].remaining, '150', 'a later build on the same item sees the leftover, not the full stock');
+});
+
+test('102 surplus appears once inventory exceeds total need', async () => {
+  await seed17('surplus-state.json');
+  await openBuildNamed('Single Wall');
+  let rows = await materialRows();
+  assert.equal(rows[0].remaining, '0');
+  assert.equal(rows[0].surplus, '+385 surplus', '482 owned against 97 needed leaves a +385 surplus');
+  assert.equal(await page().exists('#material-body .mat-row [data-mat-surplus]'), true);
+  // A second build that raises the need past the stock makes the surplus disappear.
+  const state = JSON.parse(fs.readFileSync(fixture17('surplus-state.json'), 'utf8'));
+  state.worlds[0].builds.push({
+    id: 'b2',
+    name: 'Stock Wall',
+    status: 'building',
+    active: true,
+    coords: '',
+    notes: '',
+    materials: [{ id: 'm2', item: 'Stone Bricks', needed: 400 }],
+  });
+  await injectState(state);
+  await openBuildNamed('Single Wall');
+  rows = await materialRows();
+  assert.equal(rows[0].remaining, '0', 'the first build keeps its covered count');
+  assert.equal(await page().exists('#material-body .mat-row [data-mat-surplus]'), false,
+    'no surplus cell exists while the world need still exceeds the stock');
+  await openBuildNamed('Stock Wall');
+  const stock = await materialRows();
+  assert.equal(stock[0].remaining, '15', 'the leftover stock covers the second build down to 15');
+});
+
+test('103 inline Needed editor is a text field', async () => {
+  await seed17('duplicate-allocation-state.json');
+  await openBuildNamed('Wall');
+  const field = await page().evaluate(`
+    const input = document.querySelector('[data-mat="m1"] [data-mat-field="needed"]');
+    return { tag: input.tagName, type: input.type, mode: input.getAttribute('inputmode'), value: input.value };
+  `);
+  assert.equal(field.tag, 'INPUT');
+  assert.equal(field.type, 'text', 'Needed is a text editor so it can show "4 stacks + 44"');
+  assert.equal(field.mode, 'numeric');
+  assert.equal(field.value, '300');
+  await page().fill('[data-mat="m1"] [data-mat-field="needed"]', '350');
+  await page().press('Enter', { code: 'Enter', keyCode: 13 });
+  await page().waitFor('document.querySelector("#inventory-dialog").open === false');
+  assert.equal(await buildByName('Wall').then((entry) => entry.build.materials[0].needed), 350,
+    'Enter commits the typed number without opening a dialog');
+  await page().fill('[data-mat="m1"] [data-mat-field="needed"]', '0');
+  await page().press('Enter', { code: 'Enter', keyCode: 13 });
+  assert.equal(await buildByName('Wall').then((entry) => entry.build.materials[0].needed), 1,
+    'the model clamps the need to at least 1');
+  await page().evaluate(`
+    const input = document.querySelector('[data-mat="m1"] [data-mat-field="needed"]');
+    input.focus();
+    input.value = '999';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  `);
+  await page().press('Escape', { code: 'Escape', keyCode: 27 });
+  await page().waitFor('document.querySelector("[data-mat=\\"m1\\"] [data-mat-field=needed]").value === "1"');
+  assert.equal(await buildByName('Wall').then((entry) => entry.build.materials[0].needed), 1,
+    'Escape reverts the edit instead of committing it');
+});
+
+test('104 Got shows world inventory and is read-only', async () => {
+  await seed17('duplicate-allocation-state.json');
+  await openBuildNamed('Wall');
+  const got = await page().evaluate(`
+    const cell = document.querySelector('[data-mat="m1"] [data-mat-got]');
     return {
-      isFirstAfterHead: head ? children[children.indexOf(head) + 1] === metaNode : false,
-      times,
+      tag: cell.tagName,
+      text: cell.textContent.trim(),
+      editable: cell.getAttribute('contenteditable'),
+      inputs: cell.querySelectorAll('input, textarea, select').length,
+      title: cell.getAttribute('title') || '',
     };
   `);
-  assert.ok(meta, '#detail-meta exists inside the detail panel');
-  assert.equal(meta.isFirstAfterHead, true, '#detail-meta is the first child after .section-head (contract §7/A4)');
-  assert.ok(meta.times.length >= 1, 'the detail meta renders at least one time element');
-  // Lead run-6 ruling: contract §7 puts the whole string inside the element and the measured
-  // textContent is `Updated 2026-10-25 21:40` (datetime = full ISO). Keep the ISO assertion,
-  // allow the optional `Created <date> · ` prefix.
-  const stampShown = /^(Created \d{4}-\d{2}-\d{2} · )?Updated \d{4}-\d{2}-\d{2} \d{2}:\d{2}$/;
-  assert.ok(meta.times.every((entry) => /^\d{4}-\d{2}-\d{2}T/.test(entry.iso)), 'every time carries an ISO datetime');
-  assert.ok(meta.times.every((entry) => stampShown.test(entry.display)), 'the visible stamp is Created/Updated YYYY-MM-DD HH:MM (found ' + JSON.stringify(meta.times) + ')');
-  await page().click('#tab-materials');
-  await page().waitFor('!document.querySelector("#view-materials").hidden');
-  const lede = await page().evaluate(`
-    const time = document.querySelector('#materials-lede time');
-    return time ? { display: time.textContent.trim(), iso: time.getAttribute('datetime') || '', title: time.getAttribute('title') || '' } : null;
+  assert.equal(got.tag, 'SPAN', 'Got is a read-only cell, not an editor');
+  assert.equal(got.inputs, 0, 'no form control lives inside the Got cell');
+  assert.equal(got.editable, null);
+  assert.equal(got.text, '350', 'Got is the world inventory for that item');
+  assert.match(got.title, /inventory/i);
+  await openBuildNamed('Hut');
+  const hutGot = await materialRows();
+  assert.equal(hutGot[0].got, '350', 'the same world stock is shown on every build that needs the item');
+  await page().evaluate(`document.querySelector('[data-mat="m4"]').focus(); return true;`);
+  await page().press('Enter', { code: 'Enter', keyCode: 13 });
+  await page().waitFor('document.querySelector("#inventory-dialog").open === true');
+  await closeInventoryWithEscape();
+  assert.equal((await appState()).worlds[0].inventory.stone_bricks, 350, 'opening and closing writes nothing');
+});
+
+test('105 units toggle switches counts and stacks', async () => {
+  await seed17('duplicate-allocation-state.json');
+  await openBuildNamed('Wall');
+  const oracle = await page().evaluate(`
+    return {
+      needed: window.TrackerModel.formatUnits(300, 'stone_bricks', 'stacks', 64),
+      got: window.TrackerModel.formatUnits(350, 'stone_bricks', 'stacks', 64),
+      remaining: window.TrackerModel.formatUnits(28, 'glass', 'stacks', 64),
+    };
   `);
-  assert.ok(lede, 'the Materials lede shows the world stamp as a time element');
-  assert.match(lede.display, stampShown);
-  assert.match(lede.iso, /^\d{4}-\d{2}-\d{2}T/);
-  await loadBackupText(fs.readFileSync(fixture16('malformed-timestamps.json'), 'utf8'));
-  await page().click('#tab-materials');
-  await page().waitFor('!document.querySelector("#view-materials").hidden');
-  const dashed = await page().evaluate(`const node = document.querySelector('#materials-lede'); return node ? node.textContent : '';`);
-  assert.match(dashed, /—/, 'an unparseable stamp shows a dash, never an invented date');
+  assert.equal(oracle.needed, '4 stacks + 44');
+  await page().click('#unit-toggle [data-unit="stacks"]');
+  await page().waitFor('document.querySelector("#unit-toggle [data-unit=stacks]").getAttribute("aria-pressed") === "true"');
+  const stacks = await materialRows();
+  const byId = Object.fromEntries(stacks.map((row) => [row.id, row]));
+  assert.equal(byId['m1'].needed, oracle.needed, 'Needed is written in stack syntax');
+  assert.equal(byId['m1'].got, oracle.got);
+  assert.equal(byId['m3'].remaining, oracle.remaining, 'Left follows the same formatting');
+  assert.equal(await page().evaluate('return localStorage.getItem("mbt.units");'), 'stacks');
+  await page().reload();
+  await page().waitFor('document.querySelector("#world-select") !== null');
+  await openBuildNamed('Wall');
+  const reloaded = await materialRows();
+  assert.equal(reloaded.find((row) => row.id === 'm1').needed, oracle.needed, 'the choice survives a reload');
+  assert.equal(await page().evaluate('return document.querySelector("#unit-toggle [data-unit=stacks]").getAttribute("aria-pressed");'), 'true');
+  await page().click('#unit-toggle [data-unit="items"]');
+  await page().waitFor('document.querySelector("#unit-toggle [data-unit=items]").getAttribute("aria-pressed") === "true"');
+  assert.equal((await materialRows()).find((row) => row.id === 'm1').needed, '300', 'switching back shows plain items');
+});
+
+test('106 hide completed hides done rows', async () => {
+  await seed17('duplicate-allocation-state.json');
+  await openBuildNamed('Wall');
+  assert.equal((await materialRows()).length, 3, 'the fixture has three rows');
+  await page().click('#mat-hide-done');
+  await page().waitFor('document.querySelectorAll("#material-body .mat-row").length === 1');
+  const visible = await materialRows();
+  assert.deepEqual(visible.map((row) => row.id), ['m3'], 'only the row that still needs items stays');
+  assert.equal(await page().evaluate('return document.querySelector("#mat-hide-done").getAttribute("aria-pressed");'), 'true');
+  assert.equal(await page().evaluate('return localStorage.getItem("mbt.density");'), 'on');
+  await page().reload();
+  await page().waitFor('document.querySelector("#world-select") !== null');
+  await openBuildNamed('Wall');
+  assert.equal((await materialRows()).length, 1, 'the filter survives a reload');
+  await page().click('#mat-hide-done');
+  await page().waitFor('document.querySelectorAll("#material-body .mat-row").length === 3');
+  assert.equal((await materialRows()).length, 3, 'toggling off restores every row');
+});
+
+test('107 three sort modes reorder deterministically', async () => {
+  await seed17('duplicate-allocation-state.json');
+  await openBuildNamed('Wall');
+  assert.deepEqual(await rowOrder(), ['m3', 'm2', 'm1'], 'default order is remaining, descending, name-tied');
+  await page().fill('#mat-sort', 'name');
+  await page().waitFor(`Array.from(document.querySelectorAll('#material-body .mat-row')).map((r) => r.getAttribute('data-mat')).join(',') === 'm2,m3,m1'`);
+  assert.deepEqual(await rowOrder(), ['m2', 'm3', 'm1'], 'name order puts both Glass rows before Stone Bricks');
+  assert.equal(await page().evaluate('return localStorage.getItem("mbt.sort");'), 'name');
+  await page().fill('#mat-sort', 'category');
+  await page().waitFor(`Array.from(document.querySelectorAll('#material-body .mat-row')).map((r) => r.getAttribute('data-mat')).join(',') === 'm2,m3,m1'`);
+  assert.deepEqual(await rowOrder(), ['m2', 'm3', 'm1'],
+    'both fixture items fall back to Misc, so category order ties on name and equals name order');
+  assert.equal(await page().evaluate('return localStorage.getItem("mbt.sort");'), 'category');
+  const options = await page().evaluate(`
+    return Array.from(document.querySelectorAll('#mat-sort option')).map((option) => option.value);
+  `);
+  assert.deepEqual(options, ['remaining', 'name', 'category'], 'the three modes are frozen');
+  await page().fill('#mat-sort', 'remaining');
+  await page().waitFor(`Array.from(document.querySelectorAll('#material-body .mat-row')).map((r) => r.getAttribute('data-mat')).join(',') === 'm3,m2,m1'`);
+});
+
+test('108 grid density renders tiles with deficit', async () => {
+  await seed17('duplicate-allocation-state.json');
+  await openBuildNamed('Wall');
+  await page().click('#mat-view-grid');
+  await page().waitFor('!document.querySelector("#material-grid").hidden');
+  const chips = await page().evaluate(`
+    return Array.from(document.querySelectorAll('#material-grid .mat-chip')).map((chip) => ({
+      id: chip.getAttribute('data-mat'),
+      count: chip.querySelector('[data-mat-chip-count]').textContent.trim(),
+      done: chip.classList.contains('is-done'),
+      tag: chip.tagName,
+      focusable: chip.tabIndex >= 0,
+      width: chip.getBoundingClientRect().width,
+      height: chip.getBoundingClientRect().height,
+    }));
+  `);
+  assert.equal(chips.length, 3, 'one tile per row');
+  const byId = Object.fromEntries(chips.map((chip) => [chip.id, chip]));
+  assert.equal(byId['m1'].count, '300', 'a covered tile shows the target quantity');
+  assert.equal(byId['m3'].count, '28', 'an open tile shows the deficit');
+  assert.equal(byId['m1'].done, true);
+  assert.equal(byId['m3'].done, false);
+  for (const chip of chips) {
+    assert.equal(chip.tag, 'BUTTON', 'every tile is a real button');
+    assert.equal(chip.focusable, true, 'every tile is in the Tab order');
+    assert.ok(chip.width >= 44 && chip.height >= 44, 'a tile is at least 44x44 px (got ' + chip.width + 'x' + chip.height + ')');
+    assert.ok(chip.width <= 80 && chip.height <= 80, 'a tile stays compact');
+  }
+  await page().evaluate(`document.querySelector('#material-grid .mat-chip[data-mat="m3"]').focus(); return true;`);
+  await page().press('Enter', { code: 'Enter', keyCode: 13 });
+  await page().waitFor('document.querySelector("#inventory-dialog").open === true');
+  assert.match(await page().text('#inv-title'), /Glass/);
+  await closeInventoryWithEscape();
+  await page().evaluate(`document.querySelector('#material-grid .mat-chip[data-mat="m3"]').focus(); return true;`);
+  await page().press(' ', { code: 'Space', keyCode: 32 });
+  await page().waitFor('document.querySelector("#inventory-dialog").open === true');
+  await closeInventoryWithEscape();
+  const tabOrder = await page().evaluate(`
+    return Array.from(document.querySelectorAll('#material-grid .mat-chip')).map((chip) => chip.getAttribute('data-mat'));
+  `);
+  assert.deepEqual(tabOrder, await rowOrder(), 'the Tab order follows the rendered row order');
+});
+
+test('109 inventory dialog opens from the row', async () => {
+  await seed17('duplicate-allocation-state.json');
+  await openBuildNamed('Wall');
+  await openInventoryForRow('m1');
+  const dialog = await page().evaluate(`
+    const active = document.activeElement;
+    return {
+      title: document.querySelector('#inv-title').textContent.trim(),
+      context: document.querySelector('#inv-context').textContent.trim(),
+      absolute: document.querySelector('#inv-absolute').value,
+      delta: document.querySelector('#inv-delta').value,
+      focused: active ? active.id : '',
+      selected: active && (active.selectionStart === 0 || active.selectionStart === null) &&
+        (active.selectionStart === null || active.selectionEnd === String(active.value).length),
+    };
+  `);
+  assert.equal(dialog.title, 'Update Stone Bricks');
+  assert.match(dialog.context, /Wall/);
+  assert.match(dialog.context, /300 needed/);
+  assert.match(dialog.context, /350 in the world/);
+  assert.equal(dialog.absolute, '350', 'the absolute field is prefilled from the world inventory');
+  assert.equal(dialog.delta, '', 'the relative field starts empty');
+  assert.equal(dialog.focused, 'inv-absolute', 'focus lands in the absolute field');
+  assert.equal(dialog.selected, true, 'the prefilled value is selected for typing');
+  await closeInventoryWithEscape();
+  assert.equal((await appState()).worlds[0].inventory.stone_bricks, 350, 'Escape writes nothing');
+});
+
+test('110 absolute replacement commits and clamps', async () => {
+  await seed17('duplicate-allocation-state.json');
+  await openBuildNamed('Wall');
+  const before = await appState();
+  await openInventoryForRow('m1');
+  await page().fill('#inv-absolute', '300');
+  await page().fill('#inv-delta', '');
+  await page().press('Enter', { code: 'Enter', keyCode: 13 });
+  await page().waitFor('document.querySelector("#inventory-dialog").open === false');
+  const changed = await appState();
+  assert.equal(changed.worlds[0].inventory.stone_bricks, 300, 'the absolute value replaces the world inventory');
+  assert.equal(changed.worlds[0].builds[0].materials[0].collected, undefined, 'nothing is written to the retired collected field');
+  const wall = await materialRows();
+  assert.equal(wall.find((row) => row.id === 'm1').remaining, '0', 'the remaining count is recomputed');
+  await openBuildNamed('Hut');
+  assert.equal((await materialRows())[0].remaining, '200', 'the later build sees the smaller stock');
+  assert.equal(await page().hidden('#toast-action'), false, 'the commit offers one Undo');
+  await page().click('#toast-action');
+  await page().waitFor('JSON.parse(localStorage.getItem("mc-build-tracker:v2")).worlds[0].inventory.stone_bricks === 350');
+  assert.deepEqual(await appState(), before, 'Undo restores the exact pre-edit document');
+  await openBuildNamed('Wall');
+  await openInventoryForRow('m1');
+  await page().fill('#inv-absolute', '-5');
+  await page().press('Enter', { code: 'Enter', keyCode: 13 });
+  await page().waitFor('document.querySelector("#inventory-dialog").open === false');
+  assert.equal((await appState()).worlds[0].inventory.stone_bricks, 0, 'a negative absolute clamps to zero');
+});
+
+test('111 delta forms: 2s+10, +32, -1s, clamp', async () => {
+  await seed17('duplicate-allocation-state.json');
+  await openBuildNamed('Wall');
+  const fixture = JSON.parse(fs.readFileSync(fixture17('invalid-delta-inputs.json'), 'utf8'));
+  const oracle = await page().evaluate(`return window.TrackerModel.parseRelative('2s+10', ${fixture.stack});`);
+  assert.equal(oracle.value, 2 * fixture.stack + 10, 'the parser oracle: 2s+10 means two stacks and ten');
+  for (const entry of fixture.inputs) {
+    const result = await page().evaluate(`
+      return window.TrackerModel.parseRelative(${JSON.stringify(entry.text)}, ${fixture.stack});
+    `);
+    if (entry.expect === 'error') assert.ok(result.error, entry.text + ' is refused by the parser');
+    else assert.equal(result.value, entry.expect, entry.text + ' resolves to ' + entry.expect);
+  }
+  const commitDelta = async (text) => {
+    await openInventoryForRow('m1');
+    await page().fill('#inv-absolute', '');
+    await page().fill('#inv-delta', text);
+    await page().press('Enter', { code: 'Enter', keyCode: 13 });
+    await page().waitFor('document.querySelector("#inventory-dialog").open === false');
+  };
+  await commitDelta('2s+10');
+  assert.equal((await appState()).worlds[0].inventory.stone_bricks, 350 + 138, '2s+10 adds 138');
+  await commitDelta('+32');
+  assert.equal((await appState()).worlds[0].inventory.stone_bricks, 520, '+32 adds 32');
+  await commitDelta('-1s');
+  assert.equal((await appState()).worlds[0].inventory.stone_bricks, 456, '-1s subtracts one stack');
+  await commitDelta('-9999');
+  assert.equal((await appState()).worlds[0].inventory.stone_bricks, 0, 'a relative decrease clamps at zero');
+  for (const invalid of ['abc', '2s+', '+1e9']) {
+    await openInventoryForRow('m1');
+    await page().fill('#inv-absolute', '');
+    await page().fill('#inv-delta', invalid);
+    await page().press('Enter', { code: 'Enter', keyCode: 13 });
+    await page().waitFor('(document.querySelector("#inv-error").textContent || "").trim().length > 0');
+    assert.equal(await page().evaluate('return document.querySelector("#inventory-dialog").open;'), true,
+      invalid + ' keeps the dialog open');
+    await closeInventoryWithEscape();
+  }
+  assert.equal((await appState()).worlds[0].inventory.stone_bricks, 0, 'invalid input writes nothing');
+});
+
+test('112 paste preview parses and creates', async () => {
+  await seed17('duplicate-allocation-state.json');
+  await openBuildNamed('Wall');
+  const before = await appState();
+  await page().click('#bulk-paste');
+  await page().waitFor('document.querySelector("#paste-preview").open === true');
+  await page().fill('#paste-text', ['64 stone bricks', '32 glass', 'mystery goo'].join('\n'));
+  await page().waitFor('document.querySelectorAll("#paste-rows .paste-row").length === 2');
+  const preview = await page().evaluate(`
+    return {
+      rows: Array.from(document.querySelectorAll('#paste-rows .paste-row')).map((row) => ({
+        slug: row.getAttribute('data-slug'),
+        text: row.textContent.trim(),
+      })),
+      errors: (document.querySelector('#paste-errors').textContent || '').trim(),
+      okDisabled: document.querySelector('#paste-ok').disabled,
+      context: document.querySelector('#paste-context').textContent.trim(),
+    };
+  `);
+  assert.equal(preview.rows.length, 2, 'two lines matched, one did not');
+  assert.match(preview.rows[0].text, /Stone Bricks/);
+  assert.match(preview.rows[1].text, /Glass/);
+  assert.match(preview.errors, /mystery goo/i, 'the unmatched line is reported verbatim');
+  assert.equal(preview.okDisabled, false);
+  assert.match(preview.context, /Wall/);
+  await page().click('#paste-ok');
+  await page().waitFor('document.querySelector("#paste-preview").open === false');
+  const wall = await buildByName('Wall').then((entry) => entry.build);
+  const byMaterialId = Object.fromEntries(wall.materials.map((material) => [material.id, material.needed]));
+  assert.equal(wall.materials.length, 3, 'matched items merge into the existing rows instead of duplicating');
+  assert.equal(byMaterialId['m1'], 364, 'the pasted quantity is added to the existing need');
+  assert.equal(byMaterialId['m2'], 128, 'Glass merges into the first Glass row');
+  assert.equal(byMaterialId['m3'], 32, 'the second Glass row is untouched');
+  // Cancel never writes.
+  const stateAfterAdd = await appState();
+  await page().click('#bulk-paste');
+  await page().waitFor('document.querySelector("#paste-preview").open === true');
+  await page().fill('#paste-text', '32 glass');
+  await page().waitFor('document.querySelectorAll("#paste-rows .paste-row").length === 1');
+  await page().click('#paste-cancel');
+  await page().waitFor('document.querySelector("#paste-preview").open === false');
+  assert.deepEqual(await appState(), stateAfterAdd, 'Cancel writes nothing');
+  assert.ok(before);
+});
+
+test('113 drag reorder persists and is not a no-op', async () => {
+  await seed17('duplicate-allocation-state.json');
+  const state = JSON.parse(fs.readFileSync(fixture17('duplicate-allocation-state.json'), 'utf8'));
+  state.worlds[0].builds[1].status = 'building';
+  await injectState(state);
+  const before = await page().evaluate(`
+    return Array.from(document.querySelectorAll('#build-list .build-entry')).map((entry) => ({
+      name: entry.querySelector('.build-entry__name').textContent.trim(),
+      order: entry.getAttribute('data-order'),
+    }));
+  `);
+  assert.deepEqual(before.map((entry) => entry.name), ['Wall', 'Hut', 'Old Shed'],
+    'same-rank builds keep registry order');
+  assert.deepEqual(before.map((entry) => entry.order), ['0', '1', '2'], 'every entry carries its visible index');
+  await page().evaluate(`
+    const entries = Array.from(document.querySelectorAll('#build-list .build-entry'));
+    const dt = new DataTransfer();
+    entries[1].dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+    entries[0].dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    entries[0].dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt }));
+    entries[1].dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: dt }));
+    return true;
+  `);
+  await page().waitFor(`Array.from(document.querySelectorAll('#build-list .build-entry__name')).map((n) => n.textContent.trim()).join('|') === 'Hut|Wall|Old Shed'`);
+  const after = await page().evaluate(`
+    return {
+      names: Array.from(document.querySelectorAll('#build-list .build-entry__name')).map((n) => n.textContent.trim()),
+      orders: Array.from(document.querySelectorAll('#build-list .build-entry')).map((entry) => entry.getAttribute('data-order')),
+      nested: Array.from(document.querySelectorAll('.build-entry button button')).length,
+    };
+  `);
+  assert.deepEqual(after.names, ['Hut', 'Wall', 'Old Shed'], 'the dropped build moved above the target');
+  assert.deepEqual(after.orders, ['0', '1', '2'], 'data-order follows the rendered order');
+  assert.equal(after.nested, 0, 'no button is nested inside another button');
+  await page().reload();
+  await page().waitFor('document.querySelector("#world-select") !== null');
+  const reloaded = await page().evaluate(`
+    return Array.from(document.querySelectorAll('#build-list .build-entry__name')).map((n) => n.textContent.trim());
+  `);
+  assert.deepEqual(reloaded, ['Hut', 'Wall', 'Old Shed'], 'the order is persisted');
+  const compact = await page().evaluate(`
+    document.querySelector('#view-compact').click();
+    return Array.from(document.querySelectorAll('#compact-grid .ccard .ccard__name')).map((n) => n.textContent.trim());
+  `);
+  assert.deepEqual(compact, ['Hut', 'Wall', 'Old Shed'], 'the compact view follows the same registry order');
+});
+
+test('114 keyboard-only inventory path', async () => {
+  await seed17('duplicate-allocation-state.json');
+  await openBuildNamed('Wall');
+  await page().evaluate(`document.querySelector('[data-mat="m1"]').focus(); return true;`);
+  await page().press('Enter', { code: 'Enter', keyCode: 13 });
+  await page().waitFor('document.querySelector("#inventory-dialog").open === true');
+  assert.equal(await page().evaluate('return document.activeElement.id;'), 'inv-absolute');
+  await page().fill('#inv-absolute', '123');
+  await page().press('Enter', { code: 'Enter', keyCode: 13 });
+  await page().waitFor('document.querySelector("#inventory-dialog").open === false');
+  assert.equal((await appState()).worlds[0].inventory.stone_bricks, 123, 'Enter in the dialog commits');
+  const focusBack = await page().evaluate(`
+    const active = document.activeElement;
+    return { tag: active.tagName, mat: active.getAttribute && active.getAttribute('data-mat') };
+  `);
+  assert.equal(focusBack.mat, 'm1', 'focus returns to the row that opened the dialog');
+  await page().evaluate(`document.querySelector('[data-mat="m1"]').focus(); return true;`);
+  await page().press('Enter', { code: 'Enter', keyCode: 13 });
+  await page().waitFor('document.querySelector("#inventory-dialog").open === true');
+  await page().press('Escape', { code: 'Escape', keyCode: 27 });
+  await page().waitFor('document.querySelector("#inventory-dialog").open === false');
+  const rowFocus = await page().evaluate(`
+    const active = document.activeElement;
+    return { tag: active.tagName, mat: active.getAttribute && active.getAttribute('data-mat') };
+  `);
+  assert.equal(rowFocus.mat, 'm1', 'Escape restores focus to the row that opened the dialog');
+  assert.equal(await page().evaluate('return document.querySelector("#copy-coords").tabIndex >= 0;'), true,
+    'the Copy control stays in the keyboard order');
+});
+
+test('115 copy list puts the count in plain text', async () => {
+  await seed17('duplicate-allocation-state.json');
+  await page().evaluate(`
+    window.__copied = null;
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: { writeText: (text) => { window.__copied = text; return Promise.resolve(); } },
+    });
+    return true;
+  `);
+  await page().click('#btn-copy-list');
+  await page().waitFor('typeof window.__copied === "string" && window.__copied.length > 0');
+  const copied = await page().evaluate('return window.__copied;');
+  assert.match(copied, /^Stone Bricks x500 \(150 left\)$/m, 'the plain count is the aggregated need: ' + copied);
+  assert.match(copied, /^Glass x128 \(28 left\)$/m);
+  assert.equal(/\*\*/.test(copied), false, 'no markdown bold');
+  assert.equal(/\[\s?\]/.test(copied), false, 'no markdown checkboxes');
+  assert.equal(/-\s/.test(copied), false, 'no markdown list bullets');
+  const toast = (await page().text('#toast')).trim();
+  assert.match(toast, /copied/i, 'the toast names the copied list');
+});
+
+test('116 row dialogs are icon, name, delete only', async () => {
+  await seed17('duplicate-allocation-state.json');
+  await openBuildNamed('Wall');
+  await page().click('[data-mat="m1"] .mat-row__name');
+  await page().waitFor('document.querySelector("#inventory-dialog").open === true');
+  assert.match(await page().text('#inv-title'), /Stone Bricks/);
+  await closeInventoryWithEscape();
+  await page().click('#detail-avatar');
+  await page().waitFor('document.querySelector("#icon-dialog").open === true');
+  await page().click('#icon-cancel');
+  await page().waitFor('document.querySelector("#icon-dialog").open === false');
+  await page().click('#build-rename');
+  await page().waitFor('document.querySelector("#build-name").hidden === false');
+  await page().click('#build-name-cancel');
+  await page().waitFor('document.querySelector("#build-name").hidden === true');
+  const beforeCount = await page().count('#build-list .build-entry');
+  await page().click('#build-delete');
+  await page().waitFor('document.querySelector("#confirm-dialog").open === true');
+  await page().click('#confirm-ok');
+  await page().waitFor(`document.querySelectorAll('#build-list .build-entry').length === ${beforeCount - 1}`);
+  assert.equal(await page().hidden('#toast-action'), false, 'the delete offers an Undo');
+  await page().click('#toast-action');
+  await page().waitFor(`document.querySelectorAll('#build-list .build-entry').length === ${beforeCount}`);
+  assert.equal(await page().count('#build-list .build-entry'), beforeCount, 'Undo restores the deleted build');
+});
+
+test('117 sidebar controls collapse, filter and carry world actions', async () => {
+  await seed17('duplicate-allocation-state.json');
+  assert.equal(await page().evaluate('return document.body.classList.contains("is-sidebar-collapsed");'), false);
+  await page().click('#sidebar-toggle');
+  await page().waitFor('document.body.classList.contains("is-sidebar-collapsed")');
+  const collapsed = await page().evaluate(`
+    const panel = document.querySelector('#world-panel');
+    return {
+      width: Math.round(panel.getBoundingClientRect().width),
+      pressed: document.querySelector('#sidebar-toggle').getAttribute('aria-pressed'),
+      label: document.querySelector('#sidebar-toggle').getAttribute('aria-label'),
+    };
+  `);
+  assert.ok(collapsed.width >= 56 && collapsed.width <= 70, 'the collapsed rail is about 56px wide (got ' + collapsed.width + ')');
+  assert.equal(collapsed.pressed, 'true');
+  assert.match(collapsed.label, /expand/i);
+  assert.equal(await page().evaluate('return localStorage.getItem("mbt.sidebar");'), 'closed');
+  const options = await page().evaluate(`
+    return Array.from(document.querySelectorAll('#inactive-mode option')).map((option) => option.value);
+  `);
+  assert.deepEqual(options, ['priority', 'end', 'hide'], 'exactly three inactive modes');
+  for (const selector of ['#unit-toggle [data-unit=items]', '#btn-shopping-list', '#btn-new-world', '#btn-import', '#btn-export']) {
+    assert.equal(await page().hidden(selector), false, selector + ' stays reachable while collapsed');
+  }
+  await page().reload();
+  await page().waitFor('document.querySelector("#world-select") !== null');
+  assert.equal(await page().evaluate('return document.body.classList.contains("is-sidebar-collapsed");'), true,
+    'the collapsed state survives a reload');
+  await page().click('#sidebar-toggle');
+  await page().waitFor('!document.body.classList.contains("is-sidebar-collapsed")');
+});
+
+test('118 world progress agrees with allocation', async () => {
+  await seed17('duplicate-allocation-state.json');
+  const oracle = await page().evaluate(`
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
+    const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
+    const summary = window.TrackerModel.worldSummary(world);
+    return { text: window.TrackerModel.progressText(summary.covered, summary.needed), covered: summary.covered, needed: summary.needed };
+  `);
+  assert.equal((await page().text('#world-progress-text')).trim(), oracle.text);
+  await page().fill('#inactive-mode', 'hide');
+  await page().waitFor('localStorage.getItem("mbt.inactiveMode") === "hide"');
+  const names = await page().evaluate(`
+    return Array.from(document.querySelectorAll('#build-list .build-entry__name')).map((n) => n.textContent.trim());
+  `);
+  assert.deepEqual(names, ['Wall', 'Hut'], 'the inactive old build is dropped from the list');
+  const after = await page().evaluate(`
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
+    const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
+    return window.TrackerModel.progressText(window.TrackerModel.worldSummary(world).covered, window.TrackerModel.worldSummary(world).needed);
+  `);
+  assert.equal((await page().text('#world-progress-text')).trim(), after,
+    'progress still agrees with the allocation of the participating builds');
+  assert.match(after, /items gathered \(\d+%\)$/, 'the percentage is never negative or capped away');
+});
+
+test('119 shopping list dialog lists deficits once', async () => {
+  await seed17('duplicate-allocation-state.json');
+  await page().click('#btn-shopping-list');
+  await page().waitFor('document.querySelector("#shopping-dialog").open === true');
+  const rows = await page().evaluate(`
+    return Array.from(document.querySelectorAll('#shopping-body .mat-row')).map((row) => ({
+      slug: row.getAttribute('data-mat'),
+      count: row.querySelector('[data-shopping-count]').textContent.trim(),
+      builds: row.querySelector('.mat-row__builds') ? row.querySelector('.mat-row__builds').textContent.trim() : '',
+    }));
+  `);
+  assert.deepEqual(rows.map((row) => row.slug), ['stone_bricks', 'glass'], 'one row per slug, largest deficit first');
+  assert.equal(rows[0].count, '150', 'Stone Bricks is 500 needed against 350 owned');
+  assert.equal(rows[1].count, '28', 'Glass is 128 needed against 100 owned');
+  assert.equal(new Set(rows.map((row) => row.slug)).size, rows.length, 'no duplicate slug');
+  assert.equal(rows.some((row) => /Old Shed/.test(row.builds)), false, 'the done build is not an owner');
+  assert.match(rows[0].builds, /Wall/);
+  assert.match(rows[0].builds, /Hut/);
+  await page().click('#shopping-close');
+  await page().waitFor('document.querySelector("#shopping-dialog").open === false');
+});
+
+test('120 done build leaves the rollup but not the list', async () => {
+  await seed17('inactive-state.json');
+  const oracle = await page().evaluate(`
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
+    const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
+    return {
+      summary: window.TrackerModel.worldSummary(world),
+      text: window.TrackerModel.progressText(window.TrackerModel.worldSummary(world).covered, window.TrackerModel.worldSummary(world).needed),
+    };
+  `);
+  assert.equal((await page().text('#world-progress-text')).trim(), oracle.text);
+  const list = await page().evaluate(`
+    return Array.from(document.querySelectorAll('#build-list .build-entry__name')).map((n) => n.textContent.trim());
+  `);
+  assert.ok(list.includes('Finished Tower'), 'the done build stays in the list');
+  assert.equal(list[list.length - 1], 'Finished Tower', 'in priority mode the done build sorts last');
+  await openBuildNamed('Finished Tower');
+  const rows = await materialRows();
+  assert.equal(rows[0].covered, rows[0].needed, 'its own detail shows it fully covered');
+  assert.equal(rows[0].remaining, '0');
+  const coveredAfter = await page().evaluate(`
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
+    const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
+    const summary = window.TrackerModel.worldSummary(world);
+    return { covered: summary.covered, needed: summary.needed };
+  `);
+  assert.equal(coveredAfter.covered, oracle.summary.covered, 'the done build consumes nothing from the world rollup');
+  assert.equal(coveredAfter.needed, oracle.summary.needed);
+});
+
+test('121 compact view renders v2 counts', async () => {
+  await seed17('duplicate-allocation-state.json');
+  await page().click('#view-compact');
+  await page().waitFor('!document.querySelector("#view-compact").hidden || document.querySelector("#compact-grid").children.length > 0');
+  await page().waitFor('document.querySelectorAll("#compact-grid .ccard").length === 3');
+  const cards = await page().evaluate(`
+    return Array.from(document.querySelectorAll('#compact-grid .ccard')).map((card) => ({
+      build: card.getAttribute('data-build'),
+      name: card.querySelector('.ccard__name').textContent.trim(),
+      tiles: Array.from(card.querySelectorAll('.ctile')).map((tile) => ({
+        mat: tile.getAttribute('data-mat'),
+        count: tile.querySelector('.ctile__count').textContent.trim(),
+        done: tile.classList.contains('ctile--done'),
+        text: tile.textContent,
+      })),
+    }));
+  `);
+  assert.equal(cards.length, 3);
+  assert.equal(cards.some((card) => /undefined/.test(JSON.stringify(card))), false,
+    'no tile renders the string undefined');
+  const wall = cards.find((card) => card.name === 'Wall');
+  const tile = wall.tiles.find((entry) => entry.mat === 'm1');
+  assert.equal(tile.count, '0', 'a finished tile shows a zero count');
+  assert.equal(tile.done, true);
+  const oracle = await page().evaluate(`
+    const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
+    const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
+    const alloc = window.TrackerModel.allocate(world);
+    const covered = alloc.perMaterial['m1'] || 0;
+    return window.TrackerModel.formatUnits(Math.max(0, 300 - covered), 'stone_bricks', 'items', 64);
+  `);
+  assert.equal(oracle, tile.count);
+  await page().evaluate(`document.querySelector('#compact-grid .ccard .ctile[data-mat="m1"]').click(); return true;`);
+  await page().waitFor('document.querySelector("#inventory-dialog").open === true');
+  assert.match(await page().text('#inv-title'), /Stone Bricks/);
+  const before = (await appState()).worlds[0].inventory.stone_bricks;
+  await page().fill('#inv-absolute', '400');
+  await page().fill('#inv-delta', '');
+  await page().press('Enter', { code: 'Enter', keyCode: 13 });
+  await page().waitFor('document.querySelector("#inventory-dialog").open === false');
+  assert.equal((await appState()).worlds[0].inventory.stone_bricks, 400, 'one commit writes once');
+  assert.notEqual(before, 400);
+});
+
+test('122 mobile 390 stacks the material table', async () => {
+  await page().setViewport(390, 844);
+  try {
+    await seed17('duplicate-allocation-state.json');
+    await openBuildNamed('Wall');
+    const metrics = await page().evaluate(`
+      const rows = Array.from(document.querySelectorAll('#material-body .mat-row'));
+      const doc = document.documentElement;
+      const body = document.querySelector('#material-body');
+      const overflowAncestors = [];
+      let node = body.parentElement;
+      while (node && node !== document.body) {
+        const style = getComputedStyle(node);
+        if (['auto', 'scroll'].includes(style.overflowY) || ['auto', 'scroll'].includes(style.overflowX)) overflowAncestors.push(node.id || node.className);
+        node = node.parentElement;
+      }
+      return {
+        scrollWidth: doc.scrollWidth,
+        innerWidth: window.innerWidth,
+        scrollHeight: doc.scrollHeight,
+        innerHeight: window.innerHeight,
+        overflowAncestors,
+        firstRowTag: rows[0].tagName,
+        rowColumns: getComputedStyle(rows[0]).gridTemplateColumns,
+      };
+    `);
+    assert.ok(metrics.scrollWidth <= metrics.innerWidth + 1, 'no horizontal overflow at 390px');
+    assert.deepEqual(metrics.overflowAncestors, [], 'the table is not trapped in an inner scroll box');
+    assert.ok(metrics.scrollHeight > metrics.innerHeight, 'the page grows instead of clipping');
+    assert.equal(metrics.firstRowTag, 'DIV');
+    await page().click('#mat-view-grid');
+    await page().waitFor('!document.querySelector("#material-grid").hidden');
+    const columns = await page().evaluate(`
+      const chips = Array.from(document.querySelectorAll('#material-grid .mat-chip'));
+      const lefts = Array.from(new Set(chips.map((chip) => Math.round(chip.getBoundingClientRect().left))));
+      return { count: chips.length, perRow: Math.max(...Object.values(chips.reduce((acc, chip) => {
+        const key = Math.round(chip.getBoundingClientRect().top);
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {}))), columns: lefts.length };
+    `);
+    assert.equal(columns.count, 3);
+    assert.ok(columns.columns <= 4, 'the grid reflows to at most four chips per row');
+    await page().evaluate(`document.querySelector('#material-grid .mat-chip[data-mat="m1"]').click(); return true;`);
+    await page().waitFor('document.querySelector("#inventory-dialog").open === true');
+    await closeInventoryWithEscape();
+  } finally {
+    await page().clearViewport();
+  }
+});
+
+test('123 sticky toolbar stays above the viewport bottom', async () => {
+  await page().setViewport(1280, 700);
+  try {
+    await seed17('duplicate-allocation-state.json');
+    const state = JSON.parse(fs.readFileSync(fixture17('duplicate-allocation-state.json'), 'utf8'));
+    const wall = state.worlds[0].builds[0];
+    for (let index = 0; index < 30; index += 1) {
+      wall.materials.push({ id: 'extra-' + index, item: index % 2 === 0 ? 'Glass' : 'Stone Bricks', needed: 10 + index });
+    }
+    await injectState(state);
+    await openBuildNamed('Wall');
+    const sticky = await page().evaluate(`
+      const toolbar = document.querySelector('#mat-toolbar');
+      return { position: getComputedStyle(toolbar).position, top: toolbar.getBoundingClientRect().top, rows: document.querySelectorAll('#material-body .mat-row').length };
+    `);
+    assert.equal(sticky.position, 'sticky', 'the toolbar is sticky');
+    assert.ok(sticky.rows >= 10, 'the build is long enough to scroll');
+    await page().evaluate('window.scrollTo(0, 600); return true;');
+    await page().waitFor('window.scrollY > 100');
+    const scrolled = await page().evaluate(`
+      const toolbar = document.querySelector('#mat-toolbar');
+      const rect = toolbar.getBoundingClientRect();
+      const last = document.querySelector('#material-body .mat-row:last-child');
+      const lastRect = last.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom, viewportBottom: window.innerHeight, lastTop: lastRect.top };
+    `);
+    assert.ok(Math.abs(scrolled.top) <= 16, 'the toolbar pins to the top while scrolling (top ' + scrolled.top + ')');
+    assert.ok(scrolled.bottom < scrolled.viewportBottom, 'the toolbar stays above the viewport bottom');
+  } finally {
+    await page().clearViewport();
+    await page().evaluate('window.scrollTo(0, 0); return true;');
+  }
+});
+
+test('124 timestamps show UTC slice and raw ISO title', async () => {
+  const v1 = JSON.parse(fs.readFileSync(fixture17('v1-migration-state.json'), 'utf8'));
+  await injectV1State(v1);
+  const stamps = await page().evaluate(`
+    return Array.from(document.querySelectorAll('.stamp[data-iso]')).map((node) => ({
+      text: node.textContent.trim(),
+      iso: node.getAttribute('data-iso'),
+      title: node.getAttribute('title'),
+      datetime: node.getAttribute('datetime'),
+    }));
+  `);
+  assert.ok(stamps.length >= 1, 'the sidebar renders the world stamps');
+  for (const stamp of stamps) {
+    assert.match(stamp.text, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/, 'the visible stamp is the UTC slice, not a date phrase');
+    assert.equal(stamp.title, stamp.iso, 'the title keeps the raw ISO timestamp');
+    assert.equal(stamp.datetime, stamp.iso);
+    assert.equal(/ago|yesterday|today|just now/i.test(stamp.text), false);
+    const expected = await page().evaluate(`return window.TrackerModel.formatStamp(${JSON.stringify(stamp.iso)});`);
+    assert.equal(stamp.text, expected, 'the text is exactly M.formatStamp(iso)');
+  }
+  assert.equal(await page().hidden('#migrated-from'), false, 'the migration notice is shown once');
+  await page().reload();
+  await page().waitFor('document.querySelector("#world-select") !== null');
+  assert.equal(await page().hidden('#migrated-from'), true, 'and not again on the next load');
+});
+
+test('125 export v2 round-trips', async () => {
+  await seed17('duplicate-allocation-state.json');
+  await page().evaluate(`
+    window.__blobRef = null;
+    const real = URL.createObjectURL.bind(URL);
+    URL.createObjectURL = (blob) => { window.__blobRef = blob; return real(blob); };
+    return true;
+  `);
+  await page().click('#btn-export');
+  await page().waitFor('window.__blobRef instanceof Blob');
+  const text = await page().evaluate('return window.__blobRef.text();');
+  const exported = JSON.parse(text);
+  assert.equal(exported.version, 2, 'the backup is v2');
+  assert.ok(exported.worlds[0].inventory, 'the inventory travels on the world');
+  assert.equal(JSON.stringify(exported).includes('"collected"'), false, 'no retired collected fields are exported');
+  const before = await appState();
+  await page().click('#btn-import');
+  await page().waitFor('document.querySelector("#import-dialog").open');
+  await page().fill('#import-text', text);
+  await page().click('#import-restore');
+  await page().waitFor('document.querySelector("#import-dialog").open === false');
+  const after = await appState();
+  assert.deepEqual(after.worlds[0].inventory, before.worlds[0].inventory, 'the inventory round-trips');
+  assert.deepEqual(after.worlds[0].builds.map((build) => [build.name, build.active, build.materials.length]),
+    before.worlds[0].builds.map((build) => [build.name, build.active, build.materials.length]),
+    'build order, active flags and material counts round-trip');
+});
+
+test('126 materials region scrolls the page, not itself', async () => {
+  await page().setViewport(1280, 900);
+  try {
+    await seed17('duplicate-allocation-state.json');
+    const state = JSON.parse(fs.readFileSync(fixture17('duplicate-allocation-state.json'), 'utf8'));
+    const wall = state.worlds[0].builds[0];
+    for (let index = 0; index < 14; index += 1) {
+      wall.materials.push({ id: 'extra-' + index, item: index % 2 === 0 ? 'Glass' : 'Stone Bricks', needed: 10 + index });
+    }
+    await injectState(state);
+    await openBuildNamed('Wall');
+    const geometry = await page().evaluate(`
+      const body = document.querySelector('#material-body');
+      const ancestors = [];
+      let node = body.parentElement;
+      while (node && node !== document.documentElement) {
+        const style = getComputedStyle(node);
+        if (['auto', 'scroll'].includes(style.overflowY) || ['auto', 'scroll'].includes(style.overflowX)) ancestors.push(node.id || node.className || node.tagName);
+        node = node.parentElement;
+      }
+      const lastRow = body.querySelector('.mat-row:last-child');
+      const form = document.querySelector('#add-material-form');
+      return {
+        ancestors,
+        scrollHeight: document.documentElement.scrollHeight,
+        innerHeight: window.innerHeight,
+        lastRowBottom: lastRow.getBoundingClientRect().bottom,
+        formTop: form.getBoundingClientRect().top,
+        toolbarTop: document.querySelector('#mat-toolbar').getBoundingClientRect().top,
+      };
+    `);
+    assert.deepEqual(geometry.ancestors, [], 'no ancestor of #material-body is an inner scroll box');
+    assert.ok(geometry.scrollHeight > geometry.innerHeight, 'the page grows with the rows');
+    assert.ok(geometry.formTop >= geometry.lastRowBottom - 1, 'the add form sits below the last row, not inside a scroller');
+    assert.ok(geometry.toolbarTop >= 0 && geometry.toolbarTop < geometry.innerHeight,
+      'the toolbar is on screen above the rows');
+    await page().evaluate(`
+      const toolbar = document.querySelector('#mat-toolbar');
+      const target = Math.min(document.documentElement.scrollHeight - window.innerHeight,
+        toolbar.getBoundingClientRect().top + window.scrollY + 120);
+      window.scrollTo(0, target);
+      return target;
+    `);
+    await page().waitFor('window.scrollY > 0');
+    const pinned = await page().evaluate(
+      'return document.querySelector("#mat-toolbar").getBoundingClientRect().top;'
+    );
+    assert.ok(pinned >= -1 && pinned <= 16, 'the toolbar pins while the materials region scrolls the page');
+  } finally {
+    await page().clearViewport();
+  }
+});
+
+test('127 inactive builds follow priority/end/hide', async () => {
+  await seed17('inactive-state.json');
+  assert.equal(await page().count('#build-list .build-entry--inactive'), 1, 'the paused build is dimmed in place in priority mode');
+  await page().fill('#inactive-mode', 'end');
+  await page().waitFor(`Array.from(document.querySelectorAll('#build-list .build-entry__name')).map((n) => n.textContent.trim()).join('|') === 'Active Hut|Finished Tower|Paused Barn'`);
+  await page().fill('#inactive-mode', 'hide');
+  await page().waitFor(`Array.from(document.querySelectorAll('#build-list .build-entry__name')).map((n) => n.textContent.trim()).join('|') === 'Active Hut|Finished Tower'`);
+  const hidden = await page().evaluate(`
+    return Array.from(document.querySelectorAll('#build-list .build-entry__name')).map((n) => n.textContent.trim());
+  `);
+  assert.deepEqual(hidden, ['Active Hut', 'Finished Tower'], 'hide drops the inactive build from the list');
+  await page().fill('#inactive-mode', 'priority');
+  await page().waitFor(`document.querySelectorAll('#build-list .build-entry--inactive').length === 1`);
+  const before = await page().evaluate(`
+    const entry = Array.from(document.querySelectorAll('#build-list .build-entry')).find((node) =>
+      node.querySelector('.build-entry__name').textContent.trim() === 'Paused Barn');
+    return { actions: entry.querySelectorAll('.build-entry__actions button').length };
+  `);
+  assert.equal(before.actions, 2, 'hover actions are an Activate and a Remove button');
+  await page().evaluate(`
+    const entry = Array.from(document.querySelectorAll('#build-list .build-entry')).find((node) =>
+      node.querySelector('.build-entry__name').textContent.trim() === 'Paused Barn');
+    entry.querySelector('[data-build-activate]').click();
+    return true;
+  `);
+  await page().waitFor(`document.querySelectorAll('#build-list .build-entry--inactive').length === 0`);
+  const active = await buildByName('Paused Barn');
+  assert.equal(active.build.active, true, 'activation flips the active flag');
+  const count = await page().count('#build-list .build-entry');
+  await page().evaluate(`
+    const entry = Array.from(document.querySelectorAll('#build-list .build-entry')).find((node) =>
+      node.querySelector('.build-entry__name').textContent.trim() === 'Active Hut');
+    entry.querySelector('[data-build-remove]').click();
+    return true;
+  `);
+  await page().waitFor('document.querySelector("#confirm-dialog").open === true');
+  await page().click('#confirm-ok');
+  await page().waitFor(`document.querySelectorAll('#build-list .build-entry').length === ${count - 1}`);
+  assert.equal(await page().hidden('#toast-action'), false, 'removal offers Undo');
+  await page().click('#toast-action');
+  await page().waitFor(`document.querySelectorAll('#build-list .build-entry').length === ${count}`);
+});
+
+test('128 build header groups identity and notes', async () => {
+  await seed17('duplicate-allocation-state.json');
+  await openBuildNamed('Wall');
+  const grouping = await page().evaluate(`
+    const order = ['#build-header', '#detail-progress', '#mat-toolbar', '#material-table', '#material-body'];
+    const nodes = order.map((sel) => document.querySelector(sel));
+    const indices = nodes.map((node, index) => {
+      const position = node.compareDocumentPosition(document.querySelector('#material-body'));
+      return index;
+    });
+    const header = document.querySelector('#build-header');
+    return {
+      present: nodes.every(Boolean),
+      headerBeforeBody: (header.compareDocumentPosition(document.querySelector('#material-body')) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+      headerBeforeToolbar: (header.compareDocumentPosition(document.querySelector('#mat-toolbar')) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+      hasHeading: !!document.querySelector('#detail-heading'),
+      hasStatus: !!header.querySelector('#status-group'),
+      hasCoords: !!header.querySelector('#build-coords'),
+      hasNotesAffordances: !!header.querySelector('#notes-edit') && !!header.querySelector('#notes-text'),
+      hasNameEdit: !!header.querySelector('#build-rename') && !!header.querySelector('#build-name'),
+      indices,
+    };
+  `);
+  assert.equal(grouping.present, true, 'the header, progress, toolbar and body all exist');
+  assert.equal(grouping.headerBeforeBody, true, 'the header precedes the material body');
+  assert.equal(grouping.headerBeforeToolbar, true, 'the header precedes the toolbar');
+  assert.equal(grouping.hasHeading, true);
+  assert.equal(grouping.hasStatus, true);
+  assert.equal(grouping.hasCoords, true);
+  assert.equal(grouping.hasNotesAffordances, true);
+  assert.equal(grouping.hasNameEdit, true);
+  await page().click('#notes-edit');
+  await page().waitFor('!document.querySelector("#notes-editor").hidden');
+  await page().fill('#build-notes', 'Two deep for the terrace.');
+  await page().click('#notes-save');
+  await page().waitFor('document.querySelector("#notes-editor").hidden === true');
+  assert.equal((await page().text('#notes-text')).trim(), 'Two deep for the terrace.');
+  const stored = await buildByName('Wall');
+  assert.equal(stored.build.notes, 'Two deep for the terrace.', 'the notes are persisted on the build');
 });
 
 test('66 the whole run, including the new surfaces, stayed free of console errors', async () => {

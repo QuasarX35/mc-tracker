@@ -363,7 +363,12 @@ def audit_structure() -> None:
         mat_error_tag is not None and 'role="alert"' in mat_error_tag.group(0),
         "the add-material error is announced inline (role=alert)",
     )
-    check("html/no-datalist", "item-options" not in HTML, "the #item-options datalist is retired (D8)")
+    check(
+        "html/no-datalist",
+        re.search(r'id="item-options"', HTML) is None and "item-options" not in APP,
+        "the #item-options datalist is retired by EDICT-0017 §3 (contract C115); markup and code "
+        "must not reference it",
+    )
     check(
         "html/notes-view-text",
         'class="notes__text"' in HTML or "notes__text" in APP,
@@ -376,13 +381,17 @@ def audit_structure() -> None:
         "the empty notes state is the muted 'No notes yet.'",
     )
     check(
-        "html/steppers",
-        ".stepper" in CSS and ".stepper__btn" in CSS and "data-stepper-step" in APP
-        and re.search(r'data-stepper-step="1"[\s\S]{0,400}?data-stepper-step="-1"', APP) is not None
-        and "MC_ICON_STACKS" in APP
-        and "materialStepsHtml" not in APP and "data-mat-step" not in APP,
-        "every editable number renders the two-button .stepper, + left of the input and - right; "
-        "the six-button strips are retired (EDICT-0016 §2)",
+        "html/steppers-retired",
+        "stepper" not in HTML
+        and "data-stepper-step" not in APP
+        and "stepperHtml" not in APP
+        and "mat-steps" not in HTML
+        and re.search(
+            r'type="text"[^>]*inputmode="numeric"[^>]*data-mat-field="needed"', APP
+        )
+        is not None,
+        "the .stepper controls are retired (EDICT-0017 §3 / AC7); the row Needed field is a text "
+        "input with inputmode=numeric and no stepper nodes exist in markup or code",
     )
     check(
         "html/spinners-hidden",
@@ -393,10 +402,15 @@ def audit_structure() -> None:
     )
     check(
         "html/needed-number",
-        re.search(r'id="mat-needed"\s+type="number"', HTML) is not None
-        and re.search(r"function stepperHtml[\s\S]{0,1200}data-mat-field", APP) is not None
-        and re.search(r"function stepperHtml[\s\S]{0,400}\? 'text' : 'number'", APP) is not None,
-        "the Needed input stays type=number through the shared stepper renderer (AC5b)",
+        re.search(r'id="mat-needed"[^>]*type="number"', HTML) is not None
+        and "stepperHtml" not in APP
+        and "data-stepper-step" not in APP
+        and re.search(
+            r'type="text"[^>]*inputmode="numeric"[^>]*data-mat-field="needed"', APP
+        )
+        is not None,
+        "the add-form Needed stays a plain type=number input (C123); the row Needed editor is the "
+        "text field [data-mat-field=needed] with inputmode=numeric and no stepper renderer (AC7)",
     )
     check(
         "html/step-clamp",
@@ -466,7 +480,7 @@ def audit_identity() -> None:
         "setIconMode" not in APP and "iconMode" not in APP,
         "the retired item/image switcher is deleted, not orphaned (D7)",
     )
-    for selector in (".avatar", ".icon-grid", ".icon-tile", ".detail__avatar", ".notes__text", ".stepper"):
+    for selector in (".avatar", ".icon-grid", ".icon-tile", ".detail__avatar", ".notes__text", ".mat-chip"):
         check(f"identity/css-{selector}", selector in CSS, f"{selector} styled")
     check("identity/css-no-picker-tab", ".picker-tab" not in CSS, "retired picker tab styles are gone (D7)")
     check(
@@ -664,12 +678,15 @@ def audit_edict0014() -> None:
     )
     check(
         "edict0014/bulk",
-        "bulk-dialog" in HTML
-        and "bulk-input" in HTML
-        and "bulk-review" in HTML
-        and "bulk-add" in HTML
-        and "parseBulk" in MODEL,
-        "bulk dialog surfaces and the pure parser live in the model",
+        "paste-preview" in HTML
+        and all(
+            f'id="{element}"' in HTML
+            for element in ("paste-rows", "paste-errors", "paste-ok", "paste-cancel")
+        )
+        and "parseBulk" in MODEL
+        and "bulk-dialog" not in HTML,
+        "the preview dialog (#paste-rows/#paste-errors/#paste-ok/#paste-cancel) and the pure "
+        "M.parseBulk parser replace the retired #bulk-* dialog (EDICT-0017 §3)",
     )
     check(
         "edict0014/undo",
@@ -692,16 +709,19 @@ def audit_edict0014() -> None:
         and "iconAuto" in MODEL
         and "icon-suggest-note" in HTML
         and "data-icon-suggested" in APP
-        and "data-icon-auto" in APP,
-        "model suggestion helper + display-only iconAuto + picker note/tile hooks",
+        and "Suggested from" in APP,
+        "model suggestion helper + display-only iconAuto; the picker surfaces the suggestion through "
+        "#icon-suggest-note and data-icon-suggested (the 0014-era #picker-note/.picker[data-mode] and "
+        "data-icon-auto hooks are retired — EDICT-0017 §3 names no picker ids)",
     )
     check(
         "edict0014/step-labels",
-        "data-stepper-step" in APP
-        and "stackSizeFor" in APP
-        and "data-mat-step" not in APP,
-        "resolved step labels and stack lookup survive as the two-button .stepper "
-        "(EDICT-0016 §2 supersedes the six-button strip; the stack-1 omission branch is retired)",
+        "data-stepper-step" not in APP
+        and "MC_ICON_STACKS" in APP
+        and "formatUnits" in MODEL
+        and "stackNotation" in MODEL,
+        "resolved step labels retire with the stepper (EDICT-0017 §3); stack sizing renders through "
+        "M.formatUnits/M.stackNotation over MC_ICON_STACKS",
     )
     check(
         "edict0014/backdrop-transform-loop",
@@ -715,7 +735,7 @@ def audit_edict0014() -> None:
 def audit_edict0015() -> None:
     """EDICT-0015 statics: rotation, ordering, world stats, custom items, steppers, import, backlog."""
     for element in (
-        "world-progress", "world-remaining", "world-bar", "world-fill",
+        "world-progress", "world-progress-text", "world-bar", "world-fill",
         "backdrop-pause",
         "import-dialog", "import-file", "import-drop", "import-text", "import-restore", "import-cancel", "import-error",
         "custom-dialog", "custom-name", "custom-stack", "custom-scope", "custom-icon-pick", "custom-icon-upload",
@@ -726,8 +746,11 @@ def audit_edict0015() -> None:
         "edict0015/world-summary-retired",
         'id="world-summary"' not in HTML
         and "summary-totals" not in HTML
-        and "world-summary" not in APP,
-        "the retired #world-summary block and its ids are gone from markup and code (AC2)",
+        and "world-summary" not in APP
+        and "world-remaining" not in HTML
+        and "world-remaining" not in APP,
+        "the retired #world-summary block, its ids and the #world-remaining counter are gone from "
+        "markup and code; the sidebar paints one progress sentence (AC2 / EDICT-0017 §4)",
     )
     import_input = re.search(r"<input[^>]*id=\"file-import\"[^>]*>", HTML)
     check(
@@ -774,9 +797,12 @@ def audit_edict0015() -> None:
     )
     check(
         "edict0015/stats",
-        "world-progress" in APP and "world-remaining" in APP and "world-bar" in APP and "world-fill" in APP
-        and "worldSummary" in APP,
-        "the header stats are painted from the model summary (AC2)",
+        "progressText" in APP
+        and "progressText" in MODEL
+        and 'id="world-progress-text"' in HTML
+        and "M.worldSummary" in APP,
+        "header/detail progress is painted from the model's progressText sentence (AC1/EDICT-0017 §3); "
+        "the restored path reads M.allocate()/M.worldSummary() and never the retired #world-summary ids",
     )
     check(
         "edict0015/ordering",
@@ -800,16 +826,26 @@ def audit_edict0015() -> None:
     )
     check(
         "edict0015/import-ui",
-        "import-dialog" in APP and "import-text" in APP and "import-restore" in APP and "import-drop" in APP
+        all(
+            f'id="{element}"' in HTML
+            for element in ("import-dialog", "import-file", "import-drop", "import-text", "import-restore",
+                            "import-cancel", "import-error")
+        )
+        and "paste-preview" in HTML
+        and all(f'id="{element}"' in HTML for element in ("paste-rows", "paste-errors", "paste-ok", "paste-cancel"))
+        and "bulk-dialog" not in HTML
         and "is-over" in CSS,
-        "the chooser-free restore path (paste, drop) is wired (AC8)",
+        "restore stays chooser-free and the material paste path is #paste-preview, not the retired "
+        "#bulk-* dialog (EDICT-0017 §3 / C111)",
     )
     check(
         "edict0015/add-steps",
-        re.search(r'<div class="stepper" data-stepper>[\s\S]{0,500}id="mat-needed"', HTML) is not None
-        and 'data-stepper-step' in HTML
+        re.search(r'id="mat-needed"[^>]*type="number"', HTML) is not None
+        and "data-stepper-step" not in HTML
+        and "data-stepper-step" not in APP
         and 'data-mat-field="needed"' in APP,
-        "the add-form stepper is the two-button control driving Needed (AC6; EDICT-0016 §2)",
+        "the add-form Needed is a plain type=number input (C123) with no stepper; the row editor "
+        "stays [data-mat-field=needed] (EDICT-0017 §3 / AC7)",
     )
     backlog = ROOT / "docs" / "backlog"
     ux = backlog / "ux.md"

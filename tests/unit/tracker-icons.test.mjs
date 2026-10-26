@@ -148,5 +148,6 @@ test('backups written before icons existed still import (additive, no schema bum
   assert.ok(!imported.error, imported.error);
   assert.equal(imported.state.worlds[0].icon, undefined);
   assert.equal(imported.state.worlds[0].builds[0].icon, undefined);
-  assert.equal(imported.state.version, 1);
+  // EDICT-0017: a v1 document migrates to the current schema on import.
+  assert.equal(imported.state.version, 2);
 });

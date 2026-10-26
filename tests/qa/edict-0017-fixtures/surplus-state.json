@@ -1,0 +1,34 @@
+{
+  "version": 2,
+  "activeWorldId": "w1",
+  "worlds": [
+    {
+      "id": "w1",
+      "name": "Surplus World",
+      "edition": "java",
+      "version": "1.21.4",
+      "notes": "Needed 97, owned 482: surplus must read +385 and hide when a second build raises the need.",
+      "createdAt": "2026-09-14T08:05:00.000Z",
+      "updatedAt": "2026-10-25T21:40:00.000Z",
+      "icon": null,
+      "inventory": {
+        "stone_bricks": 482
+      },
+      "builds": [
+        {
+          "id": "b1",
+          "name": "Single Wall",
+          "status": "building",
+          "active": true,
+          "coords": "",
+          "notes": "",
+          "icon": null,
+          "materials": [
+            { "id": "m1", "item": "Stone Bricks", "needed": 97 }
+          ]
+        }
+      ]
+    }
+  ],
+  "customItems": {}
+}

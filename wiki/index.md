@@ -2,7 +2,7 @@
 
 # Index
 
-Catalogue of 27 pages, regenerated 2026-10-26. Read this first when answering a
+Catalogue of 28 pages, regenerated 2026-10-26. Read this first when answering a
 query; it is the map, the pages are the territory.
 
 ## Overview (1)
@@ -11,7 +11,7 @@ query; it is the map, the pages are the territory.
 |------|---------|---------|
 | [[LLM Wiki]] | A persistent, LLM-maintained knowledge base of interlinked pages that sits between the Emperor and an immutable raw source collection. | 2026-10-25 |
 
-## Concepts (13)
+## Concepts (14)
 
 | Page | Summary | Updated |
 |------|---------|---------|
@@ -25,6 +25,7 @@ query; it is the map, the pages are the territory.
 | [[Memex]] | Vannevar Bush's 1945 vision of a private, curated knowledge store with associative trails — missing only a maintainer, which the LLM supplies. | 2026-10-25 |
 | [[Number stepper]] | One −/input/+ control for every number field, with Shift as a full stack and Ctrl/⌘ as sixteen, replacing the six-button material strip. | 2026-10-26 |
 | [[Query-time retrieval]] | The RAG family of approaches — retrieve relevant chunks per question and generate an answer, accumulating nothing between questions. | 2026-10-25 |
+| [[Shared inventory]] | The EDICT-0017 tracker model — one world-level item stock whose per-build covered/left figures are derived by allocating it in list order. | 2026-10-26 |
 | [[Status-ranked build ordering]] | Builds sort by a fixed status rank with a stable tie-break, and the world header replaces the old summary card with derived progress figures. | 2026-10-25 |
 | [[Wiki schema]] | The configuration document (here AGENTS.md) that fixes a wiki's structure, conventions and workflows, turning a generic model into a disciplined maintainer. | 2026-10-25 |
 | [[World sidebar]] | The active world as a left panel — identity, derived stats and world actions — replacing the top-bar strip on the Builds and Materials tabs. | 2026-10-26 |

@@ -1,10 +1,8 @@
 /**
- * Independent acceptance tests for the Minecraft Build Tracker (测试部, EDICT-0005).
- * Two layers:
- *  1. behaviour — the shipped model, driven through a vm context exactly as the app loads it;
- *  2. contract — static invariants of the shipped HTML/CSS/JS that the user relies on
- *     (offline, local assets, labelled controls, pixel-art rendering, square GUI).
- * Assertions are computed here, not copied from 兵部's unit suite.
+ * EDICT-0017 v2 amendment of independent acceptance tests (测试部, EDICT-0005).
+ * v1 semantics retired with EDICT-0017: a material no longer carries `collected`; the stock lives
+ * once per world in `world.inventory` and `M.allocate` gives each build its share. The browser
+ * cases 97-128 cover the same behaviour end to end; these assertions stay computed here.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -25,6 +23,7 @@ vm.createContext(sandbox);
 vm.runInContext(MODEL, sandbox, { filename: 'model.js' });
 const M = sandbox.TrackerModel;
 const plain = (value) => JSON.parse(JSON.stringify(value));
+const slugOf = (item) => String(item || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 
 /* ------------------------------------------------------------- behaviour */
 
@@ -43,39 +42,56 @@ test('AC-2 shopping list is the sum of every build, computed independently here'
   const state = M.seedState();
   const world = state.worlds[0];
 
-  // independent expectation
+  // independent expectation over the v2 shape: no per-material collected; one world inventory.
   const expected = new Map();
   for (const build of world.builds) {
+    if (build.active === false) continue;
     for (const material of build.materials) {
       const key = material.item.trim().toLowerCase();
-      const row = expected.get(key) || { needed: 0, collected: 0 };
-      row.needed += material.needed;
-      row.collected += Math.min(material.collected, material.needed);
+      const row = expected.get(key) || { needed: 0, builds: 0 };
+      row.needed += Math.max(0, material.needed);
+      row.builds += 1;
       expected.set(key, row);
     }
+  }
+  for (const [key, want] of expected) {
+    const stock = Math.max(0, Number(world.inventory[slugOf(key)]) || 0);
+    want.covered = Math.min(want.needed, stock);
+    want.remaining = Math.max(0, want.needed - want.covered);
+    want.pct = want.needed ? Math.round((want.covered / want.needed) * 100) : 0;
   }
 
   const rows = M.aggregateWorld(world);
   assert.equal(rows.length, expected.size);
   for (const row of rows) {
     const want = expected.get(row.item.toLowerCase());
+    assert.ok(want, `unexpected row ${row.item}`);
     assert.equal(row.needed, want.needed, `needed for ${row.item}`);
-    assert.equal(row.collected, want.collected, `collected for ${row.item}`);
-    assert.equal(row.remaining, want.needed - want.collected, `remaining for ${row.item}`);
-    assert.equal(row.pct, Math.round((want.collected / want.needed) * 100));
+    assert.equal(row.covered, want.covered, `covered for ${row.item}`);
+    assert.equal(row.collected, want.covered, 'covered aliases the old collected read');
+    assert.equal(row.remaining, want.remaining, `remaining for ${row.item}`);
+    assert.equal(row.pct, want.pct);
+    assert.equal(row.done, want.remaining === 0);
   }
 });
 
 test('AC-3 "left to collect" is never negative even when over-farmed', () => {
   let state = M.createWorld(M.emptyState(), { name: 'Overfarm' }).state;
-  const worldId = state.worlds[0].id;
-  const build = M.createBuild(state, worldId, { name: 'Wall' });
+  const world = state.worlds[0];
+  const build = M.createBuild(state, world.id, { name: 'Wall' });
   state = build.state;
-  state = M.addMaterial(state, worldId, build.build.id, { item: 'Dirt', needed: 10, collected: 999 }).state;
-  const row = M.aggregateWorld(state.worlds[0])[0];
+  state = M.addMaterial(state, world.id, build.build.id, { item: 'Dirt', needed: 10 }).state;
+  /* EDICT-0017: the inventory is world-scoped, so the setter takes the world and returns it. */
+  const stocked = M.setInventory(state.worlds[0], 'dirt', 999).world;
+  state = Object.assign({}, state, {
+    worlds: state.worlds.map((entry) => (entry.id === stocked.id ? stocked : entry)),
+  });
+  const world2 = state.worlds[0];
+  const row = M.aggregateWorld(world2)[0];
   assert.equal(row.remaining, 0);
   assert.equal(row.done, true);
-  assert.ok(M.worldSummary(state.worlds[0]).remaining >= 0);
+  assert.equal(row.covered, row.needed, 'over-farmed coverage caps at the need');
+  assert.equal(M.worldSummary(world2).remaining, 0);
 });
 
 test('AC-4 a material added twice is one shopping-list row with summed quantities', () => {
@@ -83,12 +99,12 @@ test('AC-4 a material added twice is one shopping-list row with summed quantitie
   const worldId = state.worlds[0].id;
   const build = M.createBuild(state, worldId, { name: 'Base' });
   state = build.state;
-  state = M.addMaterial(state, worldId, build.build.id, { item: 'Oak Planks', needed: 64, collected: 0 }).state;
-  state = M.addMaterial(state, worldId, build.build.id, { item: 'oak planks', needed: 32, collected: 8 }).state;
+  state = M.addMaterial(state, worldId, build.build.id, { item: 'Oak Planks', needed: 64 }).state;
+  state = M.addMaterial(state, worldId, build.build.id, { item: 'oak planks', needed: 32 }).state;
   const rows = M.aggregateWorld(state.worlds[0]);
   assert.equal(rows.length, 1);
   assert.equal(rows[0].needed, 96);
-  assert.equal(rows[0].collected, 8);
+  assert.equal(rows[0].covered, 0, 'an empty inventory covers nothing until it is filled');
 });
 
 test('AC-5 deleting a world removes its builds and cannot leave a dangling active world', () => {
@@ -258,11 +274,14 @@ test('AC-11 every control is labelled and no inline event handler ships', () => 
 });
 
 test('AC-12 app.js only touches element ids that exist in the document', () => {
+  /* EDICT-0017: collectEls() caches every `[id]` in the document, so the invariant is that every
+     id app.js *names* in an els[...] lookup exists in the shipped markup. */
   const ids = new Set([...HTML.matchAll(/\sid="([^"]+)"/g)].map((match) => match[1]));
-  const arrayBlock = APP.split('var ids = [')[1].split('];')[0];
-  const queried = [...arrayBlock.matchAll(/'([a-z0-9-]+)'/g)].map((match) => match[1]);
-  assert.ok(queried.length >= 40, 'the app should cache its elements explicitly');
-  for (const id of queried) assert.ok(ids.has(id), `app.js caches #${id} but the HTML has no such element`);
+  const queried = [...APP.matchAll(/els\['([a-z0-9-]+)'\]/g)].map((match) => match[1]);
+  assert.ok(queried.length >= 100, `the app should name its elements explicitly (found ${queried.length})`);
+  for (const id of new Set(queried)) assert.ok(ids.has(id), `app.js uses els['${id}'] but the HTML has no such element`);
+  assert.match(APP, /function collectEls\(\)[\s\S]*querySelectorAll\('\[id\]'\)/,
+    'collectEls must cache every id in the document');
 });
 
 test('AC-13 the UI is a single-screen app with tabs, one h1 and a skip link', () => {
@@ -309,19 +328,24 @@ test('AC-16 seed regression: the Iron Farm keeps all four materials including St
   const bricks = farm.materials.find((material) => material.item === 'Stone Bricks');
   assert.ok(bricks, 'regression: Stone Bricks vanished from the demo seed');
   assert.equal(bricks.needed, 384);
-  assert.equal(bricks.collected, 200);
+  assert.equal(bricks.collected, undefined, 'EDICT-0017 moved the stock to the world inventory');
+  assert.equal(state.worlds[0].inventory.stone_bricks, 200, 'the demo world holds the 200 Stone Bricks');
 });
 
 /* EDICT-0013 F1: the frozen DOM contract exists in the shipped markup before the browser suite
-   can test it. These ids are frozen in .tmp/plan/contract.md; renaming one is a contract break. */
+   can test it. EDICT-0017 retired the per-build collector and the stepper; the frozen names now
+   list the v2 controls (contract-0017 §3). */
 test('AC-17 the EDICT-0013 controls are present under their frozen names', () => {
   for (const id of [
     'build-rename', 'build-name', 'build-name-save', 'build-name-cancel',
     'build-coords', 'copy-coords',
     'notes-text', 'notes-edit', 'build-notes', 'notes-save', 'notes-cancel',
-    'mat-choice', 'mat-choice-slot', 'mat-choice-name', 'mat-item', 'mat-needed', 'mat-collected', 'mat-error',
+    'mat-choice', 'mat-choice-slot', 'mat-choice-name', 'mat-item', 'mat-needed', 'mat-error',
     'icon-dialog', 'icon-dialog-title', 'icon-search', 'icon-grid', 'icon-file', 'icon-upload',
     'icon-count-hint', 'icon-preview', 'icon-use', 'icon-cancel',
+    'inventory-dialog', 'inv-absolute', 'inv-delta', 'inv-error', 'inv-ok', 'inv-cancel',
+    'paste-preview', 'paste-rows', 'paste-errors', 'paste-ok', 'paste-cancel',
+    'mat-toolbar', 'mat-sort', 'mat-hide-done', 'mat-view-table', 'mat-view-grid',
   ]) {
     assert.match(HTML, new RegExp(`id="${id}"`), `missing frozen control #${id}`);
   }
@@ -329,10 +353,13 @@ test('AC-17 the EDICT-0013 controls are present under their frozen names', () =>
   assert.ok(matItem, '#mat-item must stay in the DOM (the submit handler reads it)');
   assert.match(matItem[0], /type="hidden"/, '#mat-item is a hidden value input now (D8)');
   assert.match(HTML, /id="mat-error"[^>]*role="alert"/, 'the add-material error must be announced inline');
-  assert.match(APP, /MC_ICON_STACKS/, 'the app must consume the stack table for the stepper buttons');
-  assert.match(APP, /data-stepper-step/, 'the stepper buttons are rendered by the app');
+  assert.match(HTML, /id="mat-needed"[^>]*type="number"/, 'the add form keeps the numeric Needed field');
+  assert.match(APP, /MC_ICON_STACKS/, 'the app must consume the per-item stack table');
+  assert.match(APP, /data-mat-update/, 'the row Update button is rendered by the app');
+  assert.ok(!/data-stepper-step/.test(APP), 'the stepper buttons are retired (EDICT-0017 §2)');
   assert.ok(!/data-step="/.test(APP), 'the retired data-step literals are gone (EDICT-0016 §2)');
   assert.ok(!/renderItemOptions/.test(APP), 'the datalist render path is retired (D8)');
   assert.ok(!HTML.includes('item-options'), 'the #item-options datalist must be gone');
+  assert.ok(!HTML.includes('id="mat-collected"'), 'the per-build collected input is retired (EDICT-0017 §3)');
+  assert.ok(!HTML.includes('id="tile-dialog"'), 'the second dialog is retired (EDICT-0017 §3)');
 });
-

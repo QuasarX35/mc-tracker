@@ -40,6 +40,7 @@
     </div>
 
     <aside class="world-panel" id="world-panel" aria-label="Selected world">
+      <button class="mc-btn mc-btn--sm mc-btn--icon" id="sidebar-toggle" type="button" aria-pressed="false" aria-label="Collapse world panel" title="Collapse world panel">«</button>
       <div class="world-panel__identity">
         <span class="world-picker__avatar" id="world-avatar" aria-hidden="true"></span>
         <div class="world-picker__field">
@@ -49,13 +50,25 @@
       </div>
       <p class="world-panel__name" id="world-panel-name"></p>
       <p class="world-meta" id="world-meta"></p>
-      <div class="world-stats" id="world-stats">
-        <p class="world-stats__line" id="world-progress"></p>
-        <p class="world-stats__line" id="world-remaining"></p>
+      <div class="progress-block" id="world-progress">
+        <p class="world-stats__line" id="world-progress-text"></p>
         <div class="xpbar xpbar--thin" id="world-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
           <div class="xpbar__fill" id="world-fill"></div>
         </div>
       </div>
+      <label class="field__label" for="inactive-mode">Inactive builds</label>
+      <select class="mc-select" id="inactive-mode">
+        <option value="priority">Show in place</option>
+        <option value="end">Show at the end</option>
+        <option value="hide">Hide</option>
+      </select>
+      <span class="field__label" id="unit-label">Units</span>
+      <div id="unit-toggle" role="group" aria-labelledby="unit-label">
+        <button type="button" data-unit="items" aria-pressed="true">Items</button>
+        <button type="button" data-unit="stacks" aria-pressed="false">Stacks</button>
+        <button type="button" data-unit="shulkers" aria-pressed="false">Shulkers</button>
+      </div>
+      <button class="mc-btn mc-btn--sm" id="btn-shopping-list" type="button">Shopping list</button>
       <div class="topbar__actions world-panel__actions">
         <button class="mc-btn mc-btn--sm" id="btn-new-world" type="button">New World</button>
         <button class="mc-btn mc-btn--sm" id="btn-import" type="button">Import</button>
@@ -65,13 +78,14 @@
 
     <!-- ------------------------------------------------------------ builds -->
     <section class="view" id="view-builds" role="tabpanel" aria-labelledby="tab-builds">
+      <p id="migrated-from" hidden></p>
       <div class="builds">
         <div class="builds__list">
           <div class="section-head">
             <h2 class="section-head__title">Builds</h2>
             <button class="mc-btn mc-btn--sm" id="btn-new-build" type="button">+ Build</button>
           </div>
-          <ul class="mc-list" id="build-list" aria-label="Builds in this world"></ul>
+          <ul class="mc-list mc-list--builds" id="build-list" aria-label="Builds in this world"></ul>
           <div class="empty" id="build-empty" hidden>
             <p class="empty__text">No builds in this world yet.</p>
             <button class="mc-btn" id="btn-first-build" type="button">Plan your first build</button>
@@ -83,53 +97,51 @@
             <button class="mc-btn" id="detail-empty-action" type="button">Plan a build</button>
           </div>
           <div class="detail" id="detail-body" hidden>
-            <div class="section-head">
-              <div class="detail__head">
+            <div id="build-header">
+              <div class="build-header__row">
                 <button class="detail__avatar" id="detail-avatar" type="button" aria-label="Change icon for this build"></button>
-                <div class="detail__title">
-                  <h2 class="section-head__title" id="detail-heading">Build</h2>
-                  <label class="sr-only" for="build-name">Build name</label>
-                  <input class="mc-input detail__title-input" id="build-name" type="text" maxlength="64" autocomplete="off" hidden>
-                  <button class="mc-btn mc-btn--sm mc-btn--icon" id="build-name-save" type="button" aria-label="Save build name" title="Save name (Enter)" hidden><svg viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M1 7 L4.5 10.5 L12 2 L13 3.5 L4.5 13 L0 8.5 Z"/></svg></button>
-                  <button class="mc-btn mc-btn--sm mc-btn--icon" id="build-name-cancel" type="button" aria-label="Cancel renaming" title="Cancel (Esc)" hidden><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M0 2 2 0 6 4 10 0 12 2 8 6 12 10 10 12 6 8 2 12 0 10 4 6Z"/></svg></button>
+                <h2 class="section-head__title" id="detail-heading">Build</h2>
+                <label class="sr-only" for="build-name">Build name</label>
+                <input class="mc-input detail__title-input" id="build-name" type="text" maxlength="64" autocomplete="off" hidden>
+                <button class="mc-btn mc-btn--sm mc-btn--icon" id="build-name-save" type="button" aria-label="Save build name" title="Save name (Enter)" hidden><svg viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M1 7 L4.5 10.5 L12 2 L13 3.5 L4.5 13 L0 8.5 Z"/></svg></button>
+                <button class="mc-btn mc-btn--sm mc-btn--icon" id="build-name-cancel" type="button" aria-label="Cancel renaming" title="Cancel (Esc)" hidden><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M0 2 2 0 6 4 10 0 12 2 8 6 12 10 10 12 6 8 2 12 0 10 4 6Z"/></svg></button>
+                <div class="build-header__actions">
                   <button class="mc-btn mc-btn--sm mc-btn--icon" id="build-rename" type="button" aria-label="Edit build name" title="Edit name"><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M9 0h3v2L2 12H0V9L9 0Z"/></svg></button>
+                  <button class="mc-btn mc-btn--sm mc-btn--danger" id="build-delete" type="button">Delete</button>
                 </div>
               </div>
-              <button class="mc-btn mc-btn--sm mc-btn--danger" id="build-delete" type="button">Delete</button>
-            </div>
-
-            <p class="detail__meta" id="detail-meta"></p>
-
-            <div class="field-row">
-              <div class="field">
+              <div class="build-header__row">
                 <span class="field__label" id="status-label">Status</span>
                 <div class="status" role="group" aria-labelledby="status-label" id="status-group">
                   <button class="status__btn" type="button" data-status="planned">Planned</button>
                   <button class="status__btn" type="button" data-status="building">Building</button>
                   <button class="status__btn" type="button" data-status="done">Done</button>
                 </div>
-              </div>
-              <div class="field field--coords">
                 <label class="field__label" for="build-coords">Coords</label>
+                <input class="mc-input" id="build-coords" type="text" maxlength="32" placeholder="x / y / z" autocomplete="off">
+                <button class="mc-btn mc-btn--sm mc-btn--icon" id="copy-coords" type="button" aria-label="Copy coordinates" title="Copy coordinates" disabled><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><rect x="4" y="0" width="8" height="8"/><rect x="0" y="4" width="8" height="8"/></svg></button>
+              </div>
+              <div class="field field--notes">
                 <div class="field__inline">
-                  <input class="mc-input" id="build-coords" type="text" maxlength="32" placeholder="x / y / z" autocomplete="off">
-                  <button class="mc-btn mc-btn--sm mc-btn--icon" id="copy-coords" type="button" aria-label="Copy coordinates" title="Copy coordinates" disabled><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><rect x="4" y="0" width="8" height="8"/><rect x="0" y="4" width="8" height="8"/></svg></button>
+                  <span class="field__label" id="notes-label">Notes</span>
+                  <span class="notes-editor__hint" id="notes-hint" hidden>Ctrl+Enter to Save</span>
+                  <button class="mc-btn mc-btn--sm mc-btn--icon" id="notes-save" type="button" aria-label="Save notes" title="Save notes (Ctrl+Enter)" hidden><svg viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M1 7 L4.5 10.5 L12 2 L13 3.5 L4.5 13 L0 8.5 Z"/></svg></button>
+                  <button class="mc-btn mc-btn--sm mc-btn--icon" id="notes-cancel" type="button" aria-label="Cancel notes edit" title="Cancel (Esc)" hidden><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M0 2 2 0 6 4 10 0 12 2 8 6 12 10 10 12 6 8 2 12 0 10 4 6Z"/></svg></button>
+                  <button class="mc-btn mc-btn--sm mc-btn--icon" id="notes-edit" type="button" aria-label="Edit notes" title="Edit notes"><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M9 0h3v2L2 12H0V9L9 0Z"/></svg></button>
+                </div>
+                <p class="notes__text" id="notes-text"></p>
+                <div class="notes-editor" id="notes-editor" hidden>
+                  <label class="sr-only" for="build-notes">Notes</label>
+                  <textarea class="mc-input mc-input--area" id="build-notes" rows="2" maxlength="400" placeholder="What still needs doing?"></textarea>
                 </div>
               </div>
+              <p class="detail__meta" id="detail-meta"></p>
             </div>
 
-            <div class="field field--notes">
-              <div class="field__inline">
-                <span class="field__label" id="notes-label">Notes</span>
-                <span class="notes-editor__hint" id="notes-hint" hidden>Ctrl+Enter to Save</span>
-                <button class="mc-btn mc-btn--sm mc-btn--icon" id="notes-save" type="button" aria-label="Save notes" title="Save notes (Ctrl+Enter)" hidden><svg viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M1 7 L4.5 10.5 L12 2 L13 3.5 L4.5 13 L0 8.5 Z"/></svg></button>
-                <button class="mc-btn mc-btn--sm mc-btn--icon" id="notes-cancel" type="button" aria-label="Cancel notes edit" title="Cancel (Esc)" hidden><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M0 2 2 0 6 4 10 0 12 2 8 6 12 10 10 12 6 8 2 12 0 10 4 6Z"/></svg></button>
-                <button class="mc-btn mc-btn--sm mc-btn--icon" id="notes-edit" type="button" aria-label="Edit notes" title="Edit notes"><svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M9 0h3v2L2 12H0V9L9 0Z"/></svg></button>
-              </div>
-              <p class="notes__text" id="notes-text"></p>
-              <div class="notes-editor" id="notes-editor" hidden>
-                <label class="sr-only" for="build-notes">Notes</label>
-                <textarea class="mc-input mc-input--area" id="build-notes" rows="2" maxlength="400" placeholder="What still needs doing?"></textarea>
+            <div id="detail-progress">
+              <span id="detail-progress-text"></span>
+              <div class="xpbar" id="detail-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div class="xpbar__fill" id="detail-fill"></div>
               </div>
             </div>
 
@@ -137,29 +149,38 @@
               <div class="section-head section-head--tight">
                 <h3 class="section-head__title">Materials needed</h3>
               </div>
-              <!-- A static sibling of the head, not a child: as an absolutely positioned child of a
-                   42px head this strip painted over the table header (measured 105.6 tall). -->
-              <div class="progress-block progress-block--inline">
-                <div class="progress-block__head">
-                  <span class="field__label">Materials gathered</span>
-                  <span class="progress-block__sep" aria-hidden="true">·</span>
-                  <span class="progress-block__note" id="build-summary"></span>
-                  <span class="progress-block__pct" id="build-pct">0%</span>
+
+              <div id="mat-toolbar">
+                <div class="field">
+                  <label class="field__label" for="mat-sort">Sort</label>
+                  <select class="mc-select mc-select--sm" id="mat-sort">
+                    <option value="remaining">Remaining</option>
+                    <option value="name">Name</option>
+                    <option value="category">Category</option>
+                  </select>
                 </div>
-                <div class="xpbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="build-bar">
-                  <div class="xpbar__fill" id="build-fill"></div>
-                </div>
+                <button id="mat-hide-done" type="button" aria-pressed="false">Hide completed</button>
+                <span class="mat-viewtoggle" role="group" aria-label="Materials view">
+                  <button id="mat-view-table" type="button" aria-pressed="true">Table</button>
+                  <button id="mat-view-grid" type="button" aria-pressed="false">Grid</button>
+                </span>
               </div>
-              <div class="mtable" role="table" aria-label="Materials for this build">
+
+              <div class="mtable" id="material-table" role="table" aria-label="Materials for this build">
                 <div class="mtable__head" role="row">
                   <span role="columnheader">Item</span>
                   <span role="columnheader" class="num">Needed</span>
-                  <span role="columnheader" class="num got-col">Got</span>
+                  <span role="columnheader" class="num">Got</span>
+                  <span role="columnheader" class="num">In</span>
                   <span role="columnheader" class="num">Left</span>
-                  <span role="columnheader" class="num"><span class="sr-only">Remove</span></span>
+                  <span role="columnheader" class="num">Surplus</span>
+                  <span role="columnheader"><span class="sr-only">Update inventory</span></span>
+                  <span role="columnheader"><span class="sr-only">Row menu</span></span>
                 </div>
-                <div id="material-body"></div>
+                <div id="material-body" role="rowgroup"></div>
               </div>
+              <div id="material-grid" role="list" aria-label="Materials as icons" hidden></div>
+
               <div class="empty empty--inline" id="material-empty" hidden>
                 <p class="empty__text">No materials listed for this build yet.</p>
                 <button class="mc-btn mc-btn--sm" id="btn-empty-pick-material" type="button">Choose an item</button>
@@ -177,19 +198,7 @@
                 </div>
                 <div class="add__num">
                   <label class="field__label" for="mat-needed">Needed</label>
-                  <div class="stepper" data-stepper>
-                    <button class="stepper__btn" type="button" data-stepper-step="1" aria-label="Increase needed">+</button>
-                    <input class="mc-input num" id="mat-needed" type="number" inputmode="numeric" min="1" step="1" value="1" required aria-label="Needed">
-                    <button class="stepper__btn" type="button" data-stepper-step="-1" aria-label="Decrease needed">−</button>
-                  </div>
-                </div>
-                <div class="add__num">
-                  <label class="field__label" for="mat-collected">Got</label>
-                  <div class="stepper" data-stepper>
-                    <button class="stepper__btn" type="button" data-stepper-step="1" aria-label="Increase got">+</button>
-                    <input class="mc-input num" id="mat-collected" type="number" inputmode="numeric" min="0" step="1" value="0" aria-label="Got">
-                    <button class="stepper__btn" type="button" data-stepper-step="-1" aria-label="Decrease got">−</button>
-                  </div>
+                  <input class="mc-input num" id="mat-needed" type="number" inputmode="numeric" min="1" step="1" value="1" required aria-label="Needed">
                 </div>
                 <button class="mc-btn mc-btn--sm" type="submit">Add</button>
                 <button class="mc-btn mc-btn--sm" type="button" id="bulk-paste">Paste list…</button>
@@ -223,7 +232,7 @@
           <select class="mc-select mc-select--sm" id="mat-filter">
             <option value="remaining">Still needed</option>
             <option value="all">Everything</option>
-            <option value="done">Gathered</option>
+            <option value="done">Done</option>
           </select>
         </div>
       </div>
@@ -347,6 +356,48 @@
   </form>
 </dialog>
 
+<dialog class="mc-dialog" id="inventory-dialog">
+  <form method="dialog" id="inventory-form">
+    <h2 class="mc-dialog__title" id="inv-title">Update inventory</h2>
+    <p id="inv-context"></p>
+    <label class="field__label" for="inv-absolute">World inventory (absolute)</label>
+    <input class="mc-input num" id="inv-absolute" type="number" inputmode="numeric" min="0" step="1" value="0" autocomplete="off">
+    <label class="field__label" for="inv-delta">Add / subtract (relative)</label>
+    <input class="mc-input" id="inv-delta" type="text" inputmode="numeric" value="" placeholder="+64, -32, 2s, 2s+10" spellcheck="false" autocomplete="off">
+    <p class="icon-hint">Type a positive number to add, a leading “-” to subtract. Stack syntax: 2s, 2st, 2s+10.</p>
+    <p class="form-error" id="inv-error" role="alert" hidden></p>
+    <div class="mc-dialog__actions">
+      <button class="mc-btn" type="button" id="inv-cancel">Cancel</button>
+      <button class="mc-btn mc-btn--primary mc-btn--icon" value="save" type="submit" id="inv-ok" aria-label="Save inventory" title="Save inventory (Enter)"><svg viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M1 7 L4.5 10.5 L12 2 L13 3.5 L4.5 13 L0 8.5 Z"/></svg></button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="mc-dialog mc-dialog--wide" id="paste-preview">
+  <form method="dialog" id="paste-form">
+    <h2 class="mc-dialog__title">Paste a materials list</h2>
+    <label class="field__label" for="paste-text">One item per line</label>
+    <textarea class="mc-input mc-input--area" id="paste-text" rows="4" placeholder="64 stone bricks&#10;- 32 glass&#10;20x oak log" spellcheck="false"></textarea>
+    <p class="paste-context" id="paste-context"></p>
+    <div id="paste-rows" role="list" aria-label="Parsed materials"></div>
+    <p class="form-error" id="paste-errors" role="alert" hidden></p>
+    <div class="mc-dialog__actions">
+      <button class="mc-btn" value="cancel" type="submit" formnovalidate id="paste-cancel">Cancel</button>
+      <button class="mc-btn mc-btn--primary" value="import" type="submit" id="paste-ok">Import list</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog class="mc-dialog mc-dialog--wide" id="shopping-dialog">
+  <form method="dialog" id="shopping-form">
+    <h2 class="mc-dialog__title">Shopping list</h2>
+    <div id="shopping-body" role="table" aria-label="Materials still to gather"></div>
+    <div class="mc-dialog__actions">
+      <button class="mc-btn" value="close" type="submit" id="shopping-close">Close</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog class="mc-dialog mc-dialog--wide" id="icon-dialog">
   <form method="dialog" id="icon-form">
     <h2 class="mc-dialog__title" id="icon-dialog-title">Choose an icon</h2>
@@ -374,32 +425,13 @@
   </form>
 </dialog>
 
-<dialog class="mc-dialog mc-dialog--wide" id="bulk-dialog">
-  <form method="dialog" id="bulk-form">
-    <h2 class="mc-dialog__title">Paste a materials list</h2>
-    <label class="field__label" for="bulk-input">One item per line</label>
-    <textarea class="mc-input mc-input--area" id="bulk-input" rows="5" placeholder="64 stone bricks&#10;- 32 glass&#10;20x oak log" spellcheck="false"></textarea>
-    <p class="icon-hint">Accepted: 64 stone bricks, - 32 glass, +1 oak log, 20x oak log.</p>
-    <div class="bulk-review" id="bulk-review" role="group" aria-label="Matched materials"></div>
-    <p class="form-error" id="bulk-error" role="alert" hidden></p>
-    <div class="mc-dialog__actions">
-      <button class="mc-btn" value="cancel" type="submit" formnovalidate id="bulk-cancel">Cancel</button>
-      <button class="mc-btn mc-btn--primary" value="add" type="submit" id="bulk-add">Add matched</button>
-    </div>
-  </form>
-</dialog>
-
 <dialog class="mc-dialog" id="custom-dialog">
   <form method="dialog" id="custom-form" novalidate>
     <h2 class="mc-dialog__title" id="custom-dialog-title">New custom material</h2>
     <label class="field__label" for="custom-name">Name</label>
     <input class="mc-input" id="custom-name" type="text" maxlength="60" autocomplete="off" required>
     <label class="field__label" for="custom-stack">Stack size</label>
-    <div class="stepper" data-stepper>
-      <button class="stepper__btn" type="button" data-stepper-step="1" aria-label="Increase stack size">+</button>
-      <input class="mc-input num" id="custom-stack" type="number" inputmode="numeric" min="1" max="999" step="1" value="64" aria-label="Stack size">
-      <button class="stepper__btn" type="button" data-stepper-step="-1" aria-label="Decrease stack size">−</button>
-    </div>
+    <input class="mc-input num" id="custom-stack" type="number" inputmode="numeric" min="1" max="999" step="1" value="64" aria-label="Stack size">
     <label class="field__label" for="custom-scope">Where</label>
     <select class="mc-select" id="custom-scope">
       <option value="build">This build only</option>
@@ -445,30 +477,6 @@
     <div class="mc-dialog__actions">
       <button class="mc-btn" value="cancel" type="submit">Cancel</button>
       <button class="mc-btn mc-btn--danger" value="confirm" type="submit" id="confirm-ok">Delete</button>
-    </div>
-  </form>
-</dialog>
-
-<dialog class="mc-dialog" id="tile-dialog">
-  <form method="dialog" id="tile-form">
-    <h2 class="mc-dialog__title" id="tile-title">Update inventory</h2>
-    <label class="field__label" for="tile-absolute">Current inventory (absolute)</label>
-    <div class="stepper" data-stepper>
-      <button class="stepper__btn" type="button" data-stepper-step="1" aria-label="Increase current inventory">+</button>
-      <input class="mc-input num" id="tile-absolute" type="number" inputmode="numeric" min="0" step="1" value="0" aria-label="Current inventory">
-      <button class="stepper__btn" type="button" data-stepper-step="-1" aria-label="Decrease current inventory">−</button>
-    </div>
-    <label class="field__label" for="tile-relative">Add / subtract (relative)</label>
-    <div class="stepper" data-stepper>
-      <button class="stepper__btn" type="button" data-stepper-step="1" aria-label="Increase the relative amount">+</button>
-      <input class="mc-input num" id="tile-relative" type="text" inputmode="numeric" value="0" aria-label="Relative change">
-      <button class="stepper__btn" type="button" data-stepper-step="-1" aria-label="Decrease the relative amount">−</button>
-    </div>
-    <p class="icon-hint">Type a positive number to add, or a leading "-" to subtract. Stack syntax: 2s or 2st.</p>
-    <p class="form-error" id="tile-error" role="alert" hidden></p>
-    <div class="mc-dialog__actions">
-      <button class="mc-btn" value="cancel" type="submit" formnovalidate id="tile-cancel">Cancel</button>
-      <button class="mc-btn mc-btn--primary mc-btn--icon" value="save" type="submit" id="tile-save" aria-label="Update inventory" title="Update inventory (Enter)"><svg viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M1 7 L4.5 10.5 L12 2 L13 3.5 L4.5 13 L0 8.5 Z"/></svg></button>
     </div>
   </form>
 </dialog>

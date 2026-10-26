@@ -423,7 +423,7 @@ input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; marg
 /* ---------------------------------------------------------- builds layout */
 .builds {
   display: grid;
-  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  grid-template-columns: 360px minmax(0, 1fr);
   gap: var(--space-4);
 }
 
@@ -906,6 +906,8 @@ input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; marg
   text-shadow: 2px 2px 0 #2b2b2b;
 }
 .avatar--28 { width: 28px; height: 28px; }
+.avatar--24 { width: 24px; height: 24px; }
+.avatar--24 .avatar__letter { font-size: 12px; }
 .avatar--32 { width: 32px; height: 32px; }
 .avatar--40 { width: 40px; height: 40px; }
 .avatar--48 { width: 48px; height: 48px; }
@@ -1394,17 +1396,6 @@ body { font-size: 18px; }
 .mtable__head, .mat-row { grid-template-columns: minmax(0, 1fr) 106px 48px 48px 28px; gap: 8px; padding: 3px 8px; }
 .mat-row { min-height: 54px; }
 .num, .mat-row .mc-input { text-align: right; }
-.stepper { display: inline-flex; align-items: center; gap: 4px; min-width: 0; }
-.stepper__btn {
-  width: 28px; height: 28px; min-width: 28px; padding: 0; display: inline-flex;
-  align-items: center; justify-content: center; font-size: 16px; line-height: 1;
-  background: var(--mc-panel); border: var(--border-hard); box-shadow: var(--bevel-out);
-  color: var(--mc-text); cursor: pointer;
-}
-.stepper__btn:hover { background: #d8d8d8; }
-.stepper__btn:active { box-shadow: var(--bevel-in); transform: translateY(1px); }
-.stepper__btn:focus-visible { outline: 3px solid var(--mc-gold); outline-offset: 1px; }
-.stepper .mc-input { width: 42px; min-width: 0; padding: 2px 4px; text-align: right; }
 .section-head, .detail > .section-head { padding-bottom: 4px; min-height: 44px; align-items: center; }
 .detail > .section-head { padding-bottom: 4px; }
 #notes-text {
@@ -1440,8 +1431,6 @@ body { font-size: 18px; }
 .ctile__name { font-size: var(--fs-tiny); overflow-wrap: anywhere; }
 .ctile__done { position: absolute; right: -4px; bottom: -4px; width: 14px; height: 14px; background: var(--mc-green); border: 2px solid var(--mc-outline); }
 @media (max-width: 640px) {
-  .stepper__btn { width: 24px; height: 24px; min-width: 24px; }
-  .stepper .mc-input { width: 36px; }
   #compact-grid { grid-template-columns: minmax(0, 1fr); }
   .ccard__actions { opacity: 1; }
   .ctile { min-height: 44px; min-width: 44px; }
@@ -1523,8 +1512,6 @@ body { font-size: 18px; }
 .footer { margin-top: 8px; padding-top: 4px; }   /* residual -2, text still visible */
 
 /* EDICT-0016 pass 4: contract §1/§2/§4/§13 conformance */
-.stepper__btn { width: 28px; min-width: 28px; max-width: 28px; height: 28px; min-height: 28px; max-height: 28px; padding: 0; box-sizing: border-box; flex: 0 0 auto; }
-@media (max-width: 640px) { .stepper__btn { width: 24px; min-width: 24px; max-width: 24px; height: 24px; min-height: 24px; max-height: 24px; } }
 .progress-block--inline { padding: 10px 14px; }
 .mc-btn:not(.mc-btn--sm):not(.mc-btn--icon) { height: 34px; min-height: 34px; }
 .builds__list > .section-head, .builds__detail .detail > .section-head {
@@ -1637,10 +1624,8 @@ body { font-size: 18px; }
 
 /* EDICT-0016 pass 10: numeric columns fit the stepper cluster */
 .mtable__head, .mat-row { grid-template-columns: minmax(0, 1fr) 104px 104px 64px 32px; }
-.mat-row .stepper { gap: 2px; }
-.mat-row .stepper .mc-input, .mat-row .mc-input.num { width: 44px; min-width: 44px; box-sizing: border-box; }
-#add-material-form .stepper { gap: 2px; }
-#add-material-form .stepper .mc-input, #mat-needed, #mat-collected { width: 44px; min-width: 44px; box-sizing: border-box; }
+.mat-row .mc-input.num, .mat-row .mc-input.num { width: 44px; min-width: 44px; box-sizing: border-box; }
+#mat-needed { width: 44px; min-width: 44px; box-sizing: border-box; }
 #world-bar { height: 10px; min-height: 10px; }
 #world-fill { height: 6px; min-height: 6px; }
 
@@ -1664,8 +1649,6 @@ body { font-size: 18px; }
 }
 @media (max-width: 640px) {
   .mtable__head, .mat-row { grid-template-columns: minmax(0, 1fr) 88px 52px 28px; gap: 6px; }
-  .mat-row .stepper { gap: 1px; }
-  .mat-row .stepper .mc-input { width: 34px; min-width: 34px; }
   .mat-row .mat-row__name, .mat-row .mat-row__item { min-width: 0; overflow-wrap: anywhere; }
 }
 .materials, .materials > *, #detail-body, .mtable, #material-body { min-width: 0; }
@@ -1701,4 +1684,259 @@ body { font-size: 18px; }
   }
   #world-panel .topbar__actions, #world-panel .world-panel__actions { flex-wrap: nowrap; margin-left: 0; gap: 6px; order: 5; }
   #world-panel .topbar__actions .mc-btn, #world-panel .world-panel__actions .mc-btn { height: 30px; min-height: 30px; padding: 0 8px; font-size: 13px; }
+}
+
+/* ==========================================================================
+   EDICT-0017 package A — visual layer (contract-0017 §3/§4/§6)
+   Package B owns markup/JS; these rules target the frozen ids/selectors.
+   ========================================================================== */
+
+/* ---- 1. Materials grow with content: no fixed-height scroll box ---------- */
+#material-table, #material-grid { display: block; min-width: 0; }
+#material-body { max-height: none; overflow: visible; }
+.materials, .materials > *, #add-material-form { min-width: 0; }
+#add-material-form { position: static; margin-top: 10px; }
+#material-table { margin: 0; }
+#material-table .mtable__head { position: sticky; top: 0; z-index: 2; background: var(--mc-panel); }
+
+/* ---- 2. Toolbar --------------------------------------------------------- */
+/* Case 123/126: the toolbar stays on screen while a long material list scrolls; the column
+   head parks just under it so the two sticky rows never overlap. */
+#mat-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin: 8px 0 6px; padding: 0;
+  position: sticky; top: 0; z-index: 3; background: var(--mc-panel);
+}
+#material-table .mtable__head { top: 32px; z-index: 2; }
+#mat-toolbar .field { flex: 0 0 auto; margin: 0; }
+#mat-toolbar label, #mat-toolbar .field__label { font-size: 13px; margin: 0 4px 0 0; display: inline; }
+#mat-sort, #mat-toolbar select { height: 32px; min-height: 32px; font-size: 16px; padding: 0 26px 0 8px; }
+#mat-hide-done {
+  flex: 0 0 auto; height: 32px; min-height: 32px; display: inline-flex; align-items: center; gap: 6px;
+  padding: 0 10px; font-size: 15px; background: var(--mc-panel); color: var(--mc-text);
+  border: var(--border-hard); box-shadow: var(--bevel-out); cursor: pointer;
+}
+#mat-hide-done[aria-pressed="true"] { box-shadow: var(--bevel-in); background: var(--mc-panel-dim); }
+#mat-hide-done::before { content: "[]"; font-size: 12px; }
+#mat-hide-done[aria-pressed="true"]::before { content: "[x]"; }
+.mat-viewtoggle { display: inline-flex; margin-left: auto; border: var(--border-hard); box-shadow: var(--bevel-out); }
+#mat-view-table, #mat-view-grid {
+  height: 30px; min-height: 30px; padding: 0 12px; font-size: 15px; cursor: pointer;
+  background: var(--mc-panel); color: var(--mc-text); border: 0; box-shadow: none;
+}
+#mat-view-table[aria-pressed="true"], #mat-view-grid[aria-pressed="true"] {
+  background: #8b8b8b; color: #fff; text-shadow: 2px 2px 0 var(--mc-text-shadow);
+}
+#mat-view-table + #mat-view-grid { border-left: 2px solid var(--mc-outline); }
+
+/* ---- 3. Row: eight cells (7 slots + overflow) --------------------------- */
+#material-table .mtable__head,
+#material-table .mat-row {
+  grid-template-columns: minmax(0, 1fr) 56px 52px 52px 52px 64px 72px 28px;
+  gap: 6px; padding: 4px 6px; align-items: center;
+}
+#material-table .mtable__head span { font-size: 13px; }
+.mat-row .mat-row__item { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.mat-row [data-mat-shared] {
+  display: block; font-size: 13px; color: var(--mc-text-muted); line-height: 1.2; margin-top: 1px;
+}
+.mat-row .num, .mat-row [data-mat-got], .mat-row [data-mat-covered],
+.mat-row [data-mat-remaining], .mat-row [data-mat-surplus] {
+  text-align: right; font-size: 16px; font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.mat-row [data-mat-surplus].is-surplus { color: var(--mc-green); text-shadow: 2px 2px 0 var(--mc-text-shadow); }
+.mat-row [data-mat-field="needed"] {
+  width: 100%; height: 30px; min-height: 30px; box-sizing: border-box;
+  text-align: right; font-size: 16px; padding: 0 4px;
+}
+.mat-row [data-mat-update] {
+  height: 28px; min-height: 28px; padding: 0 8px; font-size: 13px; justify-self: end;
+  background: var(--mc-panel); color: var(--mc-text); border: var(--border-hard);
+  box-shadow: var(--bevel-out); cursor: pointer;
+}
+.mat-row [data-mat-update]:hover { background: #d8d8d8; }
+.mat-row [data-mat-menu] {
+  width: 26px; height: 26px; min-height: 26px; padding: 0; font-size: 12px; line-height: 1;
+  background: var(--mc-panel); color: var(--mc-text); border: var(--border-hard);
+  box-shadow: var(--bevel-out); cursor: pointer; justify-self: end;
+}
+.mat-row__slot { cursor: pointer; }
+.mcc-subtle, .note, .stamp { font-size: 13px; color: var(--mc-text-muted); }
+.stamp { line-height: 1.2; }
+
+/* ---- 4. Grid of chips --------------------------------------------------- */
+#material-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+  gap: 8px; margin: 8px 0; padding: 2px;
+}
+.mat-chip {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  min-width: 44px; min-height: 48px; padding: 2px; box-sizing: border-box;
+  background: var(--mc-panel-dim); border: var(--border-hard); box-shadow: var(--bevel-out);
+  color: var(--mc-text); cursor: pointer;
+}
+.mat-chip:hover { background: #d8d8d8; }
+.mat-chip .slot { margin-top: 1px; }
+.mat-chip [data-mat-chip-count] {
+  align-self: stretch; text-align: center; font-size: 13px; line-height: 1.1;
+  font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: clip;
+}
+.mat-chip.is-done { opacity: .55; filter: none; }
+.mat-chip.is-done .slot { box-shadow: var(--bevel-in); }
+
+/* ---- 5. Build list rows ------------------------------------------------- */
+.build-entry[data-build] { position: relative; display: flex; align-items: center; gap: 6px; padding: 4px 6px; }
+.build-entry__slot { flex: 0 0 auto; }
+.build-entry__name { flex: 1 1 auto; min-width: 0; font-size: 17px; }
+.build-entry__badge {
+  flex: 0 0 auto; font-size: 12px; padding: 0 5px; background: var(--mc-panel-dim);
+  color: var(--mc-text); border: 2px solid var(--mc-outline); box-shadow: var(--bevel-out);
+}
+.build-entry__bar { flex: 0 0 62px; height: 8px; margin-left: auto; }
+.build-entry--top { border-left: 4px solid var(--mc-gold); }
+.build-entry--top .build-entry__name { color: var(--mc-gold); text-shadow: 2px 2px 0 var(--mc-text-shadow); }
+.build-entry--inactive { opacity: .5; }
+.build-entry__grab { flex: 0 0 auto; cursor: grab; font-size: 13px; color: var(--mc-text-muted); }
+.build-entry__grab:active { cursor: grabbing; }
+.build-entry__actions { display: none; gap: 4px; flex: 0 0 auto; }
+.build-entry:hover .build-entry__actions, .build-entry:focus-within .build-entry__actions { display: flex; }
+.build-entry [data-build-activate], .build-entry [data-build-remove] {
+  width: 24px; height: 24px; min-height: 24px; padding: 0; font-size: 12px;
+  background: var(--mc-panel); color: var(--mc-text); border: var(--border-hard);
+  box-shadow: var(--bevel-out); cursor: pointer;
+}
+.build-entry [data-build-remove]:hover { background: #8b3a34; color: #fff; }
+.mc-list--builds { max-height: none; overflow: visible; }
+
+/* ---- 6. Sidebar + rail -------------------------------------------------- */
+#main { grid-template-columns: 200px minmax(360px, 380px) minmax(640px, 1fr); }
+#world-panel { width: 200px; min-width: 0; }
+#sidebar-toggle {
+  position: absolute; top: 2px; right: 2px; width: 22px; height: 22px; min-height: 22px; padding: 0;
+  font-size: 11px; line-height: 1; cursor: pointer; z-index: 3;
+  background: var(--mc-panel); color: var(--mc-text); border: var(--border-hard); box-shadow: var(--bevel-out);
+}
+.is-sidebar-collapsed #world-panel { width: 34px; padding: 4px; overflow: hidden; }
+.is-sidebar-collapsed #main { grid-template-columns: 34px minmax(360px, 380px) minmax(640px, 1fr); }
+.is-sidebar-collapsed #world-panel > :not(#sidebar-toggle) { display: none; }
+#world-panel { position: relative; }
+#world-panel .progress-block, #world-panel .detail-progress { margin: 0 0 4px; padding: 6px; }
+#world-progress { font-size: 15px; }
+#world-progress-text { font-size: 13px; color: var(--mc-text-muted); }
+#world-bar { height: 10px; margin-top: 4px; }
+#btn-shopping-list { width: 100%; justify-content: center; }
+#inactive-mode { width: 100%; height: 32px; min-height: 32px; font-size: 15px; padding: 0 24px 0 6px; }
+#unit-toggle { display: inline-flex; width: 100%; border: var(--border-hard); box-shadow: var(--bevel-out); }
+#unit-toggle [data-unit] {
+  flex: 1 1 0; height: 30px; min-height: 30px; padding: 0; font-size: 13px; cursor: pointer;
+  background: var(--mc-panel); color: var(--mc-text); border: 0; box-shadow: none;
+}
+#unit-toggle [data-unit] + [data-unit] { border-left: 2px solid var(--mc-outline); }
+#unit-toggle [data-unit][aria-pressed="true"] { background: #8b8b8b; color: #fff; }
+
+/* ---- 7. Build header card, dialogs, stamps ----------------------------- */
+#build-header {
+  display: grid; gap: 6px; padding: 8px 10px; margin: 0 0 8px;
+  background: rgba(0, 0, 0, .08); border: var(--border-hard); box-shadow: var(--bevel-out);
+}
+#build-header .build-header__row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+#build-header .build-header__actions { display: flex; gap: 4px; margin-left: auto; }
+#build-header #detail-heading, #build-header #build-name { font-size: 22px; }
+#build-header #build-coords { max-width: 220px; }
+#detail-progress {
+  display: flex; align-items: center; gap: 10px; padding: 6px 10px; margin: 0 0 8px;
+  background: var(--mc-panel-dim); border: var(--border-hard); box-shadow: var(--bevel-in);
+}
+#detail-progress-text { font-size: 15px; font-variant-numeric: tabular-nums; }
+#detail-bar { flex: 1 1 auto; height: 12px; margin: 0; }
+#detail-fill { height: 100%; }
+#inventory-dialog, #paste-preview { width: min(460px, calc(100vw - 32px)); }
+#inventory-dialog form, #paste-preview form { display: grid; gap: 10px; }
+#inv-context, #paste-preview .paste-context { font-size: 15px; color: var(--mc-text-muted); }
+#inv-absolute, #inv-delta, #paste-preview textarea { font-variant-numeric: tabular-nums; }
+#inv-error, #paste-errors { color: #7a201a; font-size: 15px; }
+#inv-ok { background: var(--mc-green); color: #123812; }
+#paste-rows { max-height: 260px; overflow: auto; border: var(--border-hard); background: rgba(0,0,0,.08); }
+.paste-row { display: flex; gap: 8px; padding: 3px 6px; font-size: 15px; border-bottom: 2px solid rgba(0,0,0,.12); }
+.paste-row__qty { width: 56px; text-align: right; font-variant-numeric: tabular-nums; }
+#migrated-from {
+  margin: 0 0 8px; padding: 6px 10px; font-size: 15px;
+  background: #123812; color: #c8ffc8; border: var(--border-hard); box-shadow: var(--bevel-out);
+}
+
+/* ---- 8. Retired EDICT-0016 stepper machinery ---------------------------- */
+
+/* ---- 9. <=640: stack the row, 4 chips per row -------------------------- */
+@media (max-width: 640px) {
+  #main, .is-sidebar-collapsed #main, #main.is-sidebar-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #world-panel { width: auto; }
+  #mat-toolbar { gap: 6px; }
+  #mat-sort { flex: 1 1 120px; }
+  .mat-viewtoggle { margin-left: 0; }
+  #material-table .mtable__head { display: none; }
+  #material-table .mat-row {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 4px 6px; padding: 6px;
+  }
+  #material-table .mat-row > .mat-row__item { grid-column: 1 / -1; }
+  #material-table .mat-row [data-mat-got]::before { content: "got "; font-size: 12px; color: var(--mc-text-muted); }
+  #material-table .mat-row [data-mat-covered]::before { content: "in "; }
+  #material-table .mat-row [data-mat-remaining]::before { content: "left "; }
+  #material-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  #btn-shopping-list, #inactive-mode { width: 100%; }
+  #build-header #build-coords { max-width: none; width: 100%; }
+}
+
+/* EDICT-0017 package A addendum */
+.build-entry__bar { background: var(--mc-bar-bg); }
+.build-entry__fill { height: 100%; background: var(--mc-xp); }
+.build-entry__bar, .build-entry__fill { box-shadow: none; }
+
+/* EDICT-0017 package A — budget pass (§6) */
+#main, #main.grid { grid-template-columns: 200px 360px minmax(640px, 1fr); }
+#world-panel { width: 200px; }
+#main { gap: 16px; }
+#material-table .mtable__head,
+#material-table .mat-row {
+  grid-template-columns: minmax(0, 1fr) 48px 44px 44px 44px 56px 62px 24px;
+  gap: 4px; padding: 4px 6px;
+}
+#material-table .mat-row { min-height: 48px; }
+#material-table .mat-row [data-mat-field="needed"] { height: 28px; min-height: 28px; }
+/* §6 budget: six rows must fit above the fold, so the header card, notes preview and toolbar
+   each give back their spare vertical space (measured, not guessed). */
+#build-header { gap: 2px; padding: 2px 8px; }
+#build-header #notes-text { min-height: 0; max-height: 24px; padding: 0 2px; -webkit-line-clamp: 1; }
+#build-header .field-row { margin: 0; }
+#build-coords { padding-top: 4px; padding-bottom: 4px; }
+#detail-progress { padding: 4px 8px; }
+#detail-body .section-head--tight { margin-bottom: 2px; height: 32px; min-height: 32px; max-height: 32px; }
+#mat-toolbar { margin: 2px 0 2px; }
+#mat-toolbar .field { display: flex; align-items: center; gap: 6px; }
+#mat-toolbar .field > label { margin: 0; white-space: nowrap; }
+#material-table .mtable__head { padding: 2px 6px; }
+@media (max-width: 640px) {
+  #main, #main.grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+}
+
+/* EDICT-0017 package A follow-up (S3 review): view spans the remaining columns */
+@media (min-width: 641px) {
+  #main > #view-builds, #main > #view-materials, #main > #view-worlds { grid-column: 2 / -1; }
+}
+/* Ruling: collapsed rail is >= 56 px (frozen case 117) */
+.is-sidebar-collapsed #world-panel,
+#main .is-sidebar-collapsed > #world-panel,
+.is-sidebar-collapsed > #world-panel { width: 56px; min-width: 56px; box-sizing: border-box; }
+.is-sidebar-collapsed #main,
+#main.is-sidebar-collapsed { grid-template-columns: 56px 360px minmax(640px, 1fr); }
+.is-sidebar-collapsed #sidebar-toggle { width: 100%; height: 30px; min-height: 30px; top: 2px; right: 0; }
+@media (max-width: 640px) {
+  .is-sidebar-collapsed #main, #main.is-sidebar-collapsed { grid-template-columns: 56px minmax(0, 1fr); }
+  #main > #view-builds, #main > #view-materials, #main > #view-worlds { grid-column: 1 / -1; }
+  #mat-toolbar { row-gap: 6px; }
+  #mat-toolbar .mat-viewtoggle { margin-left: 0; }
+  #material-table .mat-row { max-width: 100%; }
+  #material-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }

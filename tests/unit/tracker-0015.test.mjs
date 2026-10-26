@@ -33,7 +33,9 @@ const plain = (value) => JSON.parse(JSON.stringify(value));
 test('a shipped v1 backup imports and keeps no custom registries', () => {
   const result = M.importJSON(fixtureText('v1-backup.json'));
   assert.ok(result.state, result.error);
-  assert.equal(result.state.version, 1);
+  // EDICT-0017: a v1 document now migrates on import instead of being pinned at version 1.
+  assert.equal(result.state.version, 2);
+  assert.equal(result.state.migratedFrom, 1);
   assert.deepEqual(plain(M.validate(result.state)), []);
   const world = M.activeWorld(result.state);
   assert.ok(world);
@@ -52,8 +54,9 @@ test('the paste fixture is byte-identical to the v1 backup', () => {
   assert.equal(fixtureText('import-paste.json'), fixtureText('v1-backup.json'));
 });
 
-test('version 2 backups are refused whole', () => {
-  const future = JSON.stringify({ version: 2, activeWorldId: null, worlds: [] });
+test('a future-version backup is refused whole', () => {
+  // Version 2 is the current schema since EDICT-0017, so version 3 is the unknown one now.
+  const future = JSON.stringify({ version: 3, activeWorldId: null, worlds: [] });
   const result = M.importJSON(future);
   assert.equal(result.state, undefined);
   assert.match(result.error, /Unsupported data version\./);

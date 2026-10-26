@@ -1,0 +1,60 @@
+{
+  "version": 2,
+  "activeWorldId": "w1",
+  "worlds": [
+    {
+      "id": "w1",
+      "name": "Inactive World",
+      "edition": "java",
+      "version": "1.21.4",
+      "notes": "One active build, one inactive build sharing items, one done build.",
+      "createdAt": "2026-09-14T08:05:00.000Z",
+      "updatedAt": "2026-10-25T21:40:00.000Z",
+      "icon": null,
+      "inventory": {
+        "stone_bricks": 60,
+        "glass": 10
+      },
+      "builds": [
+        {
+          "id": "b1",
+          "name": "Active Hut",
+          "status": "building",
+          "active": true,
+          "coords": "",
+          "notes": "",
+          "icon": null,
+          "materials": [
+            { "id": "m1", "item": "Stone Bricks", "needed": 40 },
+            { "id": "m2", "item": "Glass", "needed": 10 }
+          ]
+        },
+        {
+          "id": "b2",
+          "name": "Paused Barn",
+          "status": "planned",
+          "active": false,
+          "coords": "",
+          "notes": "",
+          "icon": null,
+          "materials": [
+            { "id": "m3", "item": "Stone Bricks", "needed": 100 }
+          ]
+        },
+        {
+          "id": "b3",
+          "name": "Finished Tower",
+          "status": "done",
+          "active": true,
+          "coords": "",
+          "notes": "",
+          "icon": null,
+          "materials": [
+            { "id": "m4", "item": "Stone Bricks", "needed": 20 }
+          ]
+        }
+      ]
+    }
+  ],
+  "customItems": {}
+}
