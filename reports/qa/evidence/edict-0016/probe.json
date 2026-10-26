@@ -1,0 +1,108 @@
+{
+ "probe": {
+  "desktopPage": 984,
+  "desktopOverflow": 0,
+  "mobilePage": 1567,
+  "mobileOverflow": 0,
+  "notesView": {
+   "textVisible": true,
+   "bg": "rgba(0, 0, 0, 0)",
+   "color": "rgb(63, 63, 63)",
+   "textareaVisible": false
+  },
+  "notesEdit": {
+   "save": {
+    "w": 36,
+    "h": 32
+   },
+   "cancel": {
+    "w": 36,
+    "h": 32
+   },
+   "svg": {
+    "w": 14,
+    "h": 14
+   },
+   "hint": "Ctrl+Enter to Save",
+   "hintLeftOfSave": true,
+   "hintBottom": 414,
+   "notesBottom": 495
+  },
+  "gathered": {
+   "padding": "10px 14px",
+   "gap": 404.6
+  },
+  "steppers": {
+   "buttons": [
+    "28x28",
+    "28x28",
+    "28x28",
+    "28x28"
+   ],
+   "input": "44x28",
+   "plusLeftOfInput": true,
+   "plusLabel": "Increase needed for Stone Bricks"
+  },
+  "selectAll": {
+   "field": "needed",
+   "selectionStart": null,
+   "selectionEnd": null,
+   "value": "384"
+  },
+  "enterNext": {
+   "field": "needed",
+   "mat": "mat-mvo29fa5-dvn4ih",
+   "value": "64"
+  },
+  "compact": {
+   "cards": 3,
+   "columns": 2,
+   "tiles": 9,
+   "worldText": "Survival SMP · Java 1.21.4 · 36% gathered · 1,452 of 2,252 items still to collect",
+   "tileName": "Stone Bricks",
+   "tileCount": "184"
+  },
+  "tooltip": "Stone Bricks: 200 / 384 (3 stacks + 8 / 6 stacks + 0) · Updated 2026-10-25 16:47",
+  "quickUpdate": {
+   "open": true,
+   "absolute": "200",
+   "relative": "0"
+  },
+  "stamps": {
+   "world": [
+    {
+     "display": "Created 2026-10-25 16:47",
+     "iso": "2026-10-25T16:47:32.632Z",
+     "title": "2026-10-25T16:47:32.632Z"
+    },
+    {
+     "display": "Updated 2026-10-25 16:47",
+     "iso": "2026-10-25T16:47:32.632Z",
+     "title": "2026-10-25T16:47:32.632Z"
+    }
+   ],
+   "build": [
+    {
+     "display": "Updated 2026-10-25 16:47",
+     "iso": "2026-10-25T16:47:32.632Z",
+     "title": "2026-10-25T16:47:32.632Z"
+    }
+   ]
+  },
+  "budget390": {
+   "page": 1620,
+   "overflow": 0,
+   "sidebar": 174,
+   "topbarRows": 2
+  }
+ },
+ "done": [
+  "01/02/03 standard",
+  "04/05 notes",
+  "06/07 gathered + stepper",
+  "08/09 number field",
+  "10/11/12 compact",
+  "13 stamps",
+  "14 budget 390"
+ ]
+}

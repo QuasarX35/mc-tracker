@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "activeWorldId": "world-mvnu6lpq-i2zw1v",
+  "worlds": [
+    {
+      "id": "world-mvnu6lpq-i2zw1v",
+      "name": "Suggestion Fixture",
+      "edition": "java",
+      "version": "1.21.4",
+      "notes": "Main long-term survival world. Keep the base at spawn tidy.",
+      "builds": [
+        {
+          "id": "build-noicon-1",
+          "name": "Iron Farm (Spawn)",
+          "status": "building",
+          "coords": "120 / 64 / -40",
+          "notes": "Village-based farm, 3 modules.",
+          "materials": [
+            {
+              "id": "mat-noicon-stone",
+              "item": "Stone Bricks",
+              "needed": 384,
+              "collected": 200
+            },
+            {
+              "id": "mat-noicon-hopper",
+              "item": "Hopper",
+              "needed": 24,
+              "collected": 0
+            }
+          ]
+        }
+      ],
+      "icon": {
+        "kind": "item",
+        "slug": "grass_block"
+      },
+      "createdAt": "2026-09-14T08:05:00.000Z",
+      "updatedAt": "2026-10-25T21:40:00.000Z"
+    }
+  ]
+}

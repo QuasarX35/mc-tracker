@@ -2,7 +2,7 @@
 
 # Index
 
-Catalogue of 24 pages, regenerated 2026-10-26. Read this first when answering a
+Catalogue of 27 pages, regenerated 2026-10-26. Read this first when answering a
 query; it is the map, the pages are the territory.
 
 ## Overview (1)
@@ -11,10 +11,11 @@ query; it is the map, the pages are the territory.
 |------|---------|---------|
 | [[LLM Wiki]] | A persistent, LLM-maintained knowledge base of interlinked pages that sits between the Emperor and an immutable raw source collection. | 2026-10-25 |
 
-## Concepts (10)
+## Concepts (13)
 
 | Page | Summary | Updated |
 |------|---------|---------|
+| [[Compact view]] | A second builds view — one card per build with a material matrix and a quick-update dialog — for scanning a large world without the list/detail split. | 2026-10-26 |
 | [[Compiled knowledge]] | Knowledge that is extracted, reconciled and stored once in a maintained artifact, rather than re-derived per query. | 2026-10-25 |
 | [[In-game GUI design]] | The techniques that make a web UI read as Minecraft's in-game screens — grey panels, 2px bevels, square corners, slots, bitmap type, XP bars. | 2026-10-25 |
 | [[Ingest, query and lint]] | The three operations that keep a wiki alive — file new sources, answer and file answers back, and periodically health-check the whole graph. | 2026-10-25 |
@@ -22,9 +23,11 @@ query; it is the map, the pages are the territory.
 | [[Maintenance cost]] | The bookkeeping burden — cross-references, current summaries, flagged contradictions — that kills human-maintained wikis and which LLMs reduce to near zero. | 2026-10-25 |
 | [[Material registry]] | How the tracker resolves an item name to a stack size and icon through build, world, account and catalogue scopes, without migrating free-text materials. | 2026-10-25 |
 | [[Memex]] | Vannevar Bush's 1945 vision of a private, curated knowledge store with associative trails — missing only a maintainer, which the LLM supplies. | 2026-10-25 |
+| [[Number stepper]] | One −/input/+ control for every number field, with Shift as a full stack and Ctrl/⌘ as sixteen, replacing the six-button material strip. | 2026-10-26 |
 | [[Query-time retrieval]] | The RAG family of approaches — retrieve relevant chunks per question and generate an answer, accumulating nothing between questions. | 2026-10-25 |
 | [[Status-ranked build ordering]] | Builds sort by a fixed status rank with a stable tie-break, and the world header replaces the old summary card with derived progress figures. | 2026-10-25 |
 | [[Wiki schema]] | The configuration document (here AGENTS.md) that fixes a wiki's structure, conventions and workflows, turning a generic model into a disciplined maintainer. | 2026-10-25 |
+| [[World sidebar]] | The active world as a left panel — identity, derived stats and world actions — replacing the top-bar strip on the Builds and Materials tabs. | 2026-10-26 |
 
 ## Entities (5)
 

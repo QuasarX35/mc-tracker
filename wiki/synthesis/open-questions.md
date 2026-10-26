@@ -144,11 +144,11 @@ question that a future source or a future session could close.
   place ([[Testing a UI like a user]]).
 - **Physical device + real OS motion preference.** Both mobile layout and reduced-motion are
   emulated in headless Chrome, not observed on hardware ([[Testing a UI like a user]]).
-- **Tracker: density and readability.** EDICT-0016 proposed a larger type scale and a compact
-  builds view; the founder withdrew it because it changed the deliberate small, dense look, so
-  dense wins for now. The underlying tension — whether the 16 px UI is readable at 1,280 and
-  390 without a density switch — was not tested with real users; reopen if use says otherwise
-  ([[Minecraft Build Tracker]]).
+- ~~**Tracker: density and readability.**~~ **Decided 2026-10-26: enlarged.** The founder first
+  withdrew the larger type scale and compact builds view, then reinstated the built round and
+  chose it after seeing both: body 18 / muted 17 / meta 15 / tiny 13, a `−`/`+` stepper with
+  resolved stack labels, a world sidebar and a compact builds view. The dense-only alternative
+  is retired ([[Minecraft Build Tracker]]).
 - **Corpus domain.** The wiki now covers its own pattern plus one product. A third domain
   (reading, research, team knowledge) would test whether the page taxonomy holds
   ([[Implementation decisions]] D1).
@@ -173,11 +173,14 @@ contract, an e2e evidence output folder, per-row undo and an empty-state review.
 adopted, and the rest stay research ([[Material registry]], [[Status-ranked build ordering]],
 [[Testing a UI like a user]]).
 
-EDICT-0016 (the fourteen-item density and compact-view round) was withdrawn by the founder on
-2026-10-26 before verification; nothing shipped and the density/readability question is back in
-the list above. Remaining icon coverage was decided on 2026-10-26: one canonical icon per item,
-hidden items out, and the coverage gate recommended but awaiting a round; the details are in the
-[game-icon coverage note](../../docs/backlog/game-icons.md).
+EDICT-0016 (the fourteen-item density and compact-view round) was withdrawn and then reinstated
+by the founder on 2026-10-26 as built; it now ships, and density/readability is decided enlarged.
+Remaining icon coverage was decided on 2026-10-26: one canonical icon per item, hidden items out,
+and the coverage gate recommended but awaiting a round; the details are in the
+[game-icon coverage note](../../docs/backlog/game-icons.md). Compact-view phase 2 — the global
+user inventory and the FRD 4.2 deficit formula, phases/targets, Ascend, crafting/smelting,
+crafting procs and the Power toggle — is deferred, not dropped; the split is in
+[the phase-2 backlog](../../docs/backlog/compact-view-phase-2.md).
 
 ## Next sources worth looking for
 

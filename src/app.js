@@ -85,13 +85,16 @@
   var state = null;
   var ui = {
     view: 'builds',
+    buildsView: 'standard',
     selectedBuildId: null,
     filter: 'remaining',
     query: '',
     pickerMode: 'icon',
     titleEditing: false,
     notesEditing: false,
-    editingBuildId: null
+    editingBuildId: null,
+    dialogBuildId: null,
+    tileTarget: null
   };
   var editingWorldId = null;
   var dialogIcon = { world: null, build: null };
@@ -100,6 +103,16 @@
   var lastIconTrigger = null;
   var ICON_CATALOG = buildIconCatalog();
   var pendingConfirm = null;
+  var BUILDS_VIEW_KEY = 'mbt.buildsView';
+  var PENCIL_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M9 0h3v2L2 12H0V9L9 0Z"/></svg>';
+  var TRASH_ICON = '<svg viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M4 0h4v1h3v2H1V1h3V0Zm-2 4h8l-.6 8H2.6L2 4Zm2 1v6h1V5H4Zm3 0v6h1V5H7Z"/></svg>';
+  /* Contract §5: the one 14-unit check. Never a text glyph — U+2713 is in neither Minecraft.ttf
+     nor Pixelify Sans, so a `✓` character renders as a tofu box. It scales to its container
+     (100%/100%) because `.ctile__done` is a border-box 14px badge whose content box is 10px;
+     `.mc-btn--icon svg` still wins at 14×14 wherever that rule applies. */
+  var CHECK_ICON = '<svg viewBox="0 0 14 14" width="100%" height="100%" aria-hidden="true" ' +
+    'focusable="false" style="display:block">' +
+    '<path d="M1 7 L4.5 10.5 L12 2 L13 3.5 L4.5 13 L0 8.5 Z" fill="currentColor"/></svg>';
 
   /* ------------------------------------------------------------------ util */
 
@@ -152,7 +165,7 @@
    */
   function wireIconFallbacks(scope) {
     var root = scope || document;
-    Array.prototype.forEach.call(root.querySelectorAll('.slot img, .avatar img'), function (img) {
+    Array.prototype.forEach.call(root.querySelectorAll('.slot img, .avatar img, .ctile__icon img'), function (img) {
       if (img.dataset.wired === '1') return;
       img.dataset.wired = '1';
       img.addEventListener('error', function () {
@@ -338,7 +351,13 @@
         if (!slug || seen[slug]) return;
         if (needle && entry.name.toLowerCase().indexOf(needle) < 0 && slug.indexOf(slugNeedle) < 0) return;
         seen[slug] = true;
-        out.push({ slug: slug, name: entry.name, custom: true });
+        out.push({
+          slug: slug,
+          name: entry.name,
+          custom: true,
+          createdAt: entry.createdAt,
+          updatedAt: entry.updatedAt
+        });
       });
     });
     return out;
@@ -455,7 +474,8 @@
           escapeHtml(entry.slug) + '" data-icon-custom="1" data-tip="' + escapeHtml(entry.name) +
           '" aria-selected="false">' + slotHtml(entry.name, { lazy: true }) +
           '<span class="icon-tile__name">' + escapeHtml(entry.name) + '</span>' +
-          '<span class="tile__badge">custom</span></button>');
+          '<span class="tile__badge">custom</span>' +
+          '<span class="tile__stamp">' + stampHtml(entry) + '</span></button>');
       });
     }
     els['icon-grid'].innerHTML = tiles.join('');
@@ -667,21 +687,22 @@
 
   function init() {
     var ids = [
-      'tab-builds', 'tab-materials', 'tab-worlds',
+      'tab-builds', 'tab-materials', 'tab-worlds', 'main',
       'view-builds', 'view-materials', 'view-worlds',
       'world-select', 'world-meta', 'btn-new-world', 'btn-new-world-2', 'btn-import', 'btn-export',
       'file-import', 'build-list', 'build-empty', 'btn-new-build', 'btn-first-build',
       'world-stats', 'world-progress', 'world-remaining', 'world-bar', 'world-fill', 'backdrop-pause',
-      'mat-steps', 'btn-new-custom',
+      'btn-new-custom',
       'custom-dialog', 'custom-form', 'custom-name', 'custom-stack', 'custom-scope',
       'custom-icon-pick', 'custom-icon-upload', 'custom-icon-file', 'custom-icon-preview', 'custom-error', 'custom-save', 'custom-cancel',
       'import-dialog', 'import-form', 'import-file', 'import-drop', 'import-text', 'import-restore',
       'import-cancel', 'import-error',
       'build-detail', 'detail-empty', 'detail-empty-action', 'detail-body', 'detail-heading', 'build-delete',
+      'detail-meta', 'detail-avatar',
       'build-rename', 'build-name', 'build-name-save', 'build-name-cancel',
       'build-coords', 'copy-coords', 'status-group', 'build-pct', 'build-bar',
       'build-fill', 'build-summary', 'notes-text', 'notes-edit', 'notes-editor',
-      'build-notes', 'notes-save', 'notes-cancel',
+      'notes-hint', 'build-notes', 'notes-save', 'notes-cancel',
       'material-body', 'material-empty', 'btn-empty-pick-material', 'add-material-form', 'bulk-paste',
       'bulk-dialog', 'bulk-form', 'bulk-input', 'bulk-review', 'bulk-add', 'bulk-cancel', 'bulk-error',
       'mat-item', 'mat-needed', 'mat-collected', 'mat-choice', 'mat-choice-slot',
@@ -691,12 +712,17 @@
       'mat-totals', 'btn-copy-list', 'worlds-lede', 'world-cards', 'world-empty', 'btn-sample',
       'btn-empty-create-world',
       'status-line', 'toast',
+      'world-panel', 'world-panel-name', 'view-standard', 'view-compact',
+      'compact-view', 'compact-grid', 'compact-world',
+      'tile-dialog', 'tile-form', 'tile-title', 'tile-absolute', 'tile-relative', 'tile-error',
+      'tile-cancel', 'tile-save',
       'world-dialog', 'world-form', 'world-dialog-title', 'world-name', 'world-edition',
       'world-version', 'world-notes', 'world-error', 'world-save',
-      'build-dialog', 'build-form', 'build-dlg-name', 'build-dlg-status', 'build-dlg-coords',
+      'build-dialog', 'build-form', 'build-dialog-title', 'build-dialog-save',
+      'build-dlg-name', 'build-dlg-status', 'build-dlg-coords',
       'build-error', 'confirm-dialog', 'confirm-title', 'confirm-text', 'confirm-ok',
       'world-avatar', 'world-icon', 'world-icon-change', 'world-icon-remove',
-      'build-dlg-icon', 'build-dlg-icon-change', 'build-dlg-icon-remove', 'detail-avatar',
+      'build-dlg-icon', 'build-dlg-icon-change', 'build-dlg-icon-remove',
       'icon-dialog', 'icon-form', 'icon-dialog-title', 'icon-search', 'icon-grid',
       'icon-count-hint', 'icon-suggest-note', 'icon-file', 'icon-upload', 'icon-upload-block',
       'icon-preview', 'icon-hint', 'icon-error', 'icon-use', 'icon-cancel'
@@ -705,6 +731,8 @@
     // map dashed ids to camelCase keys for readability below
     els.statusLine = els['status-line'];
     els.toast = els['toast'];
+    els.viewswitch = document.querySelector('.viewswitch');
+    els.buildsCanvas = document.querySelector('#view-builds > .builds');
     els.tabs = [els['tab-builds'], els['tab-materials'], els['tab-worlds']];
     els.views = {
       builds: els['view-builds'],
@@ -712,6 +740,7 @@
       worlds: els['view-worlds']
     };
 
+    ui.buildsView = readBuildsView();
     var loaded = M.load(window.localStorage);
     state = loaded.state || M.emptyState();
     var seeded = false;
@@ -729,7 +758,6 @@
     var tabParam = (window.location.search.match(/[?&]tab=([a-z]+)/) || [])[1];
     if (tabParam && els.views[tabParam]) ui.view = tabParam;
     renderAll();
-    syncFormSteps();
     probeBackdrop();
     initMotion();
     setStatus(!state.worlds.length
@@ -809,14 +837,16 @@
       ui.selectedBuildId = null;
       selectInitialBuild();
       renderAll();
-      syncFormSteps();
       toast('Sample worlds loaded.');
     });
 
     els['backdrop-pause'].addEventListener('click', function () { toggleMotion(); });
-    els['mat-steps'].addEventListener('click', onFormStep);
-    els['btn-new-build'].addEventListener('click', function () { openBuildDialog(); });
-    els['btn-first-build'].addEventListener('click', function () { openBuildDialog(); });
+    bindViewSwitch();
+    bindSteppers();
+    bindCompactView();
+    bindTileDialog();
+    els['btn-new-build'].addEventListener('click', function () { openBuildDialog(null); });
+    els['btn-first-build'].addEventListener('click', function () { openBuildDialog(null); });
 
     els['build-list'].addEventListener('click', function (event) {
       var button = event.target.closest('.build-entry');
@@ -964,8 +994,6 @@
     });
 
     els['material-body'].addEventListener('click', function (event) {
-      var step = event.target.closest('.mat-step');
-      if (step) { adjustNeeded(step); return; }
       var button = event.target.closest('[data-remove-mat]');
       if (!button) return;
       var context = currentBuild();
@@ -975,39 +1003,6 @@
       commit(M.deleteMaterial(state, context.world.id, context.build.id, button.dataset.removeMat).state);
       offerUndo(before, 'Material removed.', buildId);
     });
-
-    /**
-     * EDICT-0013 D5: +/-1, +/-10 and +/-one stack on the Needed amount. The model clamps at 1
-     * (M.stepNeeded), so "remove a stack" on a material that needs 1 leaves it at 1, not 0.
-     */
-    function adjustNeeded(button) {
-      var context = currentBuild();
-      if (!context) return;
-      var matId = button.dataset.mat;
-      var material = null;
-      context.build.materials.forEach(function (entry) {
-        if (entry.id === matId) material = entry;
-      });
-      if (!material) return;
-      var spec = String(button.dataset.step || '');
-      var sign = spec.charAt(0) === '-' ? -1 : 1;
-      var amount = spec.slice(1);
-      var delta = amount === 'stack'
-        ? sign * stackSizeFor(material.item)
-        : sign * (parseInt(amount, 10) || 0);
-      var next = M.stepNeeded(material.needed, delta);
-      if (next === material.needed) return;
-      commit(M.updateMaterial(state, context.world.id, context.build.id, matId, { needed: next }).state);
-      // Rendering replaces the buttons; give focus back to the same control so a keyboard user
-      // can press it again without tabbing through the whole row.
-      var buttons = document.querySelectorAll('.mat-step');
-      for (var i = 0; i < buttons.length; i += 1) {
-        if (buttons[i].dataset.mat === matId && buttons[i].dataset.step === spec) {
-          buttons[i].focus();
-          break;
-        }
-      }
-    }
 
     els['mat-choice'].addEventListener('click', function () {
       els['mat-error'].hidden = true;
@@ -1034,7 +1029,6 @@
       setMaterialChoice('');
       els['mat-needed'].value = '1';
       els['mat-collected'].value = '0';
-      syncFormSteps();
       commit(result.state);
       els['mat-choice'].focus();
     });
@@ -1103,10 +1097,33 @@
         toast('Create a world, then add builds to it.', true);
         return;
       }
-      var result = M.createBuild(state, world.id, {
+      var patch = {
         name: els['build-dlg-name'].value,
         status: els['build-dlg-status'].value,
-        coords: els['build-dlg-coords'].value,
+        coords: els['build-dlg-coords'].value
+      };
+      var editing = ui.dialogBuildId ? M.findBuild(world, ui.dialogBuildId) : null;
+      if (editing) {
+        /* Only send an icon when the picker changed it: an absent `icon` key keeps `iconAuto`. */
+        if (editing.icon !== dialogIcon.build) patch.icon = dialogIcon.build;
+        var updated = M.updateBuild(state, world.id, editing.id, patch);
+        if (updated.error) {
+          els['build-error'].textContent = updated.error;
+          els['build-error'].hidden = false;
+          return;
+        }
+        state = updated.state;
+        ui.selectedBuildId = editing.id;
+        M.save(window.localStorage, state);
+        els['build-dialog'].close();
+        renderAll();
+        toast('Build updated.');
+        return;
+      }
+      var result = M.createBuild(state, world.id, {
+        name: patch.name,
+        status: patch.status,
+        coords: patch.coords,
         icon: dialogIcon.build
       });
       if (result.error) {
@@ -1163,7 +1180,6 @@
           ? customPickerName(chosen)
           : (entry ? entry.name : '');
         setMaterialChoice(picked || customPickerName(chosen) || titleSlug(chosen));
-        syncFormSteps();
         els['icon-dialog'].close();
         els['mat-choice'].focus();
         return;
@@ -1323,6 +1339,7 @@
     Object.keys(els.views).forEach(function (key) {
       els.views[key].hidden = key !== view;
     });
+    applyViewMode();
   }
 
   /* ---------------------------------------------------------------- dialogs */
@@ -1343,21 +1360,27 @@
     els['world-name'].focus();
   }
 
-  function openBuildDialog() {
+  function openBuildDialog(buildId) {
     if (!state.worlds.length) {
       /* EDICT-0014 §4: the empty build list sends the user straight to world creation. */
       setView('worlds');
       openWorldDialog(null);
       return;
     }
-    els['build-dlg-name'].value = '';
-    els['build-dlg-status'].value = 'planned';
-    els['build-dlg-coords'].value = '';
-    dialogIcon.build = null;
+    var world = activeWorld();
+    var build = buildId && world ? M.findBuild(world, buildId) : null;
+    ui.dialogBuildId = build ? build.id : null;
+    els['build-dialog-title'].textContent = build ? 'Edit Build' : 'New Build';
+    els['build-dialog-save'].textContent = build ? 'Save build' : 'Create build';
+    els['build-dlg-name'].value = build ? build.name : '';
+    els['build-dlg-status'].value = build ? build.status : 'planned';
+    els['build-dlg-coords'].value = build ? build.coords : '';
+    dialogIcon.build = build ? build.icon || null : null;
     renderIconPreview('build');
     els['build-error'].hidden = true;
     els['build-dialog'].showModal();
     els['build-dlg-name'].focus();
+    if (build) els['build-dlg-name'].select();
   }
 
   function askConfirm(title, text, label, action) {
@@ -1374,8 +1397,8 @@
     renderWorldPicker();
     renderBuilds();
     renderWorldStats();
-    syncFormSteps();
     renderDetail();
+    renderCompact();
     renderWorldMaterials();
     renderWorlds();
     renderMaterialChoice();
@@ -1384,6 +1407,465 @@
 
   function formatCount(value) {
     return String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  /* -------------------------------------------------------------- timestamps */
+
+  /**
+   * EDICT-0016 §7: one display helper for every surface — `Created <date> · Updated <date time>`
+   * in <time datetime title=ISO> nodes, falling back `updatedAt → createdAt → —`.
+   */
+  function stampNode(iso, label) {
+    var node = document.createElement('time');
+    var text = M.formatStamp(iso);
+    if (text !== '\u2014') {
+      node.setAttribute('datetime', String(iso));
+      node.setAttribute('title', String(iso));
+    }
+    node.textContent = label + ' ' + text;
+    return node;
+  }
+
+  function stampFragment(entity) {
+    var stamps = M.timestamps(entity);
+    var updated = stamps.updatedAt !== undefined ? stamps.updatedAt : stamps.createdAt;
+    var fragment = document.createDocumentFragment();
+    fragment.appendChild(stampNode(stamps.createdAt, 'Created'));
+    fragment.appendChild(document.createTextNode(' · '));
+    fragment.appendChild(stampNode(updated, 'Updated'));
+    return fragment;
+  }
+
+  function timeHtml(iso, label) {
+    var text = M.formatStamp(iso);
+    var attrs = text === '\u2014' ? '' : ' datetime="' + escapeHtml(iso) + '" title="' + escapeHtml(iso) + '"';
+    return '<time' + attrs + '>' + escapeHtml(label + ' ' + text) + '</time>';
+  }
+
+  function stampHtml(entity) {
+    var stamps = M.timestamps(entity);
+    var updated = stamps.updatedAt !== undefined ? stamps.updatedAt : stamps.createdAt;
+    return timeHtml(stamps.createdAt, 'Created') + ' · ' + timeHtml(updated, 'Updated');
+  }
+
+  /* ------------------------------------------------------------ builds view */
+
+  function readBuildsView() {
+    try {
+      return window.localStorage.getItem(BUILDS_VIEW_KEY) === 'compact' ? 'compact' : 'standard';
+    } catch (error) {
+      return 'standard';
+    }
+  }
+
+  function writeBuildsView(value) {
+    try {
+      window.localStorage.setItem(BUILDS_VIEW_KEY, value === 'compact' ? 'compact' : 'standard');
+    } catch (error) {
+      /* A blocked localStorage must not break the switcher. */
+    }
+  }
+
+  /** The one place that decides which canvas, which sidebar and which switcher is visible. */
+  function applyViewMode() {
+    var compact = ui.view === 'builds' && ui.buildsView === 'compact';
+    if (els.viewswitch) els.viewswitch.hidden = ui.view !== 'builds';
+    if (els['view-standard']) {
+      els['view-standard'].setAttribute('aria-pressed', ui.buildsView === 'standard' ? 'true' : 'false');
+    }
+    if (els['view-compact']) {
+      els['view-compact'].setAttribute('aria-pressed', ui.buildsView === 'compact' ? 'true' : 'false');
+    }
+    /* `hidden` is not enough on its own: a class-keyed rule (`#main.is-compact …`) keeps the
+       sidebar and the standard canvas collapsed even where a display rule beats [hidden]. */
+    var main = els.main || document.getElementById('main');
+    if (main) main.classList.toggle('is-compact', compact);
+    if (els.views && els.views.builds) els.views.builds.classList.toggle('is-compact', compact);
+    if (els['world-panel']) els['world-panel'].hidden = ui.view === 'worlds' || compact;
+    if (els.buildsCanvas) els.buildsCanvas.hidden = compact;
+    if (els['compact-view']) els['compact-view'].hidden = !compact;
+  }
+
+  /** One delegated listener on the switcher: survives re-renders and needs no per-button binding. */
+  function bindViewSwitch() {
+    if (!els.viewswitch) return;
+    els.viewswitch.addEventListener('click', function (event) {
+      var button = event.target.closest ? event.target.closest('.viewswitch__btn') : null;
+      if (!button || !els.viewswitch.contains(button)) return;
+      var want = button.id === 'view-compact' ? 'compact' : 'standard';
+      if (ui.buildsView === want) return;
+      ui.buildsView = want;
+      writeBuildsView(want);
+      renderAll();
+    });
+  }
+
+  /* ------------------------------------------------------------- compact view */
+
+  function renderCompact() {
+    var world = activeWorld();
+    if (!els['compact-grid']) return;
+    renderCompactWorldLine(world);
+    els['compact-grid'].innerHTML = world
+      ? M.sortBuilds(world.builds).map(compactCardHtml).join('')
+      : '';
+    wireIconFallbacks(els['compact-grid']);
+  }
+
+  function renderCompactWorldLine(world) {
+    var node = els['compact-world'];
+    if (!node) return;
+    node.textContent = '';
+    if (!world) {
+      node.textContent = 'No world selected';
+      return;
+    }
+    var identity = world.name + ' · ' + (world.edition === 'bedrock' ? 'Bedrock' : 'Java');
+    if (world.version) identity += ' ' + world.version;
+    node.textContent = identity;
+    var summary = M.worldSummary(world);
+    if (summary.needed > 0) {
+      node.textContent = identity + ' · ' + summary.pct + '% gathered · ' +
+        formatCount(summary.remaining) + ' of ' + formatCount(summary.needed) + ' items still to collect';
+    }
+  }
+
+  function stackText(amount, stack) {
+    var size = stack && stack > 0 ? stack : M.DEFAULT_STACK;
+    var count = Math.max(0, Math.floor(Number(amount) || 0));
+    var stacks = Math.floor(count / size);
+    return stacks + (stacks === 1 ? ' stack' : ' stacks') + ' + ' + (count % size);
+  }
+
+  function compactTileHtml(build, material) {
+    var progress = M.materialProgress(material);
+    var done = progress.done;
+    var count = done ? material.needed : progress.remaining;
+    var stack = rowStack(material, build);
+    var stamps = M.timestamps(build);
+    var updatedIso = stamps.updatedAt !== undefined ? stamps.updatedAt : stamps.createdAt;
+    var tip = material.item + ': ' + material.collected + ' / ' + material.needed +
+      ' (' + stackText(material.collected, stack) + ' / ' + stackText(material.needed, stack) + ')' +
+      ' · Updated ' + M.formatStamp(updatedIso);
+    return '<button class="ctile" type="button" data-build-id="' + escapeHtml(build.id) +
+      '" data-mat-id="' + escapeHtml(material.id) + '" data-state="' + (done ? 'done' : 'open') +
+      '" data-tip="' + escapeHtml(tip) + '" aria-label="' + escapeHtml(material.item + ': ' +
+        material.collected + ' of ' + material.needed + ' collected') + '">' +
+      '<span class="ctile__count">' + formatCount(count) + '</span>' +
+      '<span class="ctile__icon" aria-hidden="true">' + slotInnerHtml(material.item, true) + '</span>' +
+      '<span class="ctile__name">' + escapeHtml(material.item) + '</span>' +
+      (done ? '<span class="ctile__done" aria-hidden="true">' + CHECK_ICON + '</span>' : '') +
+      '</button>';
+  }
+
+  function compactCardHtml(build) {
+    var totals = build.materials.reduce(function (acc, material) {
+      acc.needed += material.needed;
+      acc.gathered += Math.min(material.collected, material.needed);
+      return acc;
+    }, { needed: 0, gathered: 0 });
+    var pct = totals.needed ? Math.min(100, Math.round((totals.gathered / totals.needed) * 100)) : 0;
+    var meta = build.materials.length + (build.materials.length === 1 ? ' material' : ' materials');
+    if (String(build.coords || '').trim()) meta += ' · ' + escapeHtml(build.coords);
+    var id = escapeHtml(build.id);
+    var name = escapeHtml(build.name);
+    return '<article class="ccard" data-build-id="' + id + '" data-status="' + escapeHtml(build.status) + '">' +
+      '<div class="ccard__head">' +
+        '<h3 class="ccard__title">' + name + '</h3>' +
+        '<span class="chip chip--' + escapeHtml(build.status) + ' ccard__chip">' +
+          escapeHtml(STATUS_LABEL[build.status] || build.status) + '</span>' +
+        '<span class="ccard__pct">' + pct + '%</span>' +
+        '<div class="ccard__actions">' +
+          '<button class="mc-btn mc-btn--sm mc-btn--icon" type="button" id="ccard-edit-' + id +
+            '" data-ccard-edit="' + id + '" aria-label="Edit ' + name + '" title="Edit build">' +
+            PENCIL_ICON + '</button>' +
+          '<button class="mc-btn mc-btn--sm mc-btn--icon mc-btn--danger" type="button" id="ccard-delete-' + id +
+            '" data-ccard-delete="' + id + '" aria-label="Delete ' + name + '" title="Delete build">' +
+            TRASH_ICON + '</button>' +
+        '</div>' +
+      '</div>' +
+      '<p class="ccard__meta">' + meta + '</p>' +
+      '<p class="ccard__time">' + stampHtml(build) + '</p>' +
+      '<div class="ccard__bar" id="ccard-bar-' + id + '" role="progressbar" aria-valuemin="0" ' +
+        'aria-valuemax="100" aria-valuenow="' + pct + '">' +
+        '<div class="ccard__fill" id="ccard-fill-' + id + '" style="width:' + pct + '%"></div>' +
+      '</div>' +
+      '<p class="ccard__progress">' + pct + '% (' + formatCount(totals.gathered) + ' / ' +
+        formatCount(totals.needed) + ')</p>' +
+      '<div class="ccard__matrix">' +
+        build.materials.map(function (material) { return compactTileHtml(build, material); }).join('') +
+      '</div>' +
+      '</article>';
+  }
+
+  function confirmDeleteBuild(buildId) {
+    var world = activeWorld();
+    if (!world) return;
+    var build = M.findBuild(world, buildId);
+    if (!build) return;
+    askConfirm('Delete build?', 'Delete "' + build.name + '" and its material list? You can undo this from the notice.', 'Delete', function () {
+      var before = snapshotState();
+      var deletedId = build.id;
+      if (ui.selectedBuildId === build.id) {
+        ui.selectedBuildId = null;
+        ui.titleEditing = false;
+        ui.notesEditing = false;
+      }
+      commit(M.deleteBuild(state, world.id, build.id).state);
+      offerUndo(before, 'Build deleted.', deletedId);
+    });
+  }
+
+  function bindCompactView() {
+    if (!els['compact-grid']) return;
+    els['compact-grid'].addEventListener('click', function (event) {
+      var button = event.target.closest ? event.target.closest('button') : null;
+      if (!button) return;
+      var editId = button.getAttribute('data-ccard-edit');
+      if (editId) { openBuildDialog(editId); return; }
+      var deleteId = button.getAttribute('data-ccard-delete');
+      if (deleteId) { confirmDeleteBuild(deleteId); return; }
+      var tile = button.closest('.ctile');
+      if (!tile) return;
+      openTileDialog(tile.getAttribute('data-build-id'), tile.getAttribute('data-mat-id'));
+    });
+  }
+
+  /* ------------------------------------------------------------ quick update */
+
+  function showTileError(message) {
+    if (!els['tile-error']) return;
+    els['tile-error'].textContent = message;
+    els['tile-error'].hidden = false;
+  }
+
+  function tileMaterial() {
+    var target = ui.tileTarget;
+    if (!target) return null;
+    var world = activeWorld();
+    if (!world) return null;
+    var build = M.findBuild(world, target.buildId);
+    if (!build) return null;
+    var material = null;
+    build.materials.forEach(function (entry) { if (entry.id === target.matId) material = entry; });
+    return material ? { world: world, build: build, material: material } : null;
+  }
+
+  function openTileDialog(buildId, matId) {
+    var world = activeWorld();
+    if (!world) return;
+    var build = M.findBuild(world, buildId);
+    if (!build) return;
+    var material = null;
+    build.materials.forEach(function (entry) { if (entry.id === matId) material = entry; });
+    if (!material) return;
+    ui.tileTarget = { buildId: buildId, matId: matId };
+    els['tile-title'].textContent = 'Update inventory: ' + material.item;
+    els['tile-absolute'].value = String(Math.max(0, Math.floor(Number(material.collected) || 0)));
+    els['tile-relative'].value = '0';
+    clearFormError('tile-error');
+    els['tile-dialog'].showModal();
+    els['tile-absolute'].focus();
+    safeSelect(els['tile-absolute']);
+  }
+
+  /** One model commit: absolute + the signed relative delta, clamped at zero. */
+  function commitTileDialog() {
+    var context = tileMaterial();
+    if (!context) { els['tile-dialog'].close(); return; }
+    var absoluteRaw = String(els['tile-absolute'].value).trim();
+    var absolute = /^\d+$/.test(absoluteRaw) ? Number(absoluteRaw) : NaN;
+    if (!isFinite(absolute)) {
+      showTileError('Current inventory must be a whole number.');
+      return;
+    }
+    if (absolute > 1e9) { showTileError('That count is too large.'); return; }
+    var relative = M.parseRelative(els['tile-relative'].value, rowStack(context.material, context.build));
+    if (relative.error) { showTileError(relative.error); return; }
+    var collected = absolute + relative.value;
+    if (!isFinite(collected) || Math.abs(collected) > 1e9) {
+      showTileError('That count is too large.');
+      return;
+    }
+    collected = Math.max(0, Math.floor(collected));
+    /* A commit that changes nothing closes quietly instead of inventing a second notification. */
+    if (collected === Math.max(0, Math.floor(Number(context.material.collected) || 0))) {
+      els['tile-dialog'].close();
+      toast('Inventory updated.');
+      return;
+    }
+    /* EDICT-0014 §6 applies to this surface too (case 95): one commit per Enter, and the quick
+       update offers the same six-second Undo as every other material mutation. */
+    var before = snapshotState();
+    var result = M.updateMaterial(state, context.world.id, context.build.id, context.material.id, {
+      collected: collected
+    });
+    if (result.error) { showTileError(result.error); return; }
+    els['tile-dialog'].close();
+    commit(result.state);
+    offerUndo(before, 'Inventory updated.', context.build.id);
+  }
+
+  function bindTileDialog() {
+    if (!els['tile-form']) return;
+    els['tile-form'].addEventListener('submit', function (event) {
+      event.preventDefault();
+      if (event.submitter && event.submitter.value === 'cancel') {
+        els['tile-dialog'].close();
+        return;
+      }
+      commitTileDialog();
+    });
+    els['tile-dialog'].addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        els['tile-dialog'].close();
+        return;
+      }
+      if (event.key !== 'Enter') return;
+      /* Enter anywhere in the dialog commits; Enter on Cancel keeps its native meaning. */
+      if (event.target === els['tile-cancel']) return;
+      event.preventDefault();
+      commitTileDialog();
+    });
+    els['tile-dialog'].addEventListener('close', function () {
+      ui.tileTarget = null;
+      clearFormError('tile-error');
+    });
+  }
+
+  /* ---------------------------------------------------------------- steppers */
+
+  /**
+   * EDICT-0016 §2/§8/§9: one delegated implementation. Plain ±1, Shift ± the item's stack,
+   * Ctrl/⌘ ±16; Shift wins when both are held.
+   */
+  function bindSteppers() {
+    document.addEventListener('click', onStepperClick);
+    document.addEventListener('wheel', onStepperWheel, { capture: true, passive: false });
+    document.addEventListener('keydown', onStepperKeydown, { capture: true });
+    document.addEventListener('focusin', onNumberFocus);
+    document.addEventListener('click', onNumberClick);
+  }
+
+  function isStepperInput(node) {
+    return !!(node && node.tagName === 'INPUT' && node.closest && node.closest('[data-stepper]'));
+  }
+
+  /**
+   * AC8: a single click (or a keyboard focus with nothing selected) selects the whole value.
+   * `selectionStart` is unreportable on some `type=number` implementations, so every probe is
+   * guarded and `select()` is attempted for both shapes.
+   */
+  function safeSelect(input) {
+    if (!input) return;
+    try { input.select(); } catch (error) { /* number inputs may refuse select() */ }
+    try {
+      if (typeof input.setSelectionRange === 'function' && input.type !== 'number') {
+        input.setSelectionRange(0, String(input.value).length);
+      }
+    } catch (error) { /* selection APIs are optional for non-text inputs */ }
+    try {
+      if (typeof input.setSelectionRange === 'function' && input.type === 'number' && String(input.value)) {
+        input.setSelectionRange(String(input.value).length, String(input.value).length);
+      }
+    } catch (error) { /* caret control is best-effort on number inputs */ }
+  }
+
+  function selectionCollapsed(input) {
+    var start = null;
+    var end = null;
+    try { start = input.selectionStart; end = input.selectionEnd; } catch (error) { start = null; end = null; }
+    if (start === null || end === null) return true;
+    return start === end;
+  }
+
+  function onNumberFocus(event) {
+    if (!isStepperInput(event.target)) return;
+    if (!selectionCollapsed(event.target)) return;
+    safeSelect(event.target);
+  }
+
+  function onNumberClick(event) {
+    if (!isStepperInput(event.target)) return;
+    if (!selectionCollapsed(event.target)) return;
+    safeSelect(event.target);
+  }
+
+  function onStepperClick(event) {
+    var button = event.target.closest ? event.target.closest('[data-stepper-step]') : null;
+    if (!button) return;
+    var container = button.closest('[data-stepper]');
+    if (!container) return;
+    var input = container.querySelector('input');
+    if (!input) return;
+    event.preventDefault();
+    var sign = button.getAttribute('data-stepper-step') === '-1' ? -1 : 1;
+    var field = input.getAttribute('data-mat-field');
+    var matId = input.getAttribute('data-mat');
+    if (!applyInputStep(input, sign * stepAmount(input, event))) {
+      if (field && matId) focusStepperButton(field, matId, sign > 0 ? '1' : '-1');
+      return;
+    }
+    /* A row step committed and re-rendered the table; hand focus back to the same button. */
+    if (field && matId) focusStepperButton(field, matId, sign > 0 ? '1' : '-1');
+  }
+
+  function onStepperWheel(event) {
+    var input = event.target;
+    if (!isStepperInput(input)) return;
+    if (document.activeElement !== input) return;
+    if (!event.deltaY) return;
+    /* Focused wheel must never scroll the page or the material list (AC9). */
+    event.preventDefault();
+    var field = input.getAttribute('data-mat-field');
+    var matId = input.getAttribute('data-mat');
+    var amount = (event.deltaY > 0 ? -1 : 1) * stepAmount(input, event);
+    if (!applyInputStep(input, amount)) return;
+    if (field && matId) focusStepperInput(field, matId);
+  }
+
+  function commitDirtyRow(input) {
+    var field = input.getAttribute('data-mat-field');
+    var material = findRowMaterial(input.getAttribute('data-mat'));
+    if (!material || !field) return;
+    var stored = field === 'needed' ? material.needed : material.collected;
+    var typed = Math.floor(Number(input.value));
+    if (!isFinite(typed)) return;
+    if (typed === stored) return;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function onStepperKeydown(event) {
+    if (event.key !== 'Enter') return;
+    var input = event.target;
+    if (!isStepperInput(input)) return;
+    /* Add form: Needed walks to Got and must not submit the form. */
+    if (input.id === 'mat-needed') {
+      event.preventDefault();
+      if (els['mat-collected']) {
+        els['mat-collected'].focus();
+        safeSelect(els['mat-collected']);
+      }
+      return;
+    }
+    var field = input.getAttribute('data-mat-field');
+    var matId = input.getAttribute('data-mat');
+    if (!field || !matId) return;
+    var inputs = Array.prototype.slice.call(
+      els['material-body'].querySelectorAll('[data-mat-field="' + field + '"]'));
+    var index = inputs.indexOf(input);
+    if (index < 0) return;
+    event.preventDefault();
+    if (index === inputs.length - 1) {
+      /* Last field: commit, then keep focus here — never blur, never wrap. */
+      commitDirtyRow(input);
+      focusStepperInput(field, matId);
+      return;
+    }
+    var nextId = inputs[index + 1].getAttribute('data-mat');
+    commitDirtyRow(input);
+    focusStepperInput(field, nextId);
   }
 
   function renderWorldStats() {
@@ -1422,12 +1904,17 @@
     wireIconFallbacks(els['world-avatar']);
 
     if (!world) {
+      if (els['world-panel-name']) els['world-panel-name'].textContent = '';
       els['world-meta'].textContent = 'No world selected';
       return;
     }
+    if (els['world-panel-name']) els['world-panel-name'].textContent = world.name;
+    /* EDICT-0016 §7/§8: identity stays identity; the two stamps are appended as <time> nodes. */
     els['world-meta'].textContent =
       (world.edition === 'bedrock' ? 'Bedrock' : 'Java') + ' ' + world.version +
       ' · ' + world.builds.length + (world.builds.length === 1 ? ' build' : ' builds');
+    els['world-meta'].appendChild(document.createTextNode(' · '));
+    els['world-meta'].appendChild(stampFragment(world));
   }
 
   function renderBuilds() {
@@ -1613,10 +2100,16 @@
 
     els['notes-text'].hidden = ui.notesEditing;
     els['notes-editor'].hidden = !ui.notesEditing;
+    /* EDICT-0016 §3/§4: the actions live in the label row and replace #notes-edit while editing. */
+    els['notes-hint'].hidden = !ui.notesEditing;
+    els['notes-save'].hidden = !ui.notesEditing;
+    els['notes-cancel'].hidden = !ui.notesEditing;
+    els['notes-edit'].hidden = ui.notesEditing;
     if (!ui.notesEditing) {
       els['notes-text'].textContent = build.notes || 'No notes yet.';
       els['notes-text'].classList.toggle('notes__text--empty', !build.notes);
     }
+    renderDetailMeta(build);
 
     Array.prototype.forEach.call(els['status-group'].querySelectorAll('[data-status]'), function (button) {
       var active = button.dataset.status === build.status;
@@ -1636,14 +2129,11 @@
       return '<div class="mat-row" role="row" data-mat="' + escapeHtml(material.id) + '">' +
         '<span class="mat-row__item">' + slotHtml(material.item) +
           '<span class="mat-row__name">' + escapeHtml(material.item) + '</span></span>' +
-        '<input class="mc-input num" type="number" min="1" step="1" value="' + material.needed + '" ' +
-          'data-mat-field="needed" data-mat="' + escapeHtml(material.id) + '" aria-label="Needed ' + escapeHtml(material.item) + '">' +
-        '<input class="mc-input num got-col" type="number" min="0" step="1" value="' + material.collected + '" ' +
-          'data-mat-field="collected" data-mat="' + escapeHtml(material.id) + '" aria-label="Collected ' + escapeHtml(material.item) + '">' +
+        rowStepperHtml(material, 'needed', 'needed for') +
+        rowStepperHtml(material, 'collected', 'collected for') +
         '<span class="num">' + progress.remaining + '</span>' +
         '<button type="button" class="row-delete" data-remove-mat="' + escapeHtml(material.id) + '" ' +
           'aria-label="Remove ' + escapeHtml(material.item) + '">×</button>' +
-        materialStepsHtml(material, (M.resolveItem(state, activeWorld(), selectedBuild(), material.item) || {}).stack || stackSizeFor(material.item)) +
         '</div>';
     });
     els['material-body'].innerHTML = rows.join('');
@@ -1651,45 +2141,165 @@
     els['material-empty'].hidden = build.materials.length > 0;
   }
 
-  /**
-   * EDICT-0013 D5 / contract §4: exactly six step buttons per material row. data-step keeps the
-   * contract's literal "+stack"/"-stack", data-mat-step mirrors the resolved amount and
-   * data-stack carries the item's stack size, so the visible label reads "+64" on stone and
-   * "+16" on an egg. The cluster sits on the row's second grid line (CSS .mat-steps).
-   */
-  function materialStepsHtml(material, stack) {
-    var specs = [
-      { kind: '+', amount: '1', step: '+1' },
-      { kind: '+', amount: '10', step: '+10' },
-      { kind: '+', amount: 'stack', step: '+stack' },
-      { kind: '-', amount: '1', step: '-1' },
-      { kind: '-', amount: '10', step: '-10' },
-      { kind: '-', amount: 'stack', step: '-stack' }
-    ];
-    /* Contract §4: a one-item stack has no stack pair at all (four buttons), so a bucket row
-       never offers "+64"/"-64" or claims a full stack in its accessible name. */
-    if (stack === 1) {
-      specs = specs.filter(function (spec) { return spec.amount !== 'stack'; });
+  /** The build's detail meta line: `Updated …` in a <time>, with created carried on the title. */
+  function renderDetailMeta(build) {
+    if (!els['detail-meta']) return;
+    els['detail-meta'].textContent = '';
+    els['detail-meta'].removeAttribute('title');
+    if (!build) return;
+    var stamps = M.timestamps(build);
+    var updatedIso = stamps.updatedAt !== undefined ? stamps.updatedAt : stamps.createdAt;
+    var node = stampNode(updatedIso, 'Updated');
+    els['detail-meta'].appendChild(node);
+    if (stamps.createdAt !== undefined) {
+      els['detail-meta'].setAttribute('title', 'Created ' + M.formatStamp(stamps.createdAt) +
+        ' (' + stamps.createdAt + ')');
     }
-    var id = escapeHtml(material.id);
-    var item = escapeHtml(material.item);
-    var buttons = specs.map(function (spec) {
-      /* Contract §4: data-step keeps the shipped literal ('+stack'/'-stack'); data-mat-step and
-         the visible label carry the resolved amount, so stone reads "+64" and a bucket has no
-         stack button. The accessible name spells out which material and which direction. */
-      var value = spec.amount === 'stack' ? String(stack) : spec.amount;
-      var verb = spec.kind === '+' ? 'Add ' : 'Remove ';
-      var label = spec.kind + value;
-      var aria = spec.amount === 'stack'
-        ? verb + 'a full stack (' + stack + ') ' + (spec.kind === '+' ? 'to ' : 'from ') + material.item + ' needed'
-        : verb + value + ' ' + material.item + (spec.kind === '+' ? ' to the needed count' : ' from the needed count');
-      return '<button type="button" class="mat-step" ' +
-        'data-mat="' + id + '" data-step="' + spec.step + '" ' +
-        'data-mat-step="' + label + '" data-stack="' + stack + '" ' +
-        'aria-label="' + escapeHtml(aria) + '">' + escapeHtml(label) + '</button>';
+  }
+
+  /**
+   * EDICT-0016 §2: one stepper for every editable number — `+` button, the input, `−` button, in
+   * that literal order. `field`/`matId` are only for material rows; the container carries them so
+   * a re-render can hand focus back to the same control.
+   */
+  function stepperHtml(options) {
+    var opts = options || {};
+    var field = opts.field || '';
+    var matId = opts.matId || '';
+    var type = opts.type === 'text' ? 'text' : 'number';
+    var value = opts.value === undefined || opts.value === null ? '' : String(opts.value);
+    var attrs = ' class="mc-input num' + (opts.gotCol ? ' got-col' : '') + '" type="' + type + '" inputmode="numeric"';
+    if (opts.min !== undefined) attrs += ' min="' + opts.min + '"';
+    if (opts.max !== undefined) attrs += ' max="' + opts.max + '"';
+    if (type === 'number') attrs += ' step="1"';
+    attrs += ' value="' + escapeHtml(value) + '"';
+    if (opts.id) attrs += ' id="' + escapeHtml(opts.id) + '"';
+    if (field) attrs += ' data-mat-field="' + escapeHtml(field) + '"';
+    if (matId) attrs += ' data-mat="' + escapeHtml(matId) + '"';
+    if (opts.required) attrs += ' required';
+    attrs += ' aria-label="' + escapeHtml(opts.inputLabel || opts.name || 'Value') + '">';
+    var wrapper = ' class="stepper" data-stepper';
+    if (field && matId) {
+      wrapper += ' data-stepper-field="' + escapeHtml(field) + '" data-stepper-mat="' + escapeHtml(matId) + '"';
+    }
+    var name = escapeHtml(opts.name || 'value');
+    return '<div' + wrapper + '>' +
+      '<button class="stepper__btn" type="button" data-stepper-step="1" aria-label="Increase ' + name + '">+</button>' +
+      '<input' + attrs +
+      '<button class="stepper__btn" type="button" data-stepper-step="-1" aria-label="Decrease ' + name + '">−</button>' +
+      '</div>';
+  }
+
+  /** One material row's Needed or Got stepper, with the item named in the accessible labels. */
+  function rowStepperHtml(material, field, verb) {
+    var isNeeded = field === 'needed';
+    return stepperHtml({
+      field: field,
+      matId: material.id,
+      min: isNeeded ? 1 : 0,
+      gotCol: !isNeeded,
+      value: isNeeded ? material.needed : material.collected,
+      name: verb + ' ' + material.item,
+      inputLabel: (isNeeded ? 'Needed ' : 'Collected ') + material.item
     });
-    return '<div class="mat-steps" role="group" aria-label="Adjust needed for ' + item + '">' +
-      buttons.join('') + '</div>';
+  }
+
+  /** Resolve an item's stack exactly as the retired renderer did (registry first, then catalogue). */
+  function rowStack(material, build) {
+    var owner = build || selectedBuild();
+    var resolved = M.resolveItem(state, activeWorld(), owner, material.item);
+    return (resolved && resolved.stack) || stackSizeFor(material.item) || M.DEFAULT_STACK;
+  }
+
+  function findRowMaterial(matId) {
+    var build = selectedBuild();
+    if (!build) return null;
+    var found = null;
+    build.materials.forEach(function (entry) { if (entry.id === matId) found = entry; });
+    return found;
+  }
+
+  function stackForInput(input) {
+    if (!input) return M.DEFAULT_STACK;
+    if (input.getAttribute('data-mat')) return rowStack(findRowMaterial(input.getAttribute('data-mat')));
+    if (input.id === 'mat-needed' || input.id === 'mat-collected') {
+      var resolved = resolvedPendingItem();
+      return resolved && resolved.stack ? resolved.stack : M.DEFAULT_STACK;
+    }
+    if (input.id === 'custom-stack') {
+      var world = activeWorld();
+      var build = selectedBuild();
+      var named = M.resolveItem(state, world, build, els['custom-name'] ? els['custom-name'].value : '');
+      return named && named.stack ? named.stack : M.DEFAULT_STACK;
+    }
+    return M.DEFAULT_STACK;
+  }
+
+  /** Shift = one stack of this item, Ctrl/⌘ = 16, plain = 1; Shift wins when both are held. */
+  function stepAmount(input, event) {
+    if (!event) return 1;
+    if (event.shiftKey) return stackForInput(input);
+    if (event.ctrlKey || event.metaKey) return 16;
+    return 1;
+  }
+
+  function inputHasMin(input) {
+    var min = input.getAttribute('min');
+    return min !== null && min !== '' && isFinite(Number(min));
+  }
+
+  function inputHasMax(input) {
+    var max = input.getAttribute('max');
+    return max !== null && max !== '' && isFinite(Number(max));
+  }
+
+  function clampInput(input, value) {
+    var next = Math.round(value);
+    if (!isFinite(next)) next = 0;
+    if (inputHasMin(input)) next = Math.max(Number(input.getAttribute('min')), next);
+    if (inputHasMax(input)) next = Math.min(Number(input.getAttribute('max')), next);
+    return next;
+  }
+
+  /** Current numeric value of a stepper input; `#tile-relative` is text and parsed as a delta. */
+  function inputNumber(input) {
+    if (input.type === 'text') {
+      var parsed = M.parseRelative(input.value, stackForInput(input));
+      return parsed && parsed.error === undefined ? parsed.value : null;
+    }
+    var value = Number(input.value);
+    return isFinite(value) ? Math.floor(value) : null;
+  }
+
+  /** Apply one step and let the shipped commit path run: `input` first, then `change`. */
+  function applyInputStep(input, amount) {
+    if (!input) return false;
+    var current = inputNumber(input);
+    var base = current === null ? 0 : current;
+    var next = clampInput(input, base + Math.round(amount));
+    if (current !== null && next === current) return false;
+    input.value = String(next);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    return true;
+  }
+
+  function focusStepperButton(field, matId, step) {
+    var container = document.querySelector(
+      '[data-stepper-field="' + field + '"][data-stepper-mat="' + matId + '"]');
+    if (!container) return false;
+    var button = container.querySelector('[data-stepper-step="' + step + '"]');
+    if (!button) return false;
+    button.focus();
+    return true;
+  }
+
+  function focusStepperInput(field, matId) {
+    var input = document.querySelector(
+      '#material-body [data-mat-field="' + field + '"][data-mat="' + matId + '"]');
+    if (!input) return false;
+    input.focus();
+    return true;
   }
 
   function renderWorldMaterials() {
@@ -1698,6 +2308,13 @@
     els['materials-lede'].textContent = world
       ? 'Every block needed across "' + world.name + '", summed by item.'
       : 'Create a world to start a shopping list.';
+    /* B5: the world's Updated <time> rides the lede; its textContent stays the same sentence. */
+    if (world) {
+      var worldStamps = M.timestamps(world);
+      var worldUpdated = worldStamps.updatedAt !== undefined ? worldStamps.updatedAt : worldStamps.createdAt;
+      els['materials-lede'].appendChild(document.createTextNode(' · '));
+      els['materials-lede'].appendChild(stampNode(worldUpdated, 'Updated'));
+    }
 
     var query = ui.query.trim().toLowerCase();
     var filtered = rows.filter(function (row) {
@@ -1855,7 +2472,6 @@
       els['custom-dialog'].close();
       renderAll();
       setMaterialChoice(result.entry.name);
-      syncFormSteps();
       els['mat-choice'].focus();
       toast('Custom material created.');
     });
@@ -1995,30 +2611,6 @@
     var name = els['mat-item'] && els['mat-item'].value;
     if (!world || !build || !name) return null;
     return M.resolveItem(state, world, build, name);
-  }
-
-  function syncFormSteps() {
-    if (!els['mat-steps']) return;
-    var button = els['mat-steps'].querySelector('[data-step="stack"]');
-    var resolved = resolvedPendingItem();
-    button.hidden = !(els['mat-item'] && els['mat-item'].value);
-    button.textContent = '+' + (resolved ? resolved.stack : M.DEFAULT_STACK);
-    button.setAttribute('data-stack', String(resolved ? resolved.stack : M.DEFAULT_STACK));
-  }
-
-  function onFormStep(event) {
-    var button = event.target.closest ? event.target.closest('.mat-step') : null;
-    if (!button) return;
-    event.preventDefault();
-    var step = button.getAttribute('data-step');
-    var amount = 1;
-    if (step === '10') amount = 10;
-    if (step === 'stack') {
-      var resolved = resolvedPendingItem();
-      amount = resolved ? resolved.stack : M.DEFAULT_STACK;
-    }
-    els['mat-needed'].value = String(M.stepNeeded(els['mat-needed'].value, amount));
-    els['mat-needed'].focus();
   }
 
   function importData() {

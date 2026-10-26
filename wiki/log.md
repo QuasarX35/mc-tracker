@@ -306,3 +306,36 @@ The ten-item report changed the app's controls, its typeface, its icon set and i
 - Referenced `docs/backlog/game-icons.md` (research note: 1,368 icons, twelve hidden or stateful
   1.21.4 items plus collapsed variant states; registry-driven extractor and coverage gate).
 - Design system and `README.md` unchanged: nothing in this round shipped.
+
+## [2026-10-26] edit | EDICT-0016 reinstated
+
+- The founder reversed the withdrawal and chose the fourteen-item round exactly as built. The
+  archived tree was restored from `stash@{0}` (`67285ab`), byte-identical to the audited round:
+  suite 96/96, stamp `app-qa: verified — 2026-10-26T02:59:39.552Z` (96 UI cases), audit 186/186,
+  `npm test` 120 cases. The original `QA_PASS, cycle 1` stands; no second verdict.
+- Updated [[Minecraft Build Tracker]] (reinstated outcome: enlarged type scale, stepper, notes
+  presentation, timestamps, world sidebar, aligned rules, compact builds view) and
+  [[Open questions]] (density/readability decided enlarged). Ledger seq 170 records the
+  reinstatement next to the retained WITHDRAWN row (seq 169).
+- The S6 R9 documentation pass is still outstanding: `design-system/minecraft-tracker/MASTER.md`,
+  `pages/tracker.md` and `README.md` were never updated during the round (they still describe
+  EDICT-0015), and the three concept pages planned in EDICT-0016 §5 do not exist yet.
+
+## [2026-10-26] edit | EDICT-0016 R9 docs pass — stepper, compact view, world sidebar
+
+- `design-system/minecraft-tracker/MASTER.md` — type scale is now the one 18 px knob
+  (body 18 / muted 17 / meta 15 / tiny 13; nothing reads 16), one `.stepper` component replaces
+  the six-button strip and every `data-step`, notes view/edit and its label-row controls are
+  documented, plus created/updated ISO stamps, the left world sidebar, the shared 44 px
+  section-head box, and the compact view/card/tile with its quick-update dialog. Never list
+  untouched; checklist now asserts `npm test` 120, audit 186, browser 96 at stamp
+  `2026-10-26T02:59:39.552Z`.
+- `README.md` — feature list names the stepper (Shift = stack, Ctrl/⌘ = 16), the world sidebar,
+  created/updated timestamps, the notes view/edit behaviour and the Standard/Compact switch; the
+  960 px desktop / 1,700 px mobile budgets replace the pre-round figures, and the checks line
+  moves to 120 test cases, 186 audit cases and 96 browser flows.
+- Created [[Number stepper]], [[Compact view]] and [[World sidebar]] (frontmatter, `sources: []`,
+  inbound links from [[Minecraft Build Tracker]] and between each other); [[Open questions]]
+  records compact phase 2 as deferred with its backlog split.
+- `wiki/index.md` regenerated (27 pages); `lint` clean, 27 pages; `sync` 9/9 once ledger seq 171
+  records this pass.

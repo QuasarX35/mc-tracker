@@ -270,7 +270,8 @@ test('AC-13 the UI is a single-screen app with tabs, one h1 and a skip link', ()
   assert.match(HTML, /<html lang="en"/);
   assert.match(HTML, /role="tablist"/);
   assert.equal((HTML.match(/class="tab"/g) || []).length, 3, 'three section tabs');
-  assert.equal((HTML.match(/id="view-/g) || []).length, 3, 'three section panels');
+  assert.equal((HTML.match(/id="view-/g) || []).length >= 3, true, 'the three section panels exist');
+  assert.equal((HTML.match(/role="tabpanel"/g) || []).length, 3, 'three section tabpanels (compact view is not a tabpanel)');
   assert.equal((HTML.match(/class="picker-tab/g) || []).length, 0, 'the redundant icon-picker tabs are gone (D7)');
   assert.ok(!HTML.includes('id="icon-tab-item"') && !HTML.includes('id="icon-tab-image"'),
     'the Item/Image picker buttons must be removed, not hidden');
@@ -329,7 +330,8 @@ test('AC-17 the EDICT-0013 controls are present under their frozen names', () =>
   assert.match(matItem[0], /type="hidden"/, '#mat-item is a hidden value input now (D8)');
   assert.match(HTML, /id="mat-error"[^>]*role="alert"/, 'the add-material error must be announced inline');
   assert.match(APP, /MC_ICON_STACKS/, 'the app must consume the stack table for the stepper buttons');
-  assert.match(APP, /data-step/, 'the stepper buttons are rendered by the app');
+  assert.match(APP, /data-stepper-step/, 'the stepper buttons are rendered by the app');
+  assert.ok(!/data-step="/.test(APP), 'the retired data-step literals are gone (EDICT-0016 §2)');
   assert.ok(!/renderItemOptions/.test(APP), 'the datalist render path is retired (D8)');
   assert.ok(!HTML.includes('item-options'), 'the #item-options datalist must be gone');
 });

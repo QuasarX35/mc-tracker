@@ -8,7 +8,11 @@
 > material chooser, themed native dropdowns and the sharper backdrop. **Updated by EDICT-0014**
 > — seamless 360° scenery, paged picker with full names, one top-layer tooltip, working empty
 > states, resolved stack labels (and no stack buttons at stack 1), deterministic icon
-> suggestion, bulk paste, six-second undo and recent picks.
+> suggestion, bulk paste, six-second undo and recent picks. **Updated by EDICT-0015** — status
+> ordering, derived header stats, custom material registries, chooser-free import and the
+> 120 s single-layer scenery. **Updated by EDICT-0016** — 18 px type scale, one `.stepper`
+> replacing the six-button rows, notes view/edit controls in the label row, created/updated
+> stamps, the left world sidebar, aligned section rules and the Standard/Compact builds view.
 
 ## 1. Page pattern
 
@@ -47,11 +51,14 @@ is opened repeatedly while playing.
    Enter (notes: `Ctrl/Cmd+Enter`) saves, Escape cancels and restores, blank titles are refused,
    notes are trimmed, and focus returns to the invoking button. Material quantities keep
    committing on `change`.
-8. Each material row carries six `button.mat-step` buttons (`+1 +10 +64` above, `-1 -10 -64`
-   below) with resolved labels; stack-1 items carry four, because the stack pair is absent from
-   the DOM, not disabled. Every button carries `data-mat` and `data-stack` (`64|16|1`);
-   `data-step` keeps the shipped literals `+1/+10/+stack/-1/-10/-stack` (no rename) and
-   `data-mat-step` carries the resolved amount. `needed` clamps at 1.
+8. Every number field is a `.stepper` (`div.stepper[data-stepper]`): `−` button, `type=number`
+   input with hidden native spinners, `+` button. A click changes by 1; **Shift** applies one
+   stack (custom entry or `MC_ICON_STACKS`, default 64) and **Ctrl/⌘** 16, Shift winning; the
+   input selects all on click, the wheel over it steps and never scrolls the page, Enter moves to
+   the next same-kind field, and `needed` clamps at 1 (got ≥0). The same control is used in
+   material rows, the add-material form, the custom-item dialog and the compact tile dialog.
+   The six-button `#mat-steps`/`.mat-step` strip, `materialStepsHtml` and every `data-step` are
+   retired.
 9. `#copy-coords` copies the coords field and toasts; it is disabled when the field is empty or
    whitespace. Required fields are validated in the form handler even though `#mat-item` is a
    hidden input.
@@ -91,6 +98,24 @@ is opened repeatedly while playing.
     and lead the unfiltered first picker batch; choosing an item records it at the front.
 18. Picker and material rows keep the catalogue surfaces unchanged: `MC_ICON_SET` is an array of
     slug strings, `MC_ICON_NAMES` and `MC_ICON_STACKS` are slug-keyed objects.
+19. The active world lives in the left `aside#world-panel` (name `#world-panel-name`, identity,
+    edition/version, derived stats and the new/import/export actions): 230 px at ≥1100, 200 px at
+    ≥900, stacked above the content below 900. It is hidden on the Worlds tab and in Compact
+    mode, where the panel takes the full canvas. The dialog keeps `#world-name`.
+20. `#view-standard` / `#view-compact` switch the Builds tab only and persist in
+    `localStorage['mbt.buildsView']`. Compact hides the sidebar, renders the derived
+    `#compact-world` line and one `article.ccard` per build in `#compact-grid`
+    (`minmax(560px, 1fr)`), with a material matrix of `button.ctile` tiles — deficit when
+    `data-state="open"`, target (dimmed, check badge) when done; a tile opens `#tile-dialog`
+    (`#tile-absolute` number, `#tile-relative` signed text parsing `+64`/`-32`/`2s`/`2st`,
+    Enter commits, Escape cancels unchanged).
+21. Worlds, builds and custom items carry created/updated ISO stamps (`createdAt` immutable,
+    `updatedAt` on every successful mutation); absent stays absent and is never fabricated, a
+    malformed value is preserved raw and shown as `—`. `M.formatStamp` slices the strict UTC
+    `YYYY-MM-DDTHH:MM` prefix and never converts to local time.
+22. Both build columns pin their section head to the same box (`padding-bottom: 4px`,
+    `min-height: 44px`, centred), so the head rules agree within 0.5 px; the `#notes-text` view
+    row has no field skin and the notes edit controls sit in the label row.
 
 ## 4. Acceptance criteria
 
@@ -112,13 +137,15 @@ is opened repeatedly while playing.
 - `AC-9` Identity: every world and build can carry an item icon or an uploaded image; it appears
   in the topbar, world cards, build rows and the detail header; clearing it restores the letter;
   uploads are 128×128 data URLs and survive reload/export/import.
-- `AC-10` Backdrop: the panorama is baked at blur radius **2.0** (ceiling 2) from **six resolved
-  inputs** `panorama_0…5` — the four side faces stitched with a 64 px wrap crossfade so the loop
-  is seamless, the top/bottom caps recorded but not stitched — into a 2,560×640 WebP (55,096 B,
-  sha256 `331253bd…bf1a5`); two `.backdrop__layer` copies translate −50 % over **180 s** linear
-  infinite, with per-layer CSS `blur(1px)` desktop / `blur(1.5px)` at ≤640 px over a **0.2**
-  scrim. `prefers-reduced-motion` stops it; blocked or absent files fall back to dirt without
-  console errors.
+- `AC-10` Backdrop: one `.backdrop__layer` 800vh wide over `background-size: 400vh auto`,
+  `repeat-x`, translating `translateX(-50%) → 0` over **120 s** linear infinite, baked at blur
+  radius **2.0** (ceiling 2) from six resolved inputs `panorama_0…5` — four side faces stitched
+  with a 64 px wrap crossfade, caps recorded but not stitched — into a 2,560×640 WebP (55,096 B,
+  sha256 `331253bd…bf1a5`), with per-layer CSS `blur(1px)` desktop / `blur(1.5px)` at ≤640 px
+  over a **0.2** scrim. `#backdrop-pause` is the WCAG control and persists in
+  `mc-build-tracker:motion`; `prefers-reduced-motion: reduce` defaults to paused with the frame
+  painted (never `animation: none`), and the global reduce reset excludes the layer. Blocked or
+  absent files fall back to dirt without console errors.
 - `AC-11` Icon resolution and catalog: every material/avatar icon comes from the game's own
   **256×256 inventory renders** (IconExporter export; `manifest.json` → `mode: hires-exports`,
   `pixels: 256`), shown smoothly downscaled (22 px slot, 28–48 px avatars) and never
@@ -136,12 +163,37 @@ is opened repeatedly while playing.
 - `AC-12` Detail interaction: `#build-rename` sits left of `#build-delete` and swaps the heading
   for `#build-name` + `#build-name-save`/`#build-name-cancel`; Enter saves, Escape restores,
   blank titles are refused, focus returns. Notes show `#notes-text` in view mode and
-  `#build-notes` + `#notes-edit`/`#notes-save`/`#notes-cancel` in edit mode; `Ctrl/Cmd+Enter`
-  saves, an empty note shows a muted placeholder. `#copy-coords` copies and toasts, disabled when
-  empty. Every material row shows six `button.mat-step` buttons with resolved labels (`+1 +10 +64`)
-  — four at stack 1, no stack pair — with `data-mat`/`data-step` (shipped `+stack` literal)/
-  `data-stack`, `needed` clamps at 1; `#mat-choice` opens the picker in pick-item mode;
-  `#bulk-paste` opens the paste dialog; a deleted material offers Undo.
+  `#notes-hint`/`#notes-save`/`#notes-cancel` replace `#notes-edit` in the section label row in
+  edit mode; `Ctrl/Cmd+Enter` saves, Escape cancels, an empty note shows a muted placeholder.
+  `#copy-coords` copies and toasts, disabled when empty. Every number field is a `.stepper`
+  (`−` / `type=number` input with hidden spinners / `+`): click = 1, Shift = one stack,
+  Ctrl/⌘ = 16, Shift wins, wheel steps without scrolling the page, Enter moves to the next
+  same-kind field, `needed` clamps at 1 (got ≥0), and the control dispatches `input` then
+  `change`. The six-button `#mat-steps`/`.mat-step` strip and every `data-step` are gone.
+  `#mat-choice` opens the picker in pick-item mode; `#bulk-paste` opens the paste dialog; a
+  deleted material offers Undo.
+- `AC-21` World sidebar: at 1280×900 the left `aside#world-panel` is 230 px wide with its own
+  border and contains `#world-panel-name`, identity, derived stats and the new/import/export
+  actions; at 900–1099 it is 200 px; below 900 it stacks above the content with no horizontal
+  overflow. It is absent on the Worlds tab and in Compact mode, where the full 1240 px canvas is
+  used. The world dialog keeps `#world-name`.
+- `AC-22` Compact view: the Standard/Compact switch changes only the Builds tab and persists
+  across reload; Compact hides the sidebar, shows the derived `#compact-world` line and one
+  `article.ccard` per build in `#compact-grid` (`minmax(560px, 1fr)`, two cards at 1280); each
+  card carries the title link, status chip, percent, actions and matrix of `button.ctile` tiles
+  whose count is the deficit when open and the target when done. A tile opens `#tile-dialog`;
+  `#tile-absolute` accepts an absolute number, `#tile-relative` a signed delta (`+64`, `-32`,
+  `2s`, `2st`), Enter commits one `M.updateMaterial` + one `commit()`, Escape leaves collected
+  unchanged.
+- `AC-23` Stamps: worlds keep `createdAt` and gain `updatedAt`; builds and every custom-item
+  scope carry both, ISO-8601, `createdAt` immutable and `updatedAt` refreshed on each successful
+  mutation; absent stays absent (never fabricated), a present-but-unparseable value is preserved
+  raw and displayed as `—`; `M.formatStamp` slices the UTC prefix without local conversion; the
+  stamps round-trip through export/import.
+- `AC-24` Notes and scale: the view row is a `<p class="notes__text" id="notes-text">` with no
+  field skin, transparent and unfocused-looking; the edit controls sit left-to-right as hint,
+  save, cancel in the label row; the root font knob is 18 px and computed body, input and button
+  text are 18 / 18 / 16 px — nothing reads 16 px body text.
 - `AC-13` Tooltip: one `#mc-tooltip` is topmost at its rect (`elementFromPoint`), fully inside the
   viewport, flips below when under 44 px of space remains, and is hidden after pointer-out,
   Escape and dialog close. No pseudo-element tooltip rule remains.
@@ -164,22 +216,18 @@ is opened repeatedly while playing.
 - `AC-20` Recents: after three picks the last (`red_wool`) leads the unfiltered first batch,
   survives reload, caps at 8 and never appears in the exported state.
 
-## 5. Verification record (2026-10-25)
+## 5. Verification record (2026-10-26, reinstated tree)
 
 | Check | Command | Result |
 |-------|---------|--------|
-| Unit | `tracker-model.test.mjs` + `tracker-icons.test.mjs` + `tracker-suggest.test.mjs` + `app-qa.acceptance` units + wiki units | 22 + 9 + 38 + 9 + 20 = **98/98** |
-| Acceptance | `tracker.acceptance` + `tracker-icons` + `tracker-icon-resolution` + `edict-0013-assets` + `edict-0014` + `app-qa.acceptance` + wiki + wiki-sync | 17 + 8 + 7 + 11 + 14 + 7 + 13 + 8 = **85/85** |
-| Browser UI suite | `node scripts/app-qa.mjs run` | **66/66**, exit 0; stamp `app-qa: verified — 2026-10-25T12:27:45.271Z (66 UI cases)` covering the 8 hashed sources (app files + font + panorama WebP + manifest) |
-| UI audit | `python tests/qa/mc_ui_audit.py` | **147/147** (contrast, structure, pixel, identity/backdrop, icon catalog/lighting, edict-0013 interaction/dropdown/backdrop, edict-0014 paging/tooltip/empty-state/stepper rules) |
-| Font | `font-probe.txt` + sealed raw source | `document.fonts.check('16px Minecraft')` true; 110 glyphs / 107 `cmap`; licence file and raw evidence present |
-| Icon set | `scripts/mc-icons.py` + `manifest.json` | 1,368 addressable icons from 1,609 renders; 241 collapsed variants; 407 block / 620 flat / 341 3d-other; five `flat_pixel_mismatches` disclosed; zero game pixels tracked |
-| Dropdowns | `picker-probe.json` + headed probe | `base-select` supported; `::picker(select)` background `rgb(111,111,111)`, border `2px solid rgb(0,0,0)`, Minecraft family |
-| Backdrop | `probe.json` + generator proof + captures | six inputs / four sides / 2,560×640 / **2.0** bake / per-layer `blur(1px)` / 0.2 scrim; two `.backdrop__layer` copies translate −1277.63 → −1266.61 → −1255.59 over a 180 s `backdrop-translate`; 55,096 B, sha256 `331253bd…bf1a5`; reduced motion `none` |
-| Empty states, tooltip, suggestion, paste, undo, recents | browser cases + `probe.json` | five zero states with working controls; tooltip rect (367, 312, 123×30) topmost and clamped; `stone_bricks` `matched "tower" in the name`; bulk 4 matched + 3 unknown; undo 3 → 4 deep-equal; `red_wool` first |
-| Desktop render | headless Chrome, 1280×900 | paging, tooltip, empty states, paste dialog, undo, recents verified visually |
-| Mobile 390px | CDP viewport override | no horizontal overflow; four- and six-button rows fit, 4-column picker |
-| Evidence | `reports/qa/evidence/edict-0014/` | 20 PNGs with distinct hashes + `probe.json` + README + `panorama-tile-proof.png` |
+| Tests | `npm test` | **120/120** across 11 suites (units + acceptance), 0 fail |
+| Browser UI suite | `node scripts/app-qa.mjs run` | **96/96**, exit 0; stamp `app-qa: verified — 2026-10-26T02:59:39.552Z (96 UI cases)` covering the 8 hashed sources |
+| UI audit | `python tests/qa/mc_ui_audit.py` | **186/186** |
+| Budgets | `probe.json` | desktop 1280×900 `scrollHeight` 900 ≤ 960; mobile 390×844 1,423 ≤ 1,700, no horizontal overflow |
+| Stepper | browser `07-stepper-cluster` + cases | one `.stepper` per field; Shift = stack, Ctrl/⌘ = 16; wheel steps without page scroll; Enter moves on; six-button rows gone |
+| Sidebar / compact | `03-world-sidebar`, `10-compact-view`, `11-compact-tile-tooltip`, `12-compact-quick-update` | sidebar 230 px and hidden in Compact; cards two-up at 1280; tile dialog commit and Escape verified |
+| Notes / stamps | `04-notes-view`, `05-notes-edit`, `13-metadata-stamps` | `notes__text` has no field skin; hint/save/cancel in the label row; ISO created/updated stamps and `—` for malformed |
+| Evidence | `reports/qa/evidence/edict-0016/` | 25 files incl. `probe.json` and README, hashes distinct |
 
 ## 6. Known gaps (deliberate)
 
@@ -193,9 +241,10 @@ is opened repeatedly while playing.
 - Stack sizes are curated product data, not derivable from the PNG export: default 64 except
   egg/snowball/`ender_pearl`/`honey_bottle`/`armor_stand`/empty buckets/signs/banners (16) and
   filled buckets/tools/armour/elytra/potions/boats/minecarts/shulker boxes/beds/cakes & stews/
-  books/maps/banner patterns/discs (1); `slime_ball` is 64. Labels resolve to the amount
-  (`+64`), and stack-1 rows omit the two stack buttons rather than disabling them. The exception
-  table's completeness is the risk — a wrong default is a plausibility bug, not a crash.
+  books/maps/banner patterns/discs (1); `slime_ball` is 64. The stepper resolves Shift to one
+  stack and Ctrl/⌘ to 16 (Shift wins); stack-1 items still step by 1 or 16 — there is no special
+  row shape. The exception table's completeness is the risk — a wrong default is a plausibility
+  bug, not a crash.
 - Lighting is the jar model chain classified into `block` / `flat` / `3d-other` (407 / 620 / 341
   of 1,368); `hopper` is `flat` (jar-verified), `anvil` and `chest` are `3d-other`. The 341-name
   `3d-other` list is disclosed rather than assumed correct, and five flat sprites
@@ -218,11 +267,15 @@ is opened repeatedly while playing.
 - Avatar uploads are capped at 128×128 WebP/PNG data URLs (≤120 000 chars) inside the saved
   state; many uploads grow backups and count against browser storage.
 - The menu backdrop is generated locally from the owner's client; without extraction the dirt
-  texture remains. Blur/scrim were re-tuned in EDICT-0013 and the strip became a seamless 180 s
-  loop in EDICT-0014 (six inputs, four sides, 2,560×640); the side-by-side comparison with the
-  real title screen on a physical display is still untested.
-- The e2e suite currently writes a few screenshots into `reports/qa/evidence/edict-0013/`; the
-  Lead restored those artifacts byte-for-byte, but the suite should take an output-directory
+  texture remains. Blur/scrim were re-tuned in EDICT-0013 and the strip became a seamless 120 s
+  single-layer drift in EDICT-0015 (six inputs, four sides, 2,560×640, pause control, paused by
+  default under reduced motion); the side-by-side comparison with the real title screen on a
+  physical display is still untested.
+- Compact view is Builds-only and hides both the world sidebar and the standard list/detail
+  split; Worlds and Materials keep the standard layout. Phase-2 compact scope (global inventory,
+  phases, crafting) is deferred to `docs/backlog/compact-view-phase-2.md`.
+- The e2e suite currently writes a few screenshots into an evidence folder of an earlier edict;
+  the Lead restored those artifacts byte-for-byte, but the suite should take an output-directory
   argument so runs never share an evidence folder.
 - The catalogue shape is deliberately mixed: `MC_ICON_SET` is an array of slug strings while
   `MC_ICON_NAMES` and `MC_ICON_STACKS` are slug-keyed objects. Consumers must not assume one

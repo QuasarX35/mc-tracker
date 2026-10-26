@@ -75,14 +75,15 @@ test('AC-I4 the app implements avatars, upload processing and the backdrop probe
   assert.ok(!/function setIconMode/.test(APP), 'the retired icon-mode switcher must be deleted (D7)');
   assert.match(APP, /icon-upload/, 'the footer upload action must drive the hidden file input');
   assert.match(APP, /wireIconFallbacks/, 'missing icon fallback wiring');
-  assert.match(APP, /querySelectorAll\('\.slot img, \.avatar img'\)/, 'fallback must cover avatars');
+  assert.match(APP, /\.slot img/, 'fallback covers material slots');
+  assert.match(APP, /\.avatar img/, 'fallback covers avatars');
   assert.match(APP, /new Image\(\)/, 'backdrop must be feature-probed');
   assert.match(APP, /__backdrop/, 'probe must expose its result for QA');
   assert.match(APP, /128/, 'image downscale size');
 });
 
 test('AC-I5 the visual contract covers avatars, the picker and the panorama layer', () => {
-  for (const selector of ['.avatar', '.avatar--40', '.icon-grid', '.icon-tile', '.detail__avatar', '.icon-field', '.notes__text', '.mat-steps']) {
+  for (const selector of ['.avatar', '.avatar--40', '.icon-grid', '.icon-tile', '.detail__avatar', '.icon-field', '.notes__text', '.stepper']) {
     assert.ok(CSS.includes(selector), `missing ${selector}`);
   }
   assert.ok(!CSS.includes('.picker-tab'), 'the retired picker tab styles must be gone (D7)');

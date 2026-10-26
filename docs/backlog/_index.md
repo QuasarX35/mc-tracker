@@ -1,1 +1,1 @@
-[UX backlog](ux.md) · [Mass-input research](mass-input-research.md) · [Game icons](game-icons.md) — living product-observation logs; add rows at the bottom, keep the table chronological.
+[UX backlog](ux.md) · [Mass-input research](mass-input-research.md) · [Game icons](game-icons.md) · [Compact view phase 2](compact-view-phase-2.md) — living product-observation logs; add rows at the bottom, keep the table chronological.

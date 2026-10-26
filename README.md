@@ -11,14 +11,18 @@ a backup and **Import** to restore it.
 ## What it does
 
 - **Worlds** — one tracker per world, with edition + version and an **identity icon**: pick any
-  Minecraft item from your extracted set or upload a picture. Select the active world in the top
-  bar; edit or delete from the Worlds tab.
+  Minecraft item from your extracted set or upload a picture. The active world lives in the left
+  **world sidebar** (identity, derived stats, new/import/export actions); edit or delete from the
+  Worlds tab. Worlds and custom items carry created/updated timestamps.
 - **Builds** — plan a build with status (Planned / Building / Done), coordinates, notes and its
   own icon/avatar, visible in the list and the detail header. Rename with the pencil beside the
-  title, copy coordinates from the field, and view/edit notes in place.
+  title, copy coordinates from the field, and view/edit notes in place — the view shows the note
+  text, and Edit puts the hint plus save/cancel in the section header. Builds carry created/updated
+  timestamps too.
 - **Materials** — choose each block from the full item catalog or paste a whole list, give it
-  `needed` / `got`, and use the resolved `+1 / +10 / +64` (or `+16`) steppers; stack-1 items
-  show four buttons instead of six. The build's XP bar fills as you gather.
+  `needed` / `got`, and adjust with the `−` / `+` steppers beside each number field; **Shift** adds
+  one stack and **Ctrl/⌘** adds 16. The fields stay `type=number` with the native spinners hidden.
+  The build's XP bar fills as you gather.
 - **Shopping list** — every item summed across all builds in the world, sorted so outstanding
   items come first, filterable, copyable as text (`Stone Bricks x640 (440 left)`).
 - **Quality of life** — deleting a material, build or world offers **Undo** for 6 seconds; recent
@@ -26,12 +30,14 @@ a backup and **Import** to restore it.
   materials and states why, without replacing a choice you made; one shared tooltip follows the
   slot and is never painted under a dialog; empty screens offer the next action instead of an
   error toast. The picker pages 120 tiles at a time, so all 1,368 items are reachable.
-- **Layout and custom items** — the build list ranks **Building → Planned → Done**, and the top bar
-  shows a derived `X% gathered` plus `N of M items still to collect`; labels and controls align
-  pairwise at 1280×900 and 390×844, with a 900 px desktop budget and a 1,423 px mobile budget.
-  Custom materials can be added at build, world or account scope (name, stack 1–999, catalogue
-  icon or upload) and resolve nearest-first; the add form gains `+1 / +10 / +stack` steppers, and
-  **Import** works through a dialog with file, drop or paste.
+- **Layout and custom items** — the build list ranks **Building → Planned → Done**, the left
+  sidebar holds the world and its stats, and the top bar shows a derived `X% gathered` plus
+  `N of M items still to collect`; labels and controls align pairwise at 1280×900 and 390×844,
+  within a 960 px desktop budget and a 1,700 px mobile budget. A **Standard / Compact** switch
+  turns the builds list into one card per build with a material-matrix tile that opens a
+  quick-update dialog. Custom materials can be added at build, world or account scope (name,
+  stack 1–999, catalogue icon or upload) and resolve nearest-first; the add form gains the same
+  `−`/`+` steppers, and **Import** works through a dialog with file, drop or paste.
 - **Sample data** — `src/index.html?demo=1` seeds two example worlds if storage is empty.
   Deep links: `?tab=builds|materials|worlds`.
 
@@ -160,22 +166,22 @@ node tests/qa/tracker-icon-resolution.acceptance.test.mjs  # 7 high-resolution i
 node tests/qa/edict-0013-assets.acceptance.test.mjs   # 11 catalog/font/dropdown/stack/backdrop cases
 node tests/qa/edict-0014.acceptance.test.mjs          # 14 paging/tooltip/empty/stepper/paste/undo/recents cases
 node tests/qa/edict-0015.acceptance.test.mjs          # 11 ordering/stats/alignment/custom/import/motion cases
-python tests/qa/mc_ui_audit.py                        # 187 contrast/structure/pixel/identity/interaction cases
+python tests/qa/mc_ui_audit.py                        # 186 contrast/structure/pixel/identity/interaction cases
 # wiki + governance (the wiki is a required output of every edict)
 node src/wiki/cli.mjs lint                      # incl. the edict-sync rule
 node src/wiki/cli.mjs sync                      # which completed edicts have been ingested
 node src/wiki/cli.mjs index --check             # catalogue freshness
 
 # UI acceptance (real Chrome, driven over the DevTools Protocol — no packages)
-node tests/qa/ui.e2e.test.mjs                   # 80 user-flow cases (identity + interaction + layout + backdrop)
+node tests/qa/ui.e2e.test.mjs                   # 96 user-flow cases (identity + interaction + layout + sidebar + compact + timestamps + backdrop)
 node scripts/app-qa.mjs run                     # run them AND stamp the app sources
 node scripts/app-qa.mjs status                  # verified / STALE
 
 ```
 
-Current status: **109/109** unit cases (model, identity, suggestion, layout, app-qa, wiki),
-**96/96** acceptance cases, **187/187** UI-audit cases, **80/80** browser flows — screenshots
-verified at 1280 px and 390 px, stamp `2026-10-25T14:39:07.404Z` covering 8 hashed sources.
+Current status: **120/120** `npm test` cases (unit + acceptance, 11 suites), **186/186**
+UI-audit cases, **96/96** browser flows — screenshots verified at 1280 px and 390 px, stamp
+`2026-10-26T02:59:39.552Z` covering 8 hashed sources.
 
 ## Scope and honesty
 

@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "activeWorldId": "world-mvnu6lpq-i2zw1v",
+  "worlds": [
+    {
+      "id": "world-mvnu6lpq-i2zw1v",
+      "name": "Stepper Fixture",
+      "edition": "java",
+      "version": "1.21.4",
+      "notes": "Main long-term survival world. Keep the base at spawn tidy.",
+      "builds": [
+        {
+          "id": "build-stepper-1",
+          "name": "Stepper Build",
+          "status": "building",
+          "coords": "10 / 64 / -20",
+          "notes": "Fixture for stepper modifiers, wheel and Enter traversal.",
+          "createdAt": "2026-09-14T08:06:00.000Z",
+          "updatedAt": "2026-10-25T21:41:00.000Z",
+          "materials": [
+            {
+              "id": "mat-stone",
+              "item": "Stone Bricks",
+              "needed": 384,
+              "collected": 200
+            },
+            {
+              "id": "mat-egg",
+              "item": "Egg",
+              "needed": 40,
+              "collected": 16
+            },
+            {
+              "id": "mat-bucket",
+              "item": "Water Bucket",
+              "needed": 8,
+              "collected": 1
+            },
+            {
+              "id": "mat-glass",
+              "item": "Glass",
+              "needed": 96,
+              "collected": 96
+            }
+          ],
+          "icon": null
+        }
+      ],
+      "icon": {
+        "kind": "item",
+        "slug": "grass_block"
+      },
+      "createdAt": "2026-09-14T08:05:00.000Z",
+      "updatedAt": "2026-10-25T21:40:00.000Z"
+    }
+  ]
+}

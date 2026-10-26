@@ -140,12 +140,23 @@ test('AC5: five zero-state containers and their next-step controls', () => {
 
 /* ------------------------------------------------------------------ AC6/AC7 */
 
-test('AC6/AC7: shipped data-step literals, resolved labels and stack-1 omission', () => {
-  assert.ok(has(APP, "'+stack'") && has(APP, "'-stack'"), 'data-step keeps the shipped +stack/-stack literals');
-  assert.ok(has(APP, 'data-mat-step'), 'data-mat-step carries the resolved amount');
-  assert.ok(has(APP, 'data-stack'), 'data-stack carries the integer');
-  assert.ok(has(APP, 'stackSizeFor'), 'the resolved stack size is used for labels');
-  assert.ok(/stackSizeFor\([^)]*\)\s*===\s*1|stack\s*===\s*1/.test(APP), 'stack size 1 omits the stack pair');
+test('AC6/AC7 (amended by EDICT-0016 §2): the two-button .stepper and stack resolution', () => {
+  assert.ok(has(APP, 'data-stepper-step'), 'the shared renderer draws data-stepper-step buttons');
+  assert.ok(has(APP, 'stepper__btn'), 'the stepper button class is used');
+  assert.ok(has(APP, 'stackSizeFor'), 'the resolved stack size still drives the modifiers');
+  assert.ok(!has(APP, 'data-mat-step'), 'the retired resolved-step attributes are gone');
+  assert.ok(!/materialStepsHtml/.test(APP), 'the retired six-button renderer is gone');
+  assert.ok(!/data-step="/.test(APP), 'the retired data-step literals are gone');
+});
+
+test('AC7 (EDICT-0016 §7): stamps go through <time>/formatStamp and custom tiles carry a stamp', () => {
+  assert.ok(has(MODEL, 'formatStamp'), 'M.formatStamp exists');
+  assert.ok(has(APP, 'formatStamp'), 'the app renders stamps through the shared helper');
+  assert.ok(has(APP, 'parseRelative'), 'the tile dialog parses relative amounts');
+  assert.ok(has(APP, 'tile__stamp'), 'custom tiles render a visible stamp');
+  assert.ok(has(CSS, 'tile__stamp'), 'the custom-tile stamp is styled');
+  assert.ok(has(INDEX, 'detail-meta'), 'the detail meta surface exists');
+  assert.ok(has(APP, 'materials-lede'), 'the Materials lede carries the world stamp');
 });
 
 /* ------------------------------------------------------------------ AC8/AC9 */

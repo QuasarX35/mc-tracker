@@ -1,0 +1,103 @@
+{
+  "version": 1,
+  "activeWorldId": "world-mvnu6lpq-i2zw1v",
+  "worlds": [
+    {
+      "id": "world-mvnu6lpq-i2zw1v",
+      "name": "Compact Fixture",
+      "edition": "java",
+      "version": "1.21.4",
+      "notes": "Main long-term survival world. Keep the base at spawn tidy.",
+      "builds": [
+        {
+          "id": "build-compact-six",
+          "name": "Six Mat Wall",
+          "status": "building",
+          "coords": "0 / 70 / 0",
+          "notes": "Six materials, mixed states.",
+          "materials": [
+            {
+              "id": "mat-six-stone",
+              "item": "Stone Bricks",
+              "needed": 384,
+              "collected": 200
+            },
+            {
+              "id": "mat-six-glass",
+              "item": "Glass",
+              "needed": 96,
+              "collected": 96
+            },
+            {
+              "id": "mat-six-oak",
+              "item": "Oak Planks",
+              "needed": 512,
+              "collected": 64
+            },
+            {
+              "id": "mat-six-egg",
+              "item": "Egg",
+              "needed": 40,
+              "collected": 40
+            },
+            {
+              "id": "mat-six-torch",
+              "item": "Torch",
+              "needed": 32,
+              "collected": 12
+            },
+            {
+              "id": "mat-six-bucket",
+              "item": "Water Bucket",
+              "needed": 8,
+              "collected": 8
+            }
+          ]
+        },
+        {
+          "id": "build-compact-three",
+          "name": "Three Mat Hut",
+          "status": "planned",
+          "coords": "8 / 64 / 8",
+          "notes": "Small matrix.",
+          "materials": [
+            {
+              "id": "mat-three-dirt",
+              "item": "Dirt",
+              "needed": 64,
+              "collected": 20
+            },
+            {
+              "id": "mat-three-cobble",
+              "item": "Cobblestone",
+              "needed": 128,
+              "collected": 128
+            },
+            {
+              "id": "mat-three-iron",
+              "item": "Iron Ingot",
+              "needed": 12,
+              "collected": 0
+            }
+          ]
+        }
+      ],
+      "icon": {
+        "kind": "item",
+        "slug": "grass_block"
+      },
+      "createdAt": "2026-09-14T08:05:00.000Z",
+      "updatedAt": "2026-10-25T21:40:00.000Z"
+    },
+    {
+      "id": "world-compact-2",
+      "name": "Compact Fixture Two",
+      "edition": "java",
+      "version": "1.21.4",
+      "notes": "Second world for switching.",
+      "createdAt": "2026-10-02T09:00:00.000Z",
+      "updatedAt": "2026-10-24T18:00:00.000Z",
+      "builds": []
+    }
+  ]
+}

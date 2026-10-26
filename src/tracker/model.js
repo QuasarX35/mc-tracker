@@ -136,6 +136,89 @@
     return Math.floor(value);
   }
 
+  /* ------------------------------- timestamps ------------------------------ */
+
+  /**
+   * EDICT-0016 §7: ISO 8601 stamps are optional, absent-safe and never fabricated. A full ISO
+   * prefix is the only shape accepted, so a bare number (which `new Date` would turn into a 1970
+   * date) and a non-date string both display as an em dash instead of inventing a date.
+   */
+  var ISO_STAMP_PREFIX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+
+  function formatStamp(iso) {
+    if (typeof iso !== 'string') return '\u2014';
+    var text = iso.trim();
+    if (!ISO_STAMP_PREFIX.test(text)) return '\u2014';
+    var parsed = new Date(text);
+    if (!parsed || isNaN(parsed.getTime())) return '\u2014';
+    return text.slice(0, 16).replace('T', ' ');
+  }
+
+  /** Present keys only, so an absent stamp stays absent instead of becoming `null`. */
+  function timestamps(entity) {
+    var out = {};
+    if (!entity || typeof entity !== 'object') return out;
+    if (entity.createdAt !== undefined) out.createdAt = entity.createdAt;
+    if (entity.updatedAt !== undefined) out.updatedAt = entity.updatedAt;
+    return out;
+  }
+
+  /**
+   * `updatedAt` moves on every successful mutation; `createdAt` never does. A loaded entity with
+   * no `createdAt` keeps it absent — touch must not fabricate one (EDICT-0016 §7).
+   */
+  function touch(entity) {
+    if (!entity || typeof entity !== 'object') return entity;
+    entity.updatedAt = nowIso();
+    return entity;
+  }
+
+  /** First write of both stamps on a brand-new entity; an existing `createdAt` is never rewritten. */
+  function stampCreated(entity) {
+    if (!entity || typeof entity !== 'object') return entity;
+    var stamp = nowIso();
+    if (entity.createdAt === undefined) entity.createdAt = stamp;
+    entity.updatedAt = stamp;
+    return entity;
+  }
+
+  /* ---------------------------- relative parsing --------------------------- */
+
+  var STACK_SYNTAX = /^([+\-])?\s*(\d+)\s*s(?:t|tack|tacks)?$/i;
+  var PLAIN_SYNTAX = /^([+\-])?\s*(\d+)$/;
+  var RELATIVE_ERROR = 'Enter a whole number, or +64 / -32 / 2s / 2st.';
+
+  function stackSizeOr(value, fallback) {
+    var size = Number(value);
+    if (!isFinite(size) || size < 1) return fallback;
+    return Math.floor(size);
+  }
+
+  /** `2s` / `2st` / `-2s` -> a signed item count; anything else is `{ error }`. */
+  function parseStackSyntax(text, stack) {
+    var raw = String(text == null ? '' : text).trim();
+    var match = STACK_SYNTAX.exec(raw);
+    if (!match) return { error: RELATIVE_ERROR };
+    var count = Number(match[2]);
+    if (!isFinite(count)) return { error: RELATIVE_ERROR };
+    return { value: (match[1] === '-' ? -1 : 1) * count * stackSizeOr(stack, DEFAULT_STACK) };
+  }
+
+  /**
+   * EDICT-0016 §10: the quick-update dialog's relative field. A plain integer is an item count;
+   * `2s`/`2st` are stacks of this item, so `2s` on a 64-stack item is +128.
+   */
+  function parseRelative(text, stack) {
+    var raw = String(text == null ? '' : text).trim();
+    if (!raw) return { value: 0 };
+    if (/[a-z]/i.test(raw)) return parseStackSyntax(raw, stack);
+    var match = PLAIN_SYNTAX.exec(raw);
+    if (!match) return { error: RELATIVE_ERROR };
+    var amount = Number(match[2]);
+    if (!isFinite(amount)) return { error: RELATIVE_ERROR };
+    return { value: match[1] === '-' ? -amount : amount };
+  }
+
   /* ---------------------------- item identity ---------------------------- */
 
   /** "stone_bricks" -> "Stone Bricks"; the fallback display name for a catalogue slug. */
@@ -506,7 +589,10 @@
     if (!Array.isArray(owner.customItems)) owner.customItems = [];
     if (registryEntry(owner.customItems, name)) return { error: CUSTOM_ITEM_ERRORS.duplicate };
     var entry = { id: uid('custom'), name: name, stack: Math.floor(stackValue), icon: icon };
+    /* EDICT-0016 §7: custom items carry both stamps in all three scopes. */
+    stampCreated(entry);
     owner.customItems.push(entry);
+    if (owner !== next) touch(owner);
     return { state: next, entry: entry };
   }
 
@@ -580,9 +666,10 @@
       edition: (input && input.edition) === 'bedrock' ? 'bedrock' : 'java',
       version: cleanText(input && input.version, 24) || '1.21',
       notes: cleanText(input && input.notes, 240),
-      createdAt: nowIso(),
       builds: []
     };
+    /* EDICT-0016 §7: the world keeps its createdAt and gains updatedAt on creation. */
+    stampCreated(world);
     if (normalizedIcon.icon) world.icon = normalizedIcon.icon;
     if (input && input.iconAuto === true) world.iconAuto = true;
     next.worlds.push(world);
@@ -609,6 +696,7 @@
       else { delete world.icon; delete world.iconAuto; }
     }
     if (patch.iconAuto !== undefined) setIconAuto(world, patch.iconAuto);
+    touch(world);
     return { state: next, world: world };
   }
 
@@ -650,13 +738,17 @@
       icon: normalizedBuildIcon.icon || null
     };
     if (input && input.iconAuto === true) build.iconAuto = true;
+    /* EDICT-0016 §7: a new build stamps both fields and bumps its world's updatedAt. */
+    stampCreated(build);
     world.builds.push(build);
+    touch(world);
     return { state: next, build: build };
   }
 
   function updateBuild(state, worldId, buildId, patch) {
     var next = clone(state);
-    var build = findBuild(findWorld(next, worldId), buildId);
+    var owner = findWorld(next, worldId);
+    var build = findBuild(owner, buildId);
     if (!build) return { error: 'Unknown build.', state: state };
     if (patch.name !== undefined) {
       var name = cleanText(patch.name, 64);
@@ -673,6 +765,8 @@
       else { delete build.icon; delete build.iconAuto; }
     }
     if (patch.iconAuto !== undefined) setIconAuto(build, patch.iconAuto);
+    touch(build);
+    touch(owner);
     return { state: next, build: build };
   }
 
@@ -689,6 +783,7 @@
       delete world.icon;
       delete world.iconAuto;
     }
+    touch(world);
     return { state: next, world: world };
   }
 
@@ -708,6 +803,8 @@
       delete build.icon;
       delete build.iconAuto;
     }
+    touch(build);
+    touch(findWorld(next, worldId));
     return { state: next, build: build };
   }
 
@@ -718,6 +815,7 @@
     var before = world.builds.length;
     world.builds = world.builds.filter(function (b) { return b.id !== buildId; });
     if (world.builds.length === before) return { error: 'Unknown build.', state: state };
+    touch(world);
     return { state: next };
   }
 
@@ -747,6 +845,8 @@
       needed: needed,
       collected: Math.min(needed, toInt(input && input.collected))
     });
+    touch(build);
+    touch(findWorld(next, worldId));
     return { state: next };
   }
 
@@ -767,6 +867,8 @@
     if (patch.needed !== undefined) material.needed = Math.max(1, toInt(patch.needed));
     if (patch.collected !== undefined) material.collected = toInt(patch.collected);
     // Collected can exceed needed (a player over-farms); the shopping list clamps it.
+    touch(build);
+    touch(findWorld(next, worldId));
     return { state: next, material: material };
   }
 
@@ -777,6 +879,10 @@
     var before = build.materials.length;
     build.materials = build.materials.filter(function (m) { return m.id !== materialId; });
     if (build.materials.length === before) return { error: 'Unknown material.', state: state };
+    touch(build);
+    /* The world owns the build: deleting a material must date the world too, or the sidebar
+       keeps showing a stale "Updated" stamp. */
+    touch(findWorld(next, worldId));
     return { state: next };
   }
 
@@ -1059,6 +1165,10 @@
     cleanNotes: cleanNotes,
     stepNeeded: stepNeeded,
     stackSizeFor: stackSizeFor,
+    formatStamp: formatStamp,
+    timestamps: timestamps,
+    touch: touch,
+    parseRelative: parseRelative,
     titleizeItem: titleizeItem,
     itemSlug: itemSlug,
     SUGGEST_KEYWORDS: SUGGEST_KEYWORDS,

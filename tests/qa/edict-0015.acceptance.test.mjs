@@ -75,7 +75,6 @@ test('A2 the world-header, import, custom-item and step-button ids exist (AC2/AC
     'world-remaining',
     'world-bar',
     'world-fill',
-    'mat-steps',
     'backdrop-pause',
     'import-dialog',
     'import-file',
@@ -149,16 +148,21 @@ test('A4 reduced motion defaults the layer to paused, never animation:none (AC11
   }
 });
 
-test('A5 the pause control is in the top bar before New World (AC11)', () => {
+test('A5 the pause control is in the top bar and New World lives in the sidebar (AC11 / EDICT-0016 §8)', () => {
   const pauseAt = HTML.indexOf('id="backdrop-pause"');
   const newWorldAt = HTML.indexOf('id="btn-new-world"');
   assert.ok(pauseAt > -1, '#backdrop-pause exists');
   assert.ok(newWorldAt > -1, '#btn-new-world exists');
-  assert.ok(pauseAt < newWorldAt, '#backdrop-pause sits before #btn-new-world');
+  assert.ok(pauseAt < newWorldAt, '#backdrop-pause precedes #btn-new-world in the document');
   const actions = /class="topbar__actions"[\s\S]*?<\/div>/.exec(HTML);
   assert.ok(actions, '.topbar__actions exists');
   assert.match(actions[0], /id="backdrop-pause"/, 'the pause control lives in .topbar__actions');
-  assert.match(actions[0], /id="btn-new-world"/, 'New World is in the same row');
+  assert.ok(!/id="btn-new-world"/.test(actions[0]), 'New World moved into the world sidebar (EDICT-0016 §8)');
+  const sidebar = /id="world-panel"[\s\S]*?<\/aside>/.exec(HTML);
+  assert.ok(sidebar, '#world-panel exists');
+  assert.match(sidebar[0], /id="btn-new-world"/, 'New World lives inside #world-panel');
+  assert.match(sidebar[0], /id="btn-import"/, 'Import lives inside #world-panel');
+  assert.match(sidebar[0], /id="btn-export"/, 'Export lives inside #world-panel');
   assert.match(CSS, /#backdrop-pause/, 'the pause control has a style block');
   assert.match(CSS, /mc-build-tracker:motion|motion-paused/, 'the paused class/storage contract is styled');
 });
@@ -194,15 +198,13 @@ test('A7 the custom-item model surface is frozen (AC4)', () => {
   assert.match(MODEL, /ICON_DATA_URL_MAX/, 'the image-icon cap still applies');
 });
 
-test('A8 the add-form steppers are wired without touching Got (AC6)', () => {
-  assert.match(HTML, /id="mat-steps"/, '#mat-steps exists');
-  const steps = /id="mat-steps"[\s\S]*?<\/div>/.exec(HTML);
-  assert.ok(steps, 'the stepper container closes');
-  const buttons = [...steps[0].matchAll(/data-step="([^"]+)"/g)].map((m) => m[1]);
-  assert.deepEqual(buttons, ['1', '10', 'stack'], 'the three unsigned step values are in the frozen order');
-  assert.equal((steps[0].match(/data-mat-field="needed"/g) || []).length, 3, 'all three buttons drive the Needed field');
-  assert.doesNotMatch(steps[0], /collected/, 'Got gets no steppers');
-  assert.match(APP, /materialStepsHtml/, 'the row renderer is still shared');
+test('A8 the add-form stepper is the two-button control (AC6; EDICT-0016 §2 supersedes the strip)', () => {
+  assert.match(HTML, /class="stepper"/, 'the add form carries a .stepper');
+  assert.match(APP, /data-stepper-step="1"/, 'the shared renderer draws the + button');
+  assert.match(APP, /data-stepper-step="-1"/, 'the shared renderer draws the − button');
+  assert.doesNotMatch(HTML, /id="mat-steps"/, 'the retired static strip is gone');
+  assert.doesNotMatch(APP, /materialStepsHtml/, 'the retired six-button renderer is gone');
+  assert.doesNotMatch(APP, /data-mat-step/, 'the retired resolved-step attributes are gone');
 });
 
 test('A9 the backlog files exist with their required shape (AC9/AC10)', () => {

@@ -182,17 +182,18 @@ form, the guide rails and the scenery.
   now defaults the layer to **paused** (the OS preference is respected) and the button or a stored
   `motion=play` opts in — the opposite of EDICT-0014's freeze.
 
-## The withdrawn density round (EDICT-0016)
+## The density round (EDICT-0016)
 
-On 2026-10-26 the founder withdrew EDICT-0016, a fourteen-item visual-density and
-compact-view round, before it reached S5: it changed the deliberate small, dense appearance
-the design rests on, so nothing shipped. The app keeps the compact layout and the existing
-controls; the two things the founder asked to keep — the vanilla panorama and the
-Minecraft.ttf typeface — were already shipped by EDICT-0014 and EDICT-0013. The icon
-catalogue is complete for 1.21.4 at 1,368 icons except twelve hidden or stateful items and
-the intentionally collapsed variant states; the
-[game-icon coverage note](../../docs/backlog/game-icons.md) proposes a registry-driven
-extractor and a bake gate.
+The founder first withdrew EDICT-0016, then reinstated it on 2026-10-26 and chose the built
+result: the fourteen-item visual-density and compact-view round ships. The app now uses the
+larger type scale (body 18, muted 17, meta 15, tiny 13), a `−`/`+` stepper with resolved stack
+labels, notes in view mode with the edit controls in the section header, created/updated
+timestamps on worlds and builds, a world sidebar, aligned section rules, and a compact builds
+view (standard/compact switch, one card per build, a material-matrix tile that opens a per-tile
+dialog). `QA_PASS, cycle 1` stands on the restored tree: 96 browser cases, audit 186/186. The
+three interaction components have their own pages: [[Number stepper]], [[Compact view]] and
+[[World sidebar]]. The [game-icon coverage note](../../docs/backlog/game-icons.md) still records
+the icon gap.
 
 ## Identity
 
@@ -223,12 +224,10 @@ The extractor resolves the client's asset index because the jar's panorama files
 
 ## Verification
 
-**109/109** unit cases (22 model, 9 identity, 38 suggestion, 9 app-qa, 20 wiki, 11 EDICT-0015
-model/registry), **96/96** independent acceptance cases (17 core + 8 identity/backdrop + 7
-high-resolution icons + 11 EDICT-0013 catalog/font/dropdown/stack/backdrop + 14 EDICT-0014
-paging/tooltip/empty/stepper/paste/undo/recents + 11 EDICT-0015 ordering/stats/alignment/custom/
-import/rotation + 13 wiki + 8 wiki-sync + 7 app-qa), a **187-case**
-contrast/structure/identity/icon/interaction audit, and an **80-case browser UI suite** that drives
+**120/120** `npm test` cases across 11 suites (one file per process: model, identity, suggestion,
+EDICT-0015 registry/layout, app-qa and wiki units plus the independent acceptance files), a
+**186-case** contrast/structure/identity/icon/interaction audit, and a **96-case browser UI
+suite** that drives
 real Chrome through every flow, failure path, accessibility expectation, responsive breakpoint,
 the visual contract, and the identity/backdrop/catalog/ordering/import interactions. A passing UI
 run stamps the hashes of the five app sources plus the font, panorama WebP and panorama manifest
@@ -242,10 +241,12 @@ font licence/coverage, the themed-select probe and the backdrop numbers; EDICT-0
 paging-to-last-tile, top-layer-tooltip, five-empty-state, bulk-paste, undo-expiry and recent-pick
 cases plus the seamless-backdrop probe; EDICT-0015 adds ordering, derived header stats, measured
 alignment, the injected height budget, custom registries, add-form steppers, the import dialog's
-paste/drop paths and the paused-under-reduce scenery with its pause control. Browser execution
-stays with the Lead seat (the verifier's sandbox cannot launch Chrome) and judgement with 测试部
-(`app-qa: verified — 2026-10-25T14:39:07.404Z, 80 UI cases`; evidence
-`reports/qa/evidence/edict-0015/`).
+paste/drop paths and the paused-under-reduce scenery with its pause control. EDICT-0016 adds the
+enlarged type scale, the one `.stepper`, notes view/edit in the section header, created/updated
+stamps, the world sidebar, aligned section rules and the compact view with its quick-update
+dialog. Browser execution stays with the Lead seat (the verifier's sandbox cannot launch Chrome)
+and judgement with 测试部 (`app-qa: verified — 2026-10-26T02:59:39.552Z, 96 UI cases`; evidence
+`reports/qa/evidence/edict-0016/`).
 
 
 ## Tensions

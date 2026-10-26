@@ -377,8 +377,12 @@ def audit_structure() -> None:
     )
     check(
         "html/steppers",
-        ".mat-steps" in CSS and ".mat-step" in CSS and "data-step" in APP and "MC_ICON_STACKS" in APP,
-        "each material row renders the six-button stepper cluster from the stack table (D5)",
+        ".stepper" in CSS and ".stepper__btn" in CSS and "data-stepper-step" in APP
+        and re.search(r'data-stepper-step="1"[\s\S]{0,400}?data-stepper-step="-1"', APP) is not None
+        and "MC_ICON_STACKS" in APP
+        and "materialStepsHtml" not in APP and "data-mat-step" not in APP,
+        "every editable number renders the two-button .stepper, + left of the input and - right; "
+        "the six-button strips are retired (EDICT-0016 §2)",
     )
     check(
         "html/spinners-hidden",
@@ -389,8 +393,10 @@ def audit_structure() -> None:
     )
     check(
         "html/needed-number",
-        re.search(r'type="number"[^>]{0,200}data-mat-field="needed"', APP) is not None,
-        "the Needed input stays type=number (AC5b)",
+        re.search(r'id="mat-needed"\s+type="number"', HTML) is not None
+        and re.search(r"function stepperHtml[\s\S]{0,1200}data-mat-field", APP) is not None
+        and re.search(r"function stepperHtml[\s\S]{0,400}\? 'text' : 'number'", APP) is not None,
+        "the Needed input stays type=number through the shared stepper renderer (AC5b)",
     )
     check(
         "html/step-clamp",
@@ -460,7 +466,7 @@ def audit_identity() -> None:
         "setIconMode" not in APP and "iconMode" not in APP,
         "the retired item/image switcher is deleted, not orphaned (D7)",
     )
-    for selector in (".avatar", ".icon-grid", ".icon-tile", ".detail__avatar", ".notes__text", ".mat-steps"):
+    for selector in (".avatar", ".icon-grid", ".icon-tile", ".detail__avatar", ".notes__text", ".stepper"):
         check(f"identity/css-{selector}", selector in CSS, f"{selector} styled")
     check("identity/css-no-picker-tab", ".picker-tab" not in CSS, "retired picker tab styles are gone (D7)")
     check(
@@ -691,10 +697,11 @@ def audit_edict0014() -> None:
     )
     check(
         "edict0014/step-labels",
-        "data-mat-step" in APP
+        "data-stepper-step" in APP
         and "stackSizeFor" in APP
-        and re.search(r"stack\s*===\s*1", APP) is not None,
-        "resolved step labels, stack size lookup and the stack-1 omission branch",
+        and "data-mat-step" not in APP,
+        "resolved step labels and stack lookup survive as the two-button .stepper "
+        "(EDICT-0016 §2 supersedes the six-button strip; the stack-1 omission branch is retired)",
     )
     check(
         "edict0014/backdrop-transform-loop",
@@ -709,7 +716,7 @@ def audit_edict0015() -> None:
     """EDICT-0015 statics: rotation, ordering, world stats, custom items, steppers, import, backlog."""
     for element in (
         "world-progress", "world-remaining", "world-bar", "world-fill",
-        "mat-steps", "backdrop-pause",
+        "backdrop-pause",
         "import-dialog", "import-file", "import-drop", "import-text", "import-restore", "import-cancel", "import-error",
         "custom-dialog", "custom-name", "custom-stack", "custom-scope", "custom-icon-pick", "custom-icon-upload",
         "custom-icon-file", "custom-icon-preview", "custom-error", "custom-save", "custom-cancel", "btn-new-custom",
@@ -799,8 +806,10 @@ def audit_edict0015() -> None:
     )
     check(
         "edict0015/add-steps",
-        "mat-steps" in HTML and 'data-mat-field="needed"' in HTML,
-        "the add-form stepper container drives Needed (AC6)",
+        re.search(r'<div class="stepper" data-stepper>[\s\S]{0,500}id="mat-needed"', HTML) is not None
+        and 'data-stepper-step' in HTML
+        and 'data-mat-field="needed"' in APP,
+        "the add-form stepper is the two-button control driving Needed (AC6; EDICT-0016 §2)",
     )
     backlog = ROOT / "docs" / "backlog"
     ux = backlog / "ux.md"
