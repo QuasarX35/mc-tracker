@@ -415,3 +415,8 @@ The ten-item report changed the app's controls, its typeface, its icon set and i
 - Updated [[Minecraft Build Tracker]] verification wording and the design-system MASTER rows for
   the material row, compact tile, build-list ordering, inventory dialog, stamps, sidebar progress
   and the 1600 px layout budget; [[Open questions]] keeps the untouched caveats.
+
+## [2026-10-27] edit | publish project repository
+
+- Regenerated [[LLM Wiki]]'s catalogue before publishing the project.
+- Prepared the repository for the requested GitHub remote; no product behavior changed.

@@ -2,7 +2,7 @@
 
 # Index
 
-Catalogue of 28 pages, regenerated 2026-10-26. Read this first when answering a
+Catalogue of 28 pages, regenerated 2026-10-27. Read this first when answering a
 query; it is the map, the pages are the territory.
 
 ## Overview (1)
