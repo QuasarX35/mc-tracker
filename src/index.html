@@ -214,6 +214,13 @@
       </div>
       <div id="compact-view" hidden>
         <p class="ccompact__world" id="compact-world"></p>
+        <div class="compact-toolbar">
+          <label class="check-field" for="compact-hide-done">
+            <input type="checkbox" id="compact-hide-done">
+            <span class="check-field__box" aria-hidden="true"></span>
+            <span>Hide completed</span>
+          </label>
+        </div>
         <div id="compact-grid"></div>
       </div>
     </section>
@@ -247,6 +254,7 @@
           <span role="columnheader" class="num">Needed</span>
           <span role="columnheader" class="num got-col">In world</span>
           <span role="columnheader" class="num">Left</span>
+          <span role="columnheader" class="num">Allocated</span>
           <span role="columnheader" class="progress-col">Progress</span>
           <span role="columnheader" class="builds-col">Used by</span>
         </div>
@@ -372,7 +380,7 @@
     <input class="mc-input num" id="inv-absolute" type="number" inputmode="numeric" min="0" step="1" value="0" autocomplete="off">
     <label class="field__label" for="inv-delta">Add / subtract (relative)</label>
     <input class="mc-input" id="inv-delta" type="text" inputmode="numeric" value="" placeholder="+64" spellcheck="false" autocomplete="off">
-    <p class="icon-hint">A positive number adds stock, a leading “-” subtracts. Stack syntax: 2s, 2st, 2s+10 — the syntax belongs here, not in the placeholder. If both fields are filled, the absolute value applies first, then the relative amount.</p>
+    <p class="icon-hint">Add or subtract: 64, -32, 2s, 2s+10. If both fields are filled, the absolute value applies first, then the change.</p>
     <p class="inv-preview" id="inv-preview" aria-live="polite"></p>
     <p class="form-error" id="inv-error" role="alert" hidden></p>
     <div class="mc-dialog__actions">

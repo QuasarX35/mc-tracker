@@ -36,7 +36,7 @@ query; it is the map, the pages are the territory.
 |------|---------|---------|
 | [[Dataview]] | Obsidian plugin that queries YAML frontmatter to generate dynamic tables and lists across wiki pages. | 2026-10-25 |
 | [[Marp]] | Markdown-based slide-deck format with an Obsidian plugin, used to turn wiki content into presentations. | 2026-10-25 |
-| [[Minecraft Build Tracker]] | A local, offline web tool for planning Minecraft builds and tracking the materials each one needs, styled after the in-game GUI. | 2026-10-26 |
+| [[Minecraft Build Tracker]] | A local, offline web tool for planning Minecraft builds and tracking the materials each one needs, styled after the in-game GUI. | 2026-10-27 |
 | [[Obsidian]] | Local markdown knowledge-base app used as the human-facing IDE for this wiki — graph view, wikilinks, plugins, Web Clipper. | 2026-10-25 |
 | [[qmd]] | A local markdown search engine with hybrid BM25/vector search and LLM re-ranking, exposed as a CLI and an MCP server. | 2026-10-25 |
 

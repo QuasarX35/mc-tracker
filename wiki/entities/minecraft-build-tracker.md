@@ -2,7 +2,7 @@
 title: Minecraft Build Tracker
 type: entity
 summary: A local, offline web tool for planning Minecraft builds and tracking the materials each one needs, styled after the in-game GUI.
-updated: 2026-10-26
+updated: 2026-10-27
 sources:
   - 2026-10-25-minecraft-build-tracker-spec
   - 2026-10-25-minecraft-gui-design-system
@@ -260,9 +260,21 @@ The extractor resolves the client's asset index because the jar's panorama files
 [`2026-10-25-minecraft-panorama-provenance`](../../raw/sources/2026-10-25-minecraft-panorama-provenance.md)).
 
 
+## Review fixes (2026-10-27)
+
+The follow-up UI review tightened the presentation without changing allocation, drag/drop,
+inventory-dialog, Allocated/Surplus, or Undo behavior. Standard material rows now reserve room for
+Items, Stacks and Shulkers, while compact tiles show one remaining/total count with exact stack
+notation in the tooltip. Hide completed is a real checkbox shared by Standard and Compact; cards
+carry priority, progress and percentage; the sidebar collapse reflows the full pane; and world-level
+material rows open the same inventory dialog with an Allocated column. The empty states, singular
+labels, contrast tokens, dialog hint and remove affordance were corrected, and obsolete build-entry
+CSS was consolidated.
+
 ## Verification
 
-**Verification.** EDICT-0018 (the 33-item polish round) re-verified the same tree in place:
+**Verification.** EDICT-0018 (the 33-item polish round) re-verified the same tree in place, and the
+2026-10-27 review follow-up re-ran the expanded browser paths:
 **128/128** frozen browser cases, a **186-case** contrast/structure/identity/icon/interaction
 audit (the ordering rule restated for the registry priority order — still 186 rules), **152/152**
 `npm test` cases across 12 suites, and a fresh app-qa stamp for the new sources with `cases 128`.

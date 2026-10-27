@@ -440,11 +440,17 @@ input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; marg
 }
 
 .build-entry {
-  display: block;
+  position: relative;
+  display: grid;
+  grid-template-columns: auto auto auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 6px;
+  row-gap: 3px;
   width: 100%;
   text-align: left;
   cursor: pointer;
-  padding: 10px;
+  padding: 5px 8px;
   background: var(--mc-row);
   color: var(--mc-text-on-dark);
   border: 0;
@@ -459,28 +465,12 @@ input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; marg
   box-shadow: inset 0 0 0 2px var(--mc-white);
 }
 
-.build-entry__top {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
 .build-entry__name {
   font-size: 17px;
   text-shadow: 2px 2px 0 var(--mc-text-shadow);
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.build-entry__meta {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-1);
-  font-size: 13px;
-  color: #e0e0e0;
-  text-shadow: 1px 1px 0 #2b2b2b;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 /* status chips: always colour + word (never colour alone) */
@@ -918,15 +908,6 @@ input[type='number']::-webkit-inner-spin-button { -webkit-appearance: none; marg
 .world-picker__avatar { display: inline-grid; align-self: flex-end; padding-bottom: 1px; }
 .world-picker__field { min-width: 0; }
 
-/* ------------------------------------------------------- identity in rows */
-.build-entry__identity {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-.build-entry__identity .build-entry__name { min-width: 0; }
-
 .world-card__head {
   display: flex;
   align-items: center;
@@ -1263,10 +1244,6 @@ body { padding: 6px 0; }
 /* S4b budget pass: every block below keeps its two lines and its usable control height —
    only padding, line-height and the scroll cap shrink. Measured before: build-entry 80,
    material body 264, add form 134, panel topbar 73. */
-.build-entry { padding: 4px 8px; }
-.build-entry__top { line-height: 1.15; }
-.build-entry__name { font-size: 16px; line-height: 1.15; }
-.build-entry__meta { margin-top: 1px; font-size: 12px; line-height: 1.25; flex-wrap: wrap; row-gap: 0; }
 #material-body { max-height: 216px; }
 .add { padding: 3px 6px; gap: 3px; }
 .add__title { font-size: 13px; line-height: 16px; margin: 0; }
@@ -1368,8 +1345,8 @@ body { font-size: 18px; }
 .section-head--tight__title { font-size: 18px; }
 .mc-dialog__title, .mc-dialog h2 { font-size: 24px; }
 .lede, .notes__text, .world-meta, .mat-row__name, .tile__name { font-size: var(--fs-muted); }
-.build-entry__meta, .chip, .icon-hint, .panel__status, .field__label { font-size: var(--fs-meta); }
-.masthead__eyebrow, .build-entry__meta--tiny { font-size: var(--fs-tiny); }
+.chip, .icon-hint, .panel__status, .field__label { font-size: var(--fs-meta); }
+.masthead__eyebrow { font-size: var(--fs-tiny); }
 .mc-btn { height: 34px; min-height: 34px; padding: 0 14px; font-size: 16px; }
 .mc-btn--sm { height: 30px; min-height: 30px; font-size: 15px; }
 .mc-btn--icon { width: 36px; height: 36px; min-width: 36px; }
@@ -1410,7 +1387,6 @@ body { font-size: 18px; }
 .progress-block--inline { padding: 10px 14px; display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; }
 .progress-block--inline p { margin: 0; }
 .progress-block--inline .xpbar { flex: 1 1 100%; }
-.build-entry { padding: 8px; }
 #compact-view { display: block; }
 #compact-view[hidden] { display: none; }
 .compact__world, #compact-world { font-size: 18px; margin-bottom: 8px; }
@@ -1461,9 +1437,6 @@ body { font-size: 18px; }
   #main > #view-builds, #main > #view-materials, #main > #view-worlds { grid-column: 1 / -1; grid-row: auto; }
 }
 
-.build-entry__meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.build-entry__top { line-height: 1.1; }
-
 .mc-btn--icon { padding: 0; }
 .mc-btn--icon svg { flex: 0 0 auto; width: 14px; height: 14px; }
 
@@ -1484,11 +1457,6 @@ body { font-size: 18px; }
   .screen { width: calc(100vw - 48px); max-width: 1232px; }
   .panel { width: 100%; }
 }
-.build-entry { padding: 6px; }
-.build-entry__top { display: flex; align-items: center; gap: 6px; min-height: 30px; line-height: 1.1; }
-.build-entry__meta, .build-entry__meta * { white-space: nowrap; }
-.build-entry__meta { display: flex; flex-wrap: nowrap; align-items: baseline; gap: 6px; overflow: hidden; min-width: 0; }
-.build-entry__meta > * { flex: 0 0 auto; min-width: 0; }
 .tile, .icon-tile { position: relative; }
 .tile__stamp { position: absolute; left: 4px; bottom: 2px; font-size: 11px; line-height: 1; color: #555555; pointer-events: none; opacity: 0; }
 .tile:hover .tile__stamp, .tile:focus-within .tile__stamp, .icon-tile:hover .tile__stamp, .icon-tile:focus-within .tile__stamp { opacity: 1; }
@@ -1711,14 +1679,6 @@ body { font-size: 18px; }
 #mat-toolbar .field { flex: 0 0 auto; margin: 0; }
 #mat-toolbar label, #mat-toolbar .field__label { font-size: 13px; margin: 0 4px 0 0; display: inline; }
 #mat-sort, #mat-toolbar select { height: 32px; min-height: 32px; font-size: 16px; padding: 0 26px 0 8px; }
-#mat-hide-done {
-  flex: 0 0 auto; height: 32px; min-height: 32px; display: inline-flex; align-items: center; gap: 6px;
-  padding: 0 10px; font-size: 15px; background: var(--mc-panel); color: var(--mc-text);
-  border: var(--border-hard); box-shadow: var(--bevel-out); cursor: pointer;
-}
-#mat-hide-done[aria-pressed="true"] { box-shadow: var(--bevel-in); background: var(--mc-panel-dim); }
-#mat-hide-done::before { content: "[]"; font-size: 12px; }
-#mat-hide-done[aria-pressed="true"]::before { content: "[x]"; }
 .mat-viewtoggle { display: inline-flex; margin-left: auto; border: var(--border-hard); box-shadow: var(--bevel-out); }
 #mat-view-table, #mat-view-grid {
   height: 30px; min-height: 30px; padding: 0 12px; font-size: 15px; cursor: pointer;
@@ -1785,9 +1745,7 @@ body { font-size: 18px; }
 .mat-chip.is-done .slot { box-shadow: var(--bevel-in); }
 
 /* ---- 5. Build list rows ------------------------------------------------- */
-.build-entry[data-build] { position: relative; display: flex; align-items: center; gap: 6px; padding: 4px 6px; }
 .build-entry__slot { flex: 0 0 auto; }
-.build-entry__name { flex: 1 1 auto; min-width: 0; font-size: 17px; }
 .build-entry__badge {
   flex: 0 0 auto; font-size: 12px; padding: 0 5px; background: var(--mc-panel-dim);
   color: var(--mc-text); border: 2px solid var(--mc-outline); box-shadow: var(--bevel-out);
@@ -1998,7 +1956,6 @@ body { font-size: 18px; }
   flex-direction: column; justify-content: center; align-items: center;
   min-width: 52px; min-height: 56px; padding: 3px 4px; gap: 1px;
 }
-.ctile__need { font-size: var(--fs-tiny); color: #e8e8e8; }
 .ctile__count { font-size: var(--fs-meta); }
 .ctile--done, .ctile[data-state="done"] { opacity: 0.6; filter: grayscale(0.5); }
 
@@ -2016,7 +1973,6 @@ body { font-size: 18px; }
 }
 .build-entry:hover .build-entry__actions,
 .build-entry:focus-within .build-entry__actions { opacity: 1; }
-.build-entry__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* 11/12 — the rail: no stray rule, the expand button keeps a target */
 #world-panel { overflow-x: hidden; }
@@ -2154,15 +2110,6 @@ body { font-size: 18px; }
 #world-panel .world-picker__field .mc-select { width: 100%; }
 
 /* EDICT-0018 item 1/8/16: two-row build entry (identity row + full-width progress). */
-.build-entry[data-build] {
-  display: grid;
-  grid-template-columns: auto auto auto minmax(0, 1fr) auto auto;
-  grid-template-rows: auto auto;
-  align-items: center;
-  column-gap: 6px;
-  row-gap: 3px;
-  padding: 5px 8px;
-}
 .build-entry__rank { grid-column: 1; grid-row: 1; }
 .build-entry__grab { grid-column: 2; grid-row: 1; }
 .build-entry__slot { grid-column: 3; grid-row: 1; }
@@ -2180,7 +2127,6 @@ body { font-size: 18px; }
 .ccard__name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ccard__matrix { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 6px; min-height: 0; align-content: start; }
 .ctile { flex-direction: column; align-items: center; justify-content: center; gap: 2px; width: 100%; padding: 4px 4px; }
-.ctile__need { font-size: 10px; line-height: 1; color: var(--mc-text-muted); }
 .ctile .slot { width: 22px; height: 22px; }
 .ctile__count { font-size: var(--fs-meta); line-height: 1.1; }
 
@@ -2199,4 +2145,203 @@ body { font-size: 18px; }
 @media (max-width: 760px) {
   #mat-choice-name { white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
   #add-material-form .field { min-width: 0; }
+}
+
+/* -------------------------------------------------------------------------
+   Review fixes: unit-safe rows, compact parity, contrast and a true rail.
+   These rules keep the pixel chrome while allowing content to determine height.
+   ------------------------------------------------------------------------- */
+#build-empty {
+  padding: var(--space-4) 0;
+  border: 0;
+  background: transparent;
+}
+
+#world-bar[hidden] { display: none !important; }
+#world-meta, #world-progress-text { color: #3f3f3f; text-shadow: none; }
+.mat-shared { color: #f2f2f2; text-shadow: 1px 1px 0 #2b2b2b; }
+.icon-hint, #detail-meta { color: #3f3f3f; text-shadow: none; }
+.build-entry__badge {
+  background: #303030;
+  color: #fff;
+  border-color: #000;
+  text-shadow: 1px 1px 0 #000;
+}
+.build-entry__rank {
+  min-width: 22px;
+  font-size: 12px;
+  line-height: 1.1;
+  padding: 2px 4px;
+  text-align: center;
+  border: var(--border-hard);
+  background: #e2e2e2;
+  color: #202020;
+}
+
+/* A checkbox is visible even when the browser is using Minecraft's font. */
+.check-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  color: #3f3f3f;
+  cursor: pointer;
+}
+.check-field input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  opacity: 0;
+}
+.check-field__box {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  background: #fff;
+  border: 2px solid #000;
+  box-shadow: var(--bevel-out);
+}
+.check-field input:checked + .check-field__box { background: #5a8a3a; }
+.check-field input:checked + .check-field__box::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border-right: 3px solid #fff;
+  border-bottom: 3px solid #fff;
+  transform: rotate(45deg);
+}
+.check-field input:focus-visible + .check-field__box { outline: 3px solid var(--mc-gold); outline-offset: 2px; }
+#mat-hide-done {
+  position: static;
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 0;
+  padding: 0;
+  opacity: 1;
+  cursor: pointer;
+  border: 0;
+  box-shadow: none;
+}
+#mat-toolbar .check-field { display: inline-flex; }
+#mat-toolbar .check-field__box { display: none; }
+#mat-toolbar #mat-hide-done { flex: 0 0 18px; }
+.compact-toolbar #compact-hide-done { position: absolute; }
+.compact-toolbar .check-field__box { display: block; }
+.compact-toolbar #compact-hide-done { opacity: 0; }
+.compact-toolbar .check-field { display: inline-flex; }
+.build-entry__name { white-space: nowrap; overflow: visible; text-overflow: clip; }
+.ccard__progress { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.ccard__pct { margin: 0; }
+#main { grid-template-columns: 200px minmax(360px, 380px) minmax(640px, 1fr); }
+@media (max-width: 1180px) {
+  #main { grid-template-columns: 200px minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  #main { grid-template-columns: minmax(0, 1fr); }
+}
+}
+
+/* The row has enough room for compact unit strings such as 3s+8. */
+@media (min-width: 761px) {
+  #material-table { overflow: visible; }
+  #material-table #material-body { overflow-x: visible; }
+  #material-table .mtable__head,
+  #material-table #material-body .mat-row {
+    min-width: 850px;
+    grid-template-columns: minmax(130px, 1fr) 132px 108px 108px 108px 120px 40px 32px;
+  }
+  #material-table .mat-row__needed-input { min-width: 124px; width: 124px; }
+}
+.mat-row .num,
+.mat-row [data-mat-got],
+.mat-row [data-mat-covered],
+.mat-row [data-mat-remaining],
+.mat-row [data-mat-surplus] { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+
+/* The world-level table now has Needed / In world / Allocated / Left / Progress / Used by. */
+.mtable--wide .mtable__head,
+.mtable--wide .mat-row {
+  grid-template-columns: minmax(130px, 1fr) 92px 92px 92px 92px 120px minmax(120px, 1fr);
+}
+
+/* Completed inventory chips become darker on the light panel, never translucent. */
+.mat-chip.is-done,
+.ctile--done,
+.ctile[data-state="done"] {
+  opacity: 1;
+  filter: brightness(0.45) saturate(0.6);
+}
+.mat-chip {
+  min-width: 56px;
+  min-height: 64px;
+}
+#material-grid { width: 100%; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); }
+
+/* Compact cards use the same priority and progress language as the standard list. */
+#compact-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.compact-toolbar { display: flex; justify-content: flex-end; margin: 0 0 8px; }
+.ccard__head { min-width: 0; }
+.ccard__rank {
+  flex: 0 0 auto;
+  min-width: 24px;
+  padding: 2px 4px;
+  text-align: center;
+  font-size: 12px;
+  color: #202020;
+  background: #e2e2e2;
+  border: var(--border-hard);
+}
+.ccard__name { overflow: visible; text-overflow: clip; white-space: normal; overflow-wrap: anywhere; }
+.ccard__pct { color: #202020; font-size: var(--fs-meta); }
+.ctile__count { font-size: var(--fs-meta); line-height: 1.1; }
+
+/* Collapse removes the rail from layout; the labelled button floats at its edge. */
+body.is-sidebar-collapsed #main,
+body.is-sidebar-collapsed #main.grid,
+#main.is-sidebar-hidden { grid-template-columns: minmax(0, 1fr); }
+body.is-sidebar-collapsed #world-panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 56px;
+  min-width: 56px;
+  height: 0;
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  overflow: visible;
+  z-index: 4;
+}
+body.is-sidebar-collapsed #world-panel > :not(#sidebar-toggle) { display: none; }
+body.is-sidebar-collapsed #world-panel > #sidebar-toggle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: auto;
+  width: 34px;
+  height: 32px;
+  min-height: 32px;
+}
+body.is-sidebar-collapsed #main > #view-builds,
+body.is-sidebar-collapsed #main > #view-materials,
+body.is-sidebar-collapsed #main > #view-worlds,
+#main.is-sidebar-hidden > #view-builds,
+#main.is-sidebar-hidden > #view-materials,
+#main.is-sidebar-hidden > #view-worlds { grid-column: 1 / -1; }
+
+@media (max-width: 760px) {
+  .mtable--wide .mtable__head { display: none; }
+  .mtable--wide .mat-row {
+    grid-template-columns: minmax(0, 1fr) repeat(4, minmax(64px, auto));
+    grid-template-areas: none;
+  }
+  .mtable--wide .mat-row__item { grid-column: 1 / -1; }
+  .mtable--wide .progress-col, .mtable--wide .builds-col { display: none; }
+  #material-table .mat-row__needed-input { min-width: 64px; width: 64px; }
 }

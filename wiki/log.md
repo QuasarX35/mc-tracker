@@ -420,3 +420,11 @@ The ten-item report changed the app's controls, its typeface, its icon set and i
 
 - Regenerated [[LLM Wiki]]'s catalogue before publishing the project.
 - Prepared the repository for the requested GitHub remote; no product behavior changed.
+
+## [2026-10-27] edit | UI review fixes
+
+- Updated [[Minecraft Build Tracker]] for the requested table units, compact chips/cards, contrast,
+  sidebar reflow, empty states, plural labels, checkbox/remove affordances and Materials-tab
+  inventory editing; preserved the reviewed allocation, drag/drop, dialog, surplus and Undo paths.
+- Expanded the browser verification to cover Items, Stacks, Shulkers and Hide completed in both
+  Standard and Compact views; regenerated the app-QA evidence/stamp after the pass.

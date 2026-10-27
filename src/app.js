@@ -1062,6 +1062,21 @@
       openRowInventory(chip);
     });
 
+    /* The world Materials tab is a second entry point into the same inventory editor. */
+    if (els['world-material-body']) {
+      els['world-material-body'].addEventListener('click', function (event) {
+        var row = event.target.closest ? event.target.closest('.mat-row') : null;
+        if (row) openWorldMaterialInventory(row.getAttribute('data-mat'), row);
+      });
+      els['world-material-body'].addEventListener('keydown', function (event) {
+        if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return;
+        var row = event.target.closest ? event.target.closest('.mat-row') : null;
+        if (!row) return;
+        event.preventDefault();
+        openWorldMaterialInventory(row.getAttribute('data-mat'), row);
+      });
+    }
+
     /* AC7/AC12: the chips are buttons, and a keyboard user must be able to open the dialog with
        Enter or Space. The CDP harness (and some assistive tech) dispatches the key without the
        synthetic click a real browser would add, so wire the activation explicitly. */
@@ -1469,6 +1484,11 @@
     return String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
 
+  function countLabel(value, singular) {
+    var count = Number(value) || 0;
+    return count + ' ' + singular + (count === 1 ? '' : 's');
+  }
+
   /* -------------------------------------------------------------- timestamps */
 
   /**
@@ -1574,6 +1594,7 @@
        sidebar and the standard canvas collapsed even where a display rule beats [hidden]. */
     var main = els.main || document.getElementById('main');
     if (main) main.classList.toggle('is-compact', compact);
+    if (main) main.classList.toggle('is-sidebar-hidden', compact || ui.view === 'worlds');
     if (els.views && els.views.builds) els.views.builds.classList.toggle('is-compact', compact);
     if (els['world-panel']) els['world-panel'].hidden = ui.view === 'worlds' || compact;
     if (els.buildsCanvas) els.buildsCanvas.hidden = compact;
@@ -1599,11 +1620,12 @@
   function renderCompact() {
     var world = activeWorld();
     if (!els['compact-grid']) return;
+    if (els['compact-hide-done']) els['compact-hide-done'].checked = !!ui.hideDone;
     renderCompactWorldLine(world);
     var alloc = world ? M.allocate(world) : null;
     els['compact-grid'].innerHTML = world
       ? buildsForList(world).map(function (build) {
-          return compactCardHtml(world, build, alloc);
+          return compactCardHtml(world, build, alloc, world.builds.indexOf(build) + 1);
         }).join('')
       : '';
     wireIconFallbacks(els['compact-grid']);
@@ -1623,15 +1645,20 @@
     node.textContent = identity;
   }
 
-  function compactCardHtml(world, build, alloc) {
+  function compactCardHtml(world, build, alloc, rank) {
     var progress = (alloc.perBuild[build.id]) || { covered: 0, needed: 0 };
     var pct = pctOf(progress.covered, progress.needed);
+    var materials = (build.materials || []).filter(function (material) {
+      if (!ui.hideDone) return true;
+      return build.status !== 'done' && (alloc.perMaterial[material.id] || 0) < Math.max(1, Math.floor(Number(material.needed) || 1));
+    });
     var classes = 'ccard' +
       (build.status === 'done' ? ' ccard--done' : '') +
       (build.active === false ? ' ccard--inactive' : '') +
       (build.id === ui.selectedBuildId ? ' ccard--selected' : '');
     return '<article class="' + classes + '" data-build="' + escapeHtml(build.id) + '">' +
       '<div class="ccard__head">' +
+        '<span class="ccard__rank" aria-label="Priority ' + rank + '" title="Priority ' + rank + '">' + rank + '</span>' +
         '<span class="ccard__avatar">' + avatarHtml(build.icon, 24, build.name) + '</span>' +
         '<span class="ccard__name" id="ccard-name-' + escapeHtml(build.id) + '">' + escapeHtml(build.name) + '</span>' +
         '<span class="chip chip--' + escapeHtml(build.status) + '">' +
@@ -1651,9 +1678,9 @@
       '</div>' +
       '<div class="ccard__matrix">' +
         /* EDICT-0018 item 3: completed chips dim and sink to the end of the card. */
-        (build.materials || []).slice().sort(function (left, right) {
-          var leftDone = (alloc.perMaterial[left.id] || 0) >= left.needed ? 1 : 0;
-          var rightDone = (alloc.perMaterial[right.id] || 0) >= right.needed ? 1 : 0;
+        materials.slice().sort(function (left, right) {
+          var leftDone = build.status === 'done' || (alloc.perMaterial[left.id] || 0) >= left.needed ? 1 : 0;
+          var rightDone = build.status === 'done' || (alloc.perMaterial[right.id] || 0) >= right.needed ? 1 : 0;
           return leftDone - rightDone;
         }).map(function (material) {
           return compactTileHtml(world, build, material, alloc);
@@ -1665,24 +1692,24 @@
   /** A tile is a shortcut to `#inventory-dialog` for that material (§3), not the retired tile form. */
   function compactTileHtml(world, build, material, alloc) {
     var slug = slugifyItem(material.item);
-    var inventory = M.inventoryOf(world);
-    var got = Math.max(0, Math.floor(Number(inventory[slug]) || 0));
-    var covered = Math.max(0, Math.floor(Number(alloc.perMaterial[material.id]) || 0));
     var needed = Math.max(1, Math.floor(Number(material.needed) || 1));
+    var covered = build.status === 'done'
+      ? needed
+      : Math.max(0, Math.floor(Number(alloc.perMaterial[material.id]) || 0));
     var remaining = Math.max(0, needed - covered);
     var stack = stackSizeFor(material.item) || M.DEFAULT_STACK;
     var stacks = stackMapFor(slug, stack);
-    var notation = M.stackNotation(remaining, slug, stacks, 'stacks');
+    var shown = remaining > 0 ? remaining : needed;
+    var notation = M.stackNotation(shown, slug, stacks, 'stacks');
     var tip = material.item + ' \u00b7 need ' + M.formatUnits(needed, slug, ui.units, stacks) +
       ' \u00b7 have ' + M.formatUnits(covered, slug, ui.units, stacks) +
       ' \u00b7 ' + (remaining === 0 ? 'done' : M.formatUnits(remaining, slug, ui.units, stacks) + ' left') +
-      (ui.units === 'items' && remaining > 0 && remaining >= stack ? ' (' + notation + ')' : '');
+      ' \u00b7 exact ' + shown + ' items \u00b7 ' + notation;
     return '<button class="ctile' + (remaining === 0 ? ' ctile--done' : '') + '" type="button"' +
       ' data-build="' + escapeHtml(build.id) + '" data-mat="' + escapeHtml(material.id) + '"' +
       ' data-tip="' + escapeHtml(tip) + '" aria-label="' + escapeHtml(tip) + '" title="' + escapeHtml(tip) + '">' +
-      '<span class="ctile__need" aria-hidden="true">' + escapeHtml(M.formatUnits(needed, slug, ui.units, stacks)) + '</span>' +
+      '<span class="ctile__count" aria-hidden="true">' + escapeHtml(M.formatUnits(shown, slug, ui.units, stacks)) + '</span>' +
       '<span class="slot" aria-hidden="true">' + slotInnerHtml(material.item, true) + '</span>' +
-      '<span class="ctile__count">' + escapeHtml(M.formatUnits(remaining, slug, ui.units, stacks)) + '</span>' +
       (remaining === 0 ? '<span class="ctile__done" aria-hidden="true">' + CHECK_ICON + '</span>' : '') +
       '</button>';
   }
@@ -1764,7 +1791,7 @@
     });
     var slug = material ? slugifyItem(material.item) : '';
     var stack = material ? (stackSizeFor(material.item) || M.DEFAULT_STACK) : M.DEFAULT_STACK;
-    return M.formatUnits(value, slug, ui.units, stack);
+    return rowUnits(value, slug, stack);
   }
 
   function commitNeeded(input) {
@@ -1868,6 +1895,22 @@
     refreshInvPreview();
     if (els['inv-absolute']) { els['inv-absolute'].focus(); selectAll(els['inv-absolute']); }
     return trigger || null;
+  }
+
+  function openWorldMaterialInventory(slug, trigger) {
+    var world = activeWorld();
+    if (!world) return;
+    for (var i = 0; i < world.builds.length; i += 1) {
+      var build = world.builds[i];
+      if (build.active === false) continue;
+      for (var j = 0; j < (build.materials || []).length; j += 1) {
+        var material = build.materials[j];
+        if (slugifyItem(material.item) === slug) {
+          openInventoryFor(build.id, material.id, trigger);
+          return;
+        }
+      }
+    }
   }
 
   /** Item 27: every build that needs the item, with its need and the allocated part. */
@@ -2163,6 +2206,7 @@
     ui.hideDone = !!value;
     writePref(PREF_KEY.hideDone, ui.hideDone ? 'on' : 'off');
     renderDetail();
+    renderCompact();
   }
 
   function setMaterialView(mode) {
@@ -2346,6 +2390,9 @@
       /* EDICT-0018 item 25: a real checkbox, applied to Table and Compact alike. */
       els['mat-hide-done'].addEventListener('change', function () { setHideDone(els['mat-hide-done'].checked); });
     }
+    if (els['compact-hide-done']) {
+      els['compact-hide-done'].addEventListener('change', function () { setHideDone(els['compact-hide-done'].checked); });
+    }
     if (els['mat-view-table']) {
       els['mat-view-table'].addEventListener('click', function () { setMaterialView('table'); });
     }
@@ -2373,6 +2420,8 @@
     var node = els['world-progress-text'];
     var bar = els['world-bar'];
     var fill = els['world-fill'];
+    if (els['world-progress']) els['world-progress'].hidden = false;
+    if (bar) bar.hidden = !world;
     if (!world) {
       if (node) node.textContent = '';
       if (bar) bar.setAttribute('aria-valuenow', '0');
@@ -2406,7 +2455,7 @@
        the exact timestamp on the tooltip. The "Created" half is gone on purpose. */
     els['world-meta'].textContent =
       (world.edition === 'bedrock' ? 'Bedrock' : 'Java') + ' ' + world.version +
-      ' · ' + world.builds.length + (world.builds.length === 1 ? ' build' : ' builds');
+      ' · ' + countLabel(world.builds.length, 'build');
     els['world-meta'].appendChild(document.createTextNode(' · '));
     els['world-meta'].appendChild(updatedFragment(world.updatedAt));
   }
@@ -2782,7 +2831,7 @@
         '<span class="mat-row__slot slot" data-tip="' + escapeHtml(material.item) + '" aria-hidden="true">' + slotInnerHtml(material.item, true) + '</span>' +
         '<span class="mat-row__name" title="' + name + '">' + name + '</span>' +
         (row.shared > 1
-          ? '<span class="mat-shared" data-mat-shared>shared with ' + row.shared + ' builds</span>'
+          ? '<span class="mat-shared" data-mat-shared>shared with ' + countLabel(row.shared, 'build') + '</span>'
           : '') +
         (row.complete ? '<span class="mat-row__check" aria-hidden="true">' + CHECK_ICON + '</span>' : '') +
       '</span>' +
@@ -2815,11 +2864,12 @@
     var count = row.remaining > 0 ? row.remaining : row.needed;
     /* EDICT-0018 item 26: the chip tooltip carries the item name and its stack notation. */
     var stacks = stackMapFor(row.slug, row.stack);
-    var notation = M.stackNotation(row.remaining, row.slug, stacks, 'stacks');
+    var shown = row.remaining > 0 ? row.remaining : row.needed;
+    var notation = M.stackNotation(shown, row.slug, stacks, 'stacks');
     var tip = row.material.item + ' \u00b7 ' + rowUnits(row.covered, row.slug, row.stack) + ' of ' +
       rowUnits(row.needed, row.slug, row.stack) + ' allocated \u00b7 ' +
       (row.remaining === 0 ? 'done' : rowUnits(row.remaining, row.slug, row.stack) + ' left') +
-      (row.remaining > 0 && row.remaining >= row.stack ? ' (' + notation + ')' : '');
+      ' \u00b7 exact ' + shown + ' items \u00b7 ' + notation;
     return '<button class="mat-chip' + (row.complete ? ' is-done' : '') + '" type="button" role="listitem"' +
       ' data-mat="' + escapeHtml(row.material.id) + '" data-tip="' + escapeHtml(tip) + '"' +
       ' aria-label="' + escapeHtml(row.material.item + ': ' + row.remaining + ' left of ' + row.needed) + '">' +
@@ -2846,6 +2896,7 @@
   function renderWorldMaterials() {
     var world = activeWorld();
     var rows = world ? M.aggregateWorld(world) : [];
+    var inventory = world ? M.inventoryOf(world) : {};
     var summary = world ? M.worldSummary(world) : { covered: 0, needed: 0 };
     if (els['materials-lede']) {
       els['materials-lede'].textContent = world
@@ -2873,14 +2924,15 @@
         var stack = stackSizeFor(row.item) || M.DEFAULT_STACK;
         var covered = row.covered !== undefined ? row.covered : 0;
         return '<div class="mat-row mtable--wide' + (row.done ? ' mat-row--done' : '') + '" role="row"' +
-          ' data-mat="' + escapeHtml(slug) + '">' +
+          ' data-mat="' + escapeHtml(slug) + '" tabindex="0" title="Open inventory for ' + escapeHtml(row.item) + '">' +
           '<span class="mat-row__item">' +
             '<span class="mat-row__slot" aria-hidden="true">' + slotInnerHtml(row.item, true) + '</span>' +
             '<span class="mat-row__name">' + escapeHtml(row.item) + '</span>' +
           '</span>' +
           '<span class="num">' + escapeHtml(rowUnits(row.needed, slug, stack)) + '</span>' +
-          '<span class="num got-col">' + escapeHtml(rowUnits(covered, slug, stack)) + '</span>' +
+          '<span class="num got-col">' + escapeHtml(rowUnits(inventory[slug] || 0, slug, stack)) + '</span>' +
           '<span class="num">' + escapeHtml(rowUnits(row.remaining, slug, stack)) + '</span>' +
+          '<span class="num">' + escapeHtml(rowUnits(covered, slug, stack)) + '</span>' +
           '<span class="progress-col"><span class="mat-row__bar"><span style="width: ' + row.pct + '%"></span></span></span>' +
           '<span class="mat-row__builds builds-col">' + escapeHtml((row.builds || []).join(', ')) + '</span>' +
           '</div>';
@@ -2902,7 +2954,7 @@
           '<h3 class="world-card__name">' + escapeHtml(world.name) + (active ? ' <span class="chip chip--done">Active</span>' : '') + '</h3>' +
         '</div>' +
         '<p class="world-card__meta">' + (world.edition === 'bedrock' ? 'Bedrock' : 'Java') + ' ' + escapeHtml(world.version) +
-          ' · ' + summary.builds + ' builds · ' + summary.materials + ' materials</p>' +
+          ' · ' + countLabel(summary.builds, 'build') + ' · ' + countLabel(summary.materials, 'material') + '</p>' +
         '<p class="world-card__meta">' + summary.pct + '% complete · ' + summary.remaining + ' items to go</p>' +
         (world.notes ? '<p class="world-card__meta">' + escapeHtml(world.notes) + '</p>' : '') +
         '<div class="world-card__actions">' +

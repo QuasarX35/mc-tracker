@@ -3662,6 +3662,12 @@ test('105 units toggle switches counts and stacks', async () => {
   assert.equal(byId['m1'].got, oracle.got);
   assert.equal(byId['m3'].remaining, oracle.remaining, 'Left follows the same formatting');
   assert.equal(await page().evaluate('return localStorage.getItem("mbt.units");'), 'stacks');
+  await page().click('#unit-toggle [data-unit="shulkers"]');
+  await page().waitFor('document.querySelector("#unit-toggle [data-unit=shulkers]").getAttribute("aria-pressed") === "true"');
+  const shulkers = await materialRows();
+  assert.equal(shulkers.length, 3, 'Shulkers renders every material row');
+  assert.ok(shulkers.every((row) => row.needed.length > 0), 'Shulkers keeps every quantity readable');
+  await page().click('#unit-toggle [data-unit="stacks"]');
   await page().reload();
   await page().waitFor('document.querySelector("#world-select") !== null');
   await openBuildNamed('Wall');
@@ -3690,6 +3696,19 @@ test('106 hide completed hides done rows', async () => {
   await page().click('#mat-hide-done');
   await page().waitFor('document.querySelectorAll("#material-body .mat-row").length === 3');
   assert.equal((await materialRows()).length, 3, 'toggling off restores every row');
+
+  await page().click('#view-compact');
+  await page().waitFor('!document.querySelector("#compact-view").hidden');
+  await page().click('#compact-hide-done');
+  await page().waitFor('document.querySelector("#compact-hide-done").checked === true');
+  const compactVisible = await page().evaluate(`
+    const card = Array.from(document.querySelectorAll('#compact-grid .ccard')).find((node) =>
+      node.querySelector('.ccard__name')?.textContent.trim() === 'Wall');
+    return card ? Array.from(card.querySelectorAll('.ctile')).map((tile) => tile.getAttribute('data-mat')) : [];
+  `);
+  assert.deepEqual(compactVisible, ['m3'], 'Compact Hide completed keeps only the unfinished tile');
+  await page().click('#compact-hide-done');
+  await page().click('#view-standard');
 });
 
 test('107 three sort modes reorder deterministically', async () => {
@@ -4133,7 +4152,7 @@ test('120 done build leaves the rollup but not the list', async () => {
   assert.equal(coveredAfter.needed, oracle.summary.needed);
 });
 
-test('121 compact view renders v2 counts', async () => {
+test('121 compact view renders one count per tile', async () => {
   await seed17('duplicate-allocation-state.json');
   await page().click('#view-compact');
   await page().waitFor('!document.querySelector("#view-compact").hidden || document.querySelector("#compact-grid").children.length > 0');
@@ -4155,14 +4174,14 @@ test('121 compact view renders v2 counts', async () => {
     'no tile renders the string undefined');
   const wall = cards.find((card) => card.name === 'Wall');
   const tile = wall.tiles.find((entry) => entry.mat === 'm1');
-  assert.equal(tile.count, '0', 'a finished tile shows a zero count');
+  assert.equal(tile.count, '300', 'a finished tile shows its total required count');
   assert.equal(tile.done, true);
   const oracle = await page().evaluate(`
     const state = JSON.parse(localStorage.getItem('mc-build-tracker:v2'));
     const world = state.worlds.find((entry) => entry.id === state.activeWorldId);
     const alloc = window.TrackerModel.allocate(world);
     const covered = alloc.perMaterial['m1'] || 0;
-    return window.TrackerModel.formatUnits(Math.max(0, 300 - covered), 'stone_bricks', 'items', 64);
+    return window.TrackerModel.formatUnits(covered >= 300 ? 300 : Math.max(0, 300 - covered), 'stone_bricks', 'items', 64);
   `);
   assert.equal(oracle, tile.count);
   await page().evaluate(`document.querySelector('#compact-grid .ccard .ctile[data-mat="m1"]').click(); return true;`);
